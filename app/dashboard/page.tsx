@@ -35,7 +35,13 @@ export default async function DashboardPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-4">
-          <nav className="flex items-center gap-4 text-sm">
+          <nav className="flex flex-wrap items-center gap-4 text-sm">
+            <Link href="/dashboard/customers" className="text-ink/60 hover:text-ink">
+              Customers
+            </Link>
+            <Link href="/dashboard/invoices" className="text-ink/60 hover:text-ink">
+              Invoices
+            </Link>
             <Link href="/dashboard/actions" className="text-ink/60 hover:text-ink">
               Action Center
             </Link>
