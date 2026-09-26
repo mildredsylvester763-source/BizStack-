@@ -13,16 +13,14 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmSent, setConfirmSent] = useState(false);
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.signUp({
-      email,
-      password
-    });
+    const { data, error } = await supabase.auth.signUp({ email, password });
 
     setLoading(false);
 
@@ -31,60 +29,93 @@ export default function SignupPage() {
       return;
     }
 
-    router.push("/onboarding");
+    if (data.session) {
+      router.push("/onboarding");
+    } else {
+      setConfirmSent(true);
+    }
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-6">
-      <div className="w-full max-w-sm">
-        <h1 className="font-display text-2xl text-ink mb-1">
-          Create your account
-        </h1>
-        <p className="text-sm text-ink/60 mb-8">
-          One account, every part of the business.
-        </p>
+    <main className="min-h-screen grid lg:grid-cols-2 bg-noise">
+      <section className="hidden lg:flex flex-col justify-between bg-mossDeep text-paper p-12">
+        <span className="font-display text-xl">BizStack</span>
+        <div>
+          <p className="font-display text-3xl leading-snug max-w-sm">
+            "Every invoice used to take me twenty minutes. Now I just say
+            the words."
+          </p>
+          <p className="mt-4 text-paper/60 text-sm">
+            — a small business, somewhere, running on BizStack
+          </p>
+        </div>
+        <span className="text-paper/40 text-xs">
+          One system. Every part of the business.
+        </span>
+      </section>
 
-        <form onSubmit={handleSignup} className="space-y-4">
-          <div>
-            <label className="block text-sm text-ink/70 mb-1">Email</label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full border border-line rounded-sm px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-moss"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-ink/70 mb-1">Password</label>
-            <input
-              type="password"
-              required
-              minLength={8}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full border border-line rounded-sm px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-moss"
-            />
-          </div>
+      <section className="flex items-center justify-center px-6 py-16">
+        <div className="w-full max-w-sm">
+          <h1 className="font-display text-3xl text-ink mb-1">
+            Create your account
+          </h1>
+          <p className="text-sm text-ink/60 mb-8">
+            One account, every part of the business.
+          </p>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {confirmSent ? (
+            <div className="bg-white border border-line rounded-2xl p-6 shadow-soft text-sm text-ink/75 leading-relaxed">
+              Check <span className="text-ink font-medium">{email}</span> for
+              a confirmation link, then come back and log in.
+            </div>
+          ) : (
+            <form onSubmit={handleSignup} className="space-y-4">
+              <div>
+                <label className="block text-sm text-ink/70 mb-1.5">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full border border-line rounded-xl px-4 py-3 bg-white focus:outline-none focus:ring-2 focus:ring-mossDeep/30 focus:border-mossDeep transition-shadow"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-ink/70 mb-1.5">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  required
+                  minLength={8}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full border border-line rounded-xl px-4 py-3 bg-white focus:outline-none focus:ring-2 focus:ring-mossDeep/30 focus:border-mossDeep transition-shadow"
+                />
+              </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-moss text-paper py-2 rounded-sm hover:bg-moss/90 disabled:opacity-60"
-          >
-            {loading ? "Creating account..." : "Create account"}
-          </button>
-        </form>
+              {error && <p className="text-sm text-clay">{error}</p>}
 
-        <p className="text-sm text-ink/60 mt-6">
-          Already have an account?{" "}
-          <Link href="/login" className="text-moss underline">
-            Log in
-          </Link>
-        </p>
-      </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-mossDeep text-paper py-3 rounded-xl hover:bg-moss transition-colors disabled:opacity-60 font-medium"
+              >
+                {loading ? "Creating account..." : "Create account"}
+              </button>
+            </form>
+          )}
+
+          <p className="text-sm text-ink/60 mt-6">
+            Already have an account?{" "}
+            <Link href="/login" className="text-mossDeep underline underline-offset-2">
+              Log in
+            </Link>
+          </p>
+        </div>
+      </section>
     </main>
   );
-    }
+}

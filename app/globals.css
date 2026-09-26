@@ -7,6 +7,11 @@
 }
 
 body {
-  background-color: #FAF9F6;
+  background-color: #FBF7F0;
   color: #14181B;
+}
+
+.bg-noise {
+  background-image: radial-gradient(circle at 1px 1px, rgba(20,24,27,0.035) 1px, transparent 0);
+  background-size: 22px 22px;
 }
