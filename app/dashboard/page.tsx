@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase-server";
 
 export default async function DashboardPage() {
@@ -24,18 +25,30 @@ export default async function DashboardPage() {
 
   return (
     <main className="min-h-screen">
-      <header className="border-b border-line px-6 py-4 flex items-center justify-between">
+      <header className="border-b border-line px-6 py-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="font-display text-lg text-ink">{business.name}</p>
+          <Link href="/dashboard" className="font-display text-lg text-ink hover:text-moss">
+            {business.name}
+          </Link>
           <p className="text-xs text-ink/50">
             {business.industry} · {business.currency}
           </p>
         </div>
-        <form action="/auth/sign-out" method="post">
-          <button className="text-sm text-ink/60 hover:text-ink">
-            Sign out
-          </button>
-        </form>
+        <div className="flex flex-wrap items-center gap-4">
+          <nav className="flex items-center gap-4 text-sm">
+            <Link href="/dashboard/actions" className="text-ink/60 hover:text-ink">
+              Action Center
+            </Link>
+            <Link href="/dashboard/settings/automation" className="text-ink/60 hover:text-ink">
+              Automation Settings
+            </Link>
+          </nav>
+          <form action="/auth/sign-out" method="post">
+            <button className="text-sm text-ink/60 hover:text-ink">
+              Sign out
+            </button>
+          </form>
+        </div>
       </header>
 
       <section className="max-w-4xl mx-auto px-6 py-16">
