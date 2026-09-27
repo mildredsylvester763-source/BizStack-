@@ -12,7 +12,7 @@ export async function runInvoiceBuild({businessId,userId,prompt,mode='draft_only
   const plan=buildPlan({capability:'invoice',prompt,mode,context:{business:{id:business.id,name:business.name,currency:business.currency}}});
   const idempotencyKey=checksum({capability:'invoice',prompt:prompt.trim(),mode});
   const existing=await supabase.from('ai_build_runs').select('id,status,result').eq('business_id',businessId).eq('idempotency_key',idempotencyKey).maybeSingle();
-  if(existing.data?.id&&['succeeded','building','testing','planning'].includes(existing.data.status)) return {runId:existing.data.id,status:existing.data.status,result:existing.data.result};
+  if(existing.data?.id&&['succeeded','building','testing','planning','waiting_approval'].includes(existing.data.status)) return {runId:existing.data.id,status:existing.data.status,result:existing.data.result};
   const {data:run,error:runError}=await supabase.from('ai_build_runs').insert({business_id:businessId,workspace_id:business.workspace_id,created_by:userId,capability_key:'invoice',request_text:prompt.trim(),execution_mode:mode,plan,context:{business},idempotency_key:idempotencyKey,status:'planning',started_at:new Date().toISOString()}).select('id').single();
   if(runError||!run) throw new Error(runError?.message||'Could not create invoice build run.');
   try{
