@@ -18,38 +18,30 @@ async function markSent(formData: FormData) {
 async function recordPayment(formData: FormData) {
   "use server";
   const supabase = createClient();
-  const invoiceId = String(formData.get("invoice_id"));
+  const invoiceId = String(formData.get("invoice_id") || "");
   const amount = Number(formData.get("amount"));
   const method = String(formData.get("method") || "").trim() || null;
   const reference = String(formData.get("reference") || "").trim() || null;
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-  const { data: business } = await supabase.from("businesses").select("id, currency").eq("owner_id", user.id).single();
+  const { data: business } = await supabase.from("businesses").select("id").eq("owner_id", user.id).single();
   if (!business) redirect("/onboarding");
-  const { data: invoice, error: invoiceError } = await supabase.from("invoices").select("id, invoice_number, currency, total, paid_amount, tax_amount, customer:customers(name)").eq("id", invoiceId).eq("business_id", business.id).single();
-  if (invoiceError || !invoice) throw new Error("Invoice not found.");
-  const total = Number(invoice.total || 0);
-  const paid = Number(invoice.paid_amount || 0);
-  const remaining = Math.max(0, total - paid);
-  if (!Number.isFinite(amount) || amount <= 0 || amount > remaining + 0.000001) throw new Error("Payment amount must be greater than zero and cannot exceed the remaining balance.");
-  const taxTotal = Number(invoice.tax_amount || 0);
-  const taxPart = total > 0 ? Math.min(taxTotal, amount * taxTotal / total) : 0;
-  const customerName = (invoice.customer as unknown as { name?: string } | null)?.name ?? null;
-  const { data: transaction, error: transactionError } = await supabase.from("financial_transactions").insert({ business_id: business.id, source_type: "manual", direction: "inflow", amount, currency: invoice.currency, status: "posted", occurred_at: new Date().toISOString(), counterparty_name: customerName, description: "Payment for invoice " + invoice.invoice_number, invoice_id: invoice.id, tax_amount: taxPart, metadata: { method, reference } }).select("id").single();
-  if (transactionError || !transaction) throw new Error("Unable to record the financial transaction: " + (transactionError?.message ?? "Unknown error"));
-  const { error: paymentError } = await supabase.from("invoice_payments").insert({ business_id: business.id, invoice_id: invoice.id, transaction_id: transaction.id, amount, currency: invoice.currency, payment_date: new Date().toISOString(), method, reference, source: "manual", status: "posted" });
-  if (paymentError) { await supabase.from("financial_transactions").delete().eq("id", transaction.id).eq("business_id", business.id); throw new Error("Unable to record the invoice payment: " + paymentError.message); }
-  const newPaid = Math.min(total, paid + amount);
-  const fullyPaid = newPaid >= total - 0.000001;
-  const { error: invoiceUpdateError } = await supabase.from("invoices").update({ paid_amount: newPaid, status: fullyPaid ? "paid" : "sent", paid_at: fullyPaid ? new Date().toISOString() : null }).eq("id", invoice.id).eq("business_id", business.id);
-  if (invoiceUpdateError) { await supabase.from("invoice_payments").delete().eq("transaction_id", transaction.id).eq("business_id", business.id); await supabase.from("financial_transactions").delete().eq("id", transaction.id).eq("business_id", business.id); throw new Error("Unable to update invoice balance: " + invoiceUpdateError.message); }
-  await supabase.from("events").insert({ business_id: business.id, event_type: fullyPaid ? "invoice.paid" : "invoice.payment_received", summary: amount.toFixed(2) + " " + invoice.currency + " received for invoice " + invoice.invoice_number + (fullyPaid ? " — fully paid" : ""), evidence: { invoice_id: invoice.id, payment_amount: amount, paid_amount: newPaid, remaining: Math.max(0, total - newPaid), currency: invoice.currency, method, reference }, status: "info" });
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error("Enter a valid payment amount.");
+  const { error } = await supabase.rpc("record_invoice_payment", {
+    p_invoice_id: invoiceId,
+    p_amount: Number(amount.toFixed(2)),
+    p_method: method,
+    p_reference: reference,
+    p_payment_date: new Date().toISOString()
+  });
+  if (error) throw new Error("Unable to record payment: " + error.message);
   revalidatePath("/dashboard/invoices/" + invoiceId);
   revalidatePath("/dashboard/invoices");
   revalidatePath("/dashboard/money");
+  revalidatePath("/dashboard/customers");
   revalidatePath("/dashboard/actions");
+  revalidatePath("/dashboard/activity");
 }
-
 function money(value: number, currency: string) {
   return `${value.toFixed(2)} ${currency}`;
 }
@@ -82,7 +74,7 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
   const discount = Number(invoice.discount_amount ?? 0);
   const tax = Number(invoice.tax_amount ?? 0);
   const total = Number(invoice.total ?? Math.max(0, subtotal - discount + tax));
-  const overdue = invoice.status === "sent" && !!invoice.due_date && new Date(invoice.due_date) < new Date();
+  const overdue = invoice.status !== "draft" && invoice.status !== "paid" && !!invoice.due_date && new Date(invoice.due_date + "T23:59:59") < new Date();
 
   return (
     <main className="min-h-screen bg-ledger">
@@ -170,7 +162,7 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
               <button className="bg-ink text-mist px-5 py-2.5 text-sm font-medium hover:bg-vaultDeep transition-colors">Mark as sent</button>
             </form>
           )}
-          {(invoice.status === "sent" || overdue) && Number(invoice.paid_amount || 0) < total && (
+          {(invoice.status === "sent" || invoice.status === "partially_paid" || overdue) && Number(invoice.paid_amount || 0) < total && (
             <form action={recordPayment} className="flex flex-wrap items-end gap-2 border border-rule bg-white p-3">
               <input type="hidden" name="invoice_id" value={invoice.id} />
               <label className="text-xs text-ink/55">Payment amount<input required name="amount" type="number" min="0.01" step="0.01" max={Math.max(0,total-Number(invoice.paid_amount||0)).toFixed(2)} defaultValue={Math.max(0,total-Number(invoice.paid_amount||0)).toFixed(2)} className="mt-1 block w-32 border border-rule px-2.5 py-2 text-sm" /></label>
