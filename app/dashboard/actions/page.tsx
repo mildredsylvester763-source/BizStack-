@@ -1,216 +1,148 @@
-import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase-server";
 
 type EventRow = {
   id: string;
   event_type: string;
   summary: string;
-  evidence: unknown;
+  evidence: Record<string, unknown>;
   status: string;
   created_at: string;
 };
 
-type EventSectionProps = {
-  title: string;
-  description: string;
-  events: EventRow[];
-};
-
 async function updateEventStatus(formData: FormData) {
   "use server";
-
-  const eventId = String(formData.get("event_id") ?? "");
-  const nextStatus = String(formData.get("status") ?? "");
-
-  if (!eventId || !["auto_handled", "dismissed"].includes(nextStatus)) {
-    return;
-  }
-
   const supabase = createClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-
-  const { data: business } = await supabase
-    .from("businesses")
-    .select("id")
-    .eq("owner_id", user.id)
-    .single();
-
-  if (!business) {
-    redirect("/onboarding");
-  }
-
-  const { error } = await supabase
-    .from("events")
-    .update({ status: nextStatus })
-    .eq("id", eventId)
-    .eq("business_id", business.id);
-
-  if (error) {
-    throw new Error("Unable to update this action: " + error.message);
-  }
-
+  const id = formData.get("id") as string;
+  const status = formData.get("status") as string;
+  await supabase.from("events").update({ status }).eq("id", id);
   revalidatePath("/dashboard/actions");
 }
 
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short"
-  }).format(new Date(value));
-}
+function EventCard({ event }: { event: EventRow }) {
+  const hasEvidence = event.evidence && Object.keys(event.evidence).length > 0;
 
-function EventSection({ title, description, events }: EventSectionProps) {
   return (
-    <section className="mb-10">
-      <div className="mb-4">
-        <h2 className="font-display text-lg text-ink">{title}</h2>
-        <p className="text-sm text-ink/60">{description}</p>
-      </div>
+    <div className="bg-white border border-rule p-5">
+      <p className="text-ink text-sm leading-relaxed">{event.summary}</p>
+      <p className="text-xs text-ink/40 mt-1.5">
+        {new Date(event.created_at).toLocaleString()}
+      </p>
 
-      {events.length === 0 ? (
-        <div className="border border-line bg-white px-5 py-6 text-sm text-ink/50">
-          Nothing here yet.
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {events.map((event) => (
-            <article key={event.id} className="border border-line bg-white px-5 py-4">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0">
-                  <p className="mb-1 text-[11px] uppercase tracking-[0.16em] text-ink/40">
-                    {event.event_type.replaceAll(".", " · ")}
-                  </p>
-                  <p className="font-body text-sm leading-6 text-ink">{event.summary}</p>
-                  <p className="mt-2 text-xs text-ink/45">{formatDate(event.created_at)}</p>
-                </div>
+      {hasEvidence && (
+        <details className="mt-3">
+          <summary className="text-xs text-vault cursor-pointer">Show evidence</summary>
+          <pre className="mt-2 bg-mist border border-rule p-3 text-xs text-ink/70 overflow-x-auto">
+            {JSON.stringify(event.evidence, null, 2)}
+          </pre>
+        </details>
+      )}
 
-                {event.status === "needs_approval" && (
-                  <div className="flex shrink-0 gap-2">
-                    <form action={updateEventStatus}>
-                      <input type="hidden" name="event_id" value={event.id} />
-                      <input type="hidden" name="status" value="auto_handled" />
-                      <button
-                        type="submit"
-                        className="rounded-sm bg-moss px-3 py-2 text-xs text-paper hover:bg-moss/90"
-                      >
-                        Approve
-                      </button>
-                    </form>
-                    <form action={updateEventStatus}>
-                      <input type="hidden" name="event_id" value={event.id} />
-                      <input type="hidden" name="status" value="dismissed" />
-                      <button
-                        type="submit"
-                        className="rounded-sm border border-line px-3 py-2 text-xs text-ink/70 hover:border-ink/30 hover:text-ink"
-                      >
-                        Dismiss
-                      </button>
-                    </form>
-                  </div>
-                )}
-              </div>
-
-              <details className="mt-4 border-t border-line pt-3">
-                <summary className="cursor-pointer text-xs text-moss hover:text-ink">
-                  View evidence
-                </summary>
-                <pre className="mt-3 overflow-x-auto rounded-sm bg-ink px-4 py-3 text-xs leading-relaxed text-paper">
-                  {JSON.stringify(event.evidence ?? {}, null, 2)}
-                </pre>
-              </details>
-            </article>
-          ))}
+      {event.status === "needs_approval" && (
+        <div className="mt-4 flex gap-2">
+          <form action={updateEventStatus}>
+            <input type="hidden" name="id" value={event.id} />
+            <input type="hidden" name="status" value="auto_handled" />
+            <button className="bg-ink text-mist text-sm px-4 py-2 hover:bg-vaultDeep transition-colors">
+              Approve
+            </button>
+          </form>
+          <form action={updateEventStatus}>
+            <input type="hidden" name="id" value={event.id} />
+            <input type="hidden" name="status" value="dismissed" />
+            <button className="border border-rule text-ink/70 text-sm px-4 py-2 hover:bg-mist transition-colors">
+              Dismiss
+            </button>
+          </form>
         </div>
       )}
-    </section>
+    </div>
   );
 }
 
 export default async function ActionCenterPage() {
   const supabase = createClient();
+
   const {
     data: { user }
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    redirect("/login");
-  }
+  if (!user) redirect("/login");
 
   const { data: business } = await supabase
     .from("businesses")
-    .select("*")
-    .eq("owner_id", user.id)
+    .select("id, name")
+    .eq("owner_id", user!.id)
     .single();
 
-  if (!business) {
-    redirect("/onboarding");
-  }
+  if (!business) redirect("/onboarding");
 
-  const { data: events, error } = await supabase
+  const { data: events } = await supabase
     .from("events")
-    .select("id, event_type, summary, evidence, status, created_at")
+    .select("*")
     .eq("business_id", business.id)
     .order("created_at", { ascending: false });
 
-  if (error) {
-    throw new Error("Unable to load the action center: " + error.message);
-  }
-
-  const eventRows = (events ?? []) as EventRow[];
-  const needsApproval = eventRows.filter((event) => event.status === "needs_approval");
-  const alreadyHandled = eventRows.filter((event) => event.status === "auto_handled");
-  const recentActivity = eventRows.filter((event) => event.status === "info");
+  const all = (events ?? []) as EventRow[];
+  const needsApproval = all.filter((e) => e.status === "needs_approval");
+  const autoHandled = all.filter((e) => e.status === "auto_handled");
+  const info = all.filter((e) => e.status === "info");
 
   return (
-    <main className="min-h-screen">
-      <header className="flex flex-col gap-4 border-b border-line px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <Link href="/dashboard" className="font-display text-lg text-ink hover:text-moss">
+    <main className="min-h-screen bg-ledger">
+      <header className="border-b border-rule bg-white">
+        <div className="max-w-4xl mx-auto px-6 py-5 flex items-center justify-between">
+          <Link href="/dashboard" className="font-display text-lg text-ink">
             {business.name}
           </Link>
-          <p className="text-xs text-ink/50">AI Action Center</p>
-        </div>
-        <nav className="flex items-center gap-4 text-sm">
-          <Link href="/dashboard" className="text-ink/60 hover:text-ink">Dashboard</Link>
-          <Link href="/dashboard/settings/automation" className="text-ink/60 hover:text-ink">
-            Automation Settings
+          <Link href="/dashboard" className="text-sm text-ink/45 hover:text-ink">
+            Back to dashboard
           </Link>
-        </nav>
+        </div>
       </header>
 
-      <section className="mx-auto max-w-4xl px-6 py-12 sm:py-16">
-        <div className="mb-10">
-          <p className="mb-3 text-xs uppercase tracking-[0.18em] text-moss">Module 2</p>
-          <h1 className="font-display text-3xl text-ink">AI Action Center</h1>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-ink/65">
-            See what BizStack noticed, what it handled, and where it needs your decision.
-            Every future module will use this same activity spine.
-          </p>
-        </div>
+      <section className="max-w-4xl mx-auto px-6 py-12">
+        <h1 className="font-display text-3xl text-ink mb-1">Action Center</h1>
+        <p className="text-ink/60 mb-10">
+          What BizStack noticed, what it recommends, and what it already handled.
+        </p>
 
-        <EventSection
-          title="Needs your approval"
-          description="Actions waiting for your permission before anything is sent or changed."
-          events={needsApproval}
-        />
-        <EventSection
-          title="Already handled"
-          description="Actions BizStack completed according to your autonomy settings."
-          events={alreadyHandled}
-        />
-        <EventSection
-          title="Recent activity"
-          description="Important business events recorded across your workspace."
-          events={recentActivity}
-        />
+        <div className="space-y-10">
+          <div>
+            <h2 className="text-sm text-alert font-medium mb-3">Needs your approval</h2>
+            {needsApproval.length === 0 ? (
+              <p className="text-sm text-ink/40">Nothing waiting on you.</p>
+            ) : (
+              <div className="space-y-3">
+                {needsApproval.map((e) => <EventCard key={e.id} event={e} />)}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <h2 className="text-sm text-vault font-medium mb-3">Already handled</h2>
+            {autoHandled.length === 0 ? (
+              <p className="text-sm text-ink/40">Nothing handled yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {autoHandled.map((e) => <EventCard key={e.id} event={e} />)}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <h2 className="text-sm text-ink/50 font-medium mb-3">Recent activity</h2>
+            {info.length === 0 ? (
+              <p className="text-sm text-ink/40">No activity yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {info.map((e) => <EventCard key={e.id} event={e} />)}
+              </div>
+            )}
+          </div>
+        </div>
       </section>
     </main>
   );
