@@ -39,7 +39,8 @@ export async function applyWebsiteSpec(supabase: any, businessId: string, websit
   }
 
   const { data: oldPages } = await supabase.from('website_pages').select('id,slug,version').eq('website_id', finalWebsiteId);
-  const existingBySlug = new Map((oldPages ?? []).map((p:any) => [p.slug, p]));
+  const existingBySlug = new Map<string, { id: string; version: number | null }>();
+  for (const p of oldPages ?? []) existingBySlug.set(String(p.slug), { id: String(p.id), version: p.version == null ? null : Number(p.version) });
   for (const item of spec.pages) {
     const existing = existingBySlug.get(item.slug);
     const payload = { website_id: finalWebsiteId, slug: item.slug, title: item.title, page_type: item.pageType, content: { sections: item.sections, generated_by: 'bizstack-build-engine', generated_at: new Date().toISOString() }, seo: item.seo, status: publish ? 'published' : 'draft', version: (existing?.version ?? 0) + 1, updated_at: new Date().toISOString() };
