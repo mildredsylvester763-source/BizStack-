@@ -85,6 +85,28 @@ export default function IntegrationsPage(){
   setMessage(response.ok?"Synced "+(result.records||0)+" records from "+resourceKey+".":result.message||result.error||"Connector sync failed.");
   await load();
  }
+ async function saveCustomCredential(){
+  if(!credentialTarget||!credentialValue.trim()||!businessId)return;
+  setCredentialSaving(true);
+  setMessage("");
+  const kind=credentialTarget.connection_type==="webhook"?"webhook":"api_key";
+  const credential=kind==="webhook"?{webhookSecret:credentialValue.trim()}:{apiKey:credentialValue.trim()};
+  const response=await fetch("/api/integrations/connect",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({businessId,integrationId:credentialTarget.id,kind,credential})
+  });
+  const result=await response.json().catch(()=>({}));
+  setCredentialSaving(false);
+  if(!response.ok){
+    setMessage(result.error||"Credential save failed.");
+    return;
+  }
+  setCredentialTarget(null);
+  setCredentialValue("");
+  setMessage("Credential saved securely. Run Test to verify the provider.");
+  await load();
+ }
  async function test(id:string){
   setMessage("Testing provider…");
   const r=await fetch(`/api/integrations/${id}/test`,{method:"POST"});
