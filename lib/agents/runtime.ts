@@ -13,6 +13,22 @@ function permissionAllows(agent: { permissions?: unknown }, permission: string) 
   return permissions.includes(permission);
 }
 
+async function persistMemory(
+  supabase: ReturnType<typeof createClient>,
+  businessId: string,
+  agentId: string,
+  key: string,
+  content: string
+) {
+  await supabase.from("ai_agent_memory").upsert({
+    business_id: businessId,
+    agent_id: agentId,
+    memory_type: "runtime",
+    memory_key: key,
+    content
+  }, { onConflict: "agent_id,memory_key" });
+}
+
 export async function runAgent({
   agentId,
   businessId,
@@ -52,13 +68,12 @@ export async function runAgent({
 
   const plan = buildPlan(input);
   const mode = normalizeMode(agent.autonomy_mode);
-  const planWithApprovals: Record<string, unknown>[] = [];
   const toolCalls: Record<string, unknown>[] = [];
   const outputs: Record<string, unknown>[] = [];
   let sequence = 1;
   let waitingApprovalId: string | null = null;
 
-  await supabase.from("ai_agent_run_steps").insert({
+  const planStep = await supabase.from("ai_agent_run_steps").insert({
     business_id: businessId,
     agent_run_id: run.id,
     sequence_no: sequence++,
@@ -67,134 +82,175 @@ export async function runAgent({
     input: { text: input },
     output: { tool_count: plan.length, mode }
   });
+  if (planStep.error) {
+    await supabase.from("ai_agent_runs").update({
+      status: "failed",
+      error_message: planStep.error.message,
+      finished_at: new Date().toISOString()
+    }).eq("id", run.id).eq("business_id", businessId);
+    throw new Error("Could not persist the agent plan.");
+  }
 
   const context: RuntimeContext = { supabase, businessId, userId };
 
-  for (const step of plan) {
-    const definition = getToolDefinition(step.toolKey);
-    if (!definition) continue;
+  try {
+    for (const step of plan) {
+      const definition = getToolDefinition(step.toolKey);
+      if (!definition) continue;
 
-    if (!permissionAllows(agent, definition.permission)) {
-      await supabase.from("ai_agent_run_steps").insert({
-        business_id: businessId,
-        agent_run_id: run.id,
-        sequence_no: sequence++,
-        step_type: "tool_call",
-        tool_key: step.toolKey,
-        status: "skipped",
-        input: step.input,
-        output: {},
-        error_message: "Agent permission does not include this tool."
-      });
-      continue;
-    }
+      if (!permissionAllows(agent, definition.permission)) {
+        await supabase.from("ai_agent_run_steps").insert({
+          business_id: businessId,
+          agent_run_id: run.id,
+          sequence_no: sequence++,
+          step_type: "tool_call",
+          tool_key: step.toolKey,
+          status: "skipped",
+          input: step.input,
+          output: {},
+          error_message: "Agent permission does not include this tool.",
+          finished_at: new Date().toISOString()
+        });
+        continue;
+      }
 
-    if (definition.riskLevel !== "low" && mode !== "auto_execute") {
-      const { data: approval, error: approvalError } = await supabase
-        .from("ai_agent_approvals")
+      if (definition.riskLevel !== "low" && mode !== "auto_execute") {
+        const { data: approval, error: approvalError } = await supabase
+          .from("ai_agent_approvals")
+          .insert({
+            business_id: businessId,
+            agent_run_id: run.id,
+            requested_action: definition.name,
+            risk_level: definition.riskLevel,
+            reason: `Agent ${agent.name} requested a restricted action.`,
+            proposed_payload: { tool_key: step.toolKey, input: step.input }
+          })
+          .select("id")
+          .single();
+
+        if (approvalError || !approval) throw new Error("Could not create approval request.");
+
+        const approvalStep = await supabase.from("ai_agent_run_steps").insert({
+          business_id: businessId,
+          agent_run_id: run.id,
+          sequence_no: sequence++,
+          step_type: "approval",
+          tool_key: step.toolKey,
+          status: "waiting_approval",
+          input: step.input,
+          output: { requested_action: definition.name },
+          requires_approval: true,
+          approval_id: approval.id
+        });
+
+        if (approvalStep.error) throw new Error("Could not persist the approval step.");
+
+        waitingApprovalId = approval.id;
+        break;
+      }
+
+      if (definition.toolKey === "events.create" && mode === "draft_only") {
+        const draft = {
+          type: "draft",
+          tool_key: definition.toolKey,
+          payload: step.input,
+          message: "Draft created; no business event was written because the agent is in draft-only mode."
+        };
+        outputs.push(draft);
+        await supabase.from("ai_agent_run_steps").insert({
+          business_id: businessId,
+          agent_run_id: run.id,
+          sequence_no: sequence++,
+          step_type: "tool_call",
+          tool_key: step.toolKey,
+          status: "skipped",
+          input: step.input,
+          output: draft,
+          finished_at: new Date().toISOString()
+        });
+        continue;
+      }
+
+      const { data: inserted, error: stepInsertError } = await supabase
+        .from("ai_agent_run_steps")
         .insert({
           business_id: businessId,
           agent_run_id: run.id,
-          requested_action: definition.name,
-          risk_level: definition.riskLevel,
-          reason: `Agent ${agent.name} requested a restricted action.`,
-          proposed_payload: { tool_key: step.toolKey, input: step.input }
+          sequence_no: sequence++,
+          step_type: "tool_call",
+          tool_key: step.toolKey,
+          status: "running",
+          input: step.input,
+          started_at: new Date().toISOString()
         })
         .select("id")
         .single();
 
-      if (approvalError || !approval) throw new Error("Could not create approval request.");
+      if (stepInsertError || !inserted) {
+        throw new Error("Could not persist the agent tool step.");
+      }
 
-      await supabase.from("ai_agent_run_steps").insert({
-        business_id: businessId,
-        agent_run_id: run.id,
-        sequence_no: sequence++,
-        step_type: "approval",
-        tool_key: step.toolKey,
-        status: "waiting_approval",
-        input: step.input,
-        output: { requested_action: definition.name },
-        requires_approval: true,
-        approval_id: approval.id
-      });
-      waitingApprovalId = approval.id;
-      break;
-    }
-
-    if (definition.toolKey === "events.create" && mode === "draft_only") {
-      const draft = {
-        type: "draft",
-        tool_key: definition.toolKey,
-        payload: step.input,
-        message: "Draft created; no business event was written because the agent is in draft-only mode."
-      };
-      outputs.push(draft);
-      await supabase.from("ai_agent_run_steps").insert({
-        business_id: businessId,
-        agent_run_id: run.id,
-        sequence_no: sequence++,
-        step_type: "tool_call",
-        tool_key: step.toolKey,
-        status: "skipped",
-        input: step.input,
-        output: draft
-      });
-      continue;
-    }
-
-    const started = new Date().toISOString();
-    await supabase.from("ai_agent_run_steps").insert({
-      business_id: businessId,
-      agent_run_id: run.id,
-      sequence_no: sequence++,
-      step_type: "tool_call",
-      tool_key: step.toolKey,
-      status: "running",
-      input: step.input,
-      started_at: started
-    }).then(async ({ data: inserted }) => {
-      const stepId = inserted?.id;
       try {
         const output = await executeTool(step.toolKey, step.input, context);
         outputs.push({ tool_key: step.toolKey, output });
         toolCalls.push({ tool_key: step.toolKey, input: step.input, status: "succeeded" });
-        if (step.toolKey === "events.create") {
-          planWithApprovals.push({ tool_key: step.toolKey, status: "executed" });
-        }
-        if (stepId) {
-          await supabase.from("ai_agent_run_steps").update({
+
+        await supabase
+          .from("ai_agent_run_steps")
+          .update({
             status: "succeeded",
             output,
             finished_at: new Date().toISOString()
-          }).eq("id", stepId).eq("business_id", businessId);
-        }
+          })
+          .eq("id", inserted.id)
+          .eq("business_id", businessId);
       } catch (error) {
         const message = error instanceof Error ? error.message : "Tool execution failed.";
         toolCalls.push({ tool_key: step.toolKey, input: step.input, status: "failed", error: message });
-        if (stepId) {
-          await supabase.from("ai_agent_run_steps").update({
+
+        await supabase
+          .from("ai_agent_run_steps")
+          .update({
             status: "failed",
             error_message: message,
             finished_at: new Date().toISOString()
-          }).eq("id", stepId).eq("business_id", businessId);
-        }
+          })
+          .eq("id", inserted.id)
+          .eq("business_id", businessId);
+
         throw new Error(message);
       }
-    });
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Agent execution failed.";
+    await supabase
+      .from("ai_agent_runs")
+      .update({
+        status: "failed",
+        plan: { steps: plan, mode },
+        tool_calls: toolCalls,
+        output: { error: message, outputs },
+        finished_at: new Date().toISOString()
+      })
+      .eq("id", run.id)
+      .eq("business_id", businessId);
+    throw new Error(message);
   }
 
   if (waitingApprovalId) {
-    await supabase
+    const update = await supabase
       .from("ai_agent_runs")
       .update({
         status: "waiting_approval",
         plan: { steps: plan, mode },
         tool_calls: toolCalls,
-        output: { waiting_for_approval: true, approval_id: waitingApprovalId, outputs }
-        ,approval_required: true
+        output: { waiting_for_approval: true, approval_id: waitingApprovalId, outputs },
+        approval_required: true
       })
       .eq("id", run.id)
       .eq("business_id", businessId);
+
+    if (update.error) throw new Error("Could not persist the waiting-approval state.");
 
     await supabase.from("events").insert({
       business_id: businessId,
@@ -207,6 +263,14 @@ export async function runAgent({
       action_type: "approve_agent_action"
     });
 
+    await persistMemory(
+      supabase,
+      businessId,
+      agent.id,
+      "last_run_status",
+      JSON.stringify({ status: "waiting_approval", run_id: run.id, approval_id: waitingApprovalId })
+    );
+
     return { runId: run.id, status: "waiting_approval", approvalId: waitingApprovalId, outputs };
   }
 
@@ -217,7 +281,7 @@ export async function runAgent({
     outputs
   };
 
-  await supabase
+  const finalUpdate = await supabase
     .from("ai_agent_runs")
     .update({
       status: "succeeded",
@@ -229,6 +293,23 @@ export async function runAgent({
     })
     .eq("id", run.id)
     .eq("business_id", businessId);
+
+  if (finalUpdate.error) throw new Error("Could not finalize the agent run.");
+
+  await persistMemory(
+    supabase,
+    businessId,
+    agent.id,
+    "last_run_status",
+    JSON.stringify({ status: "succeeded", run_id: run.id, summary: finalOutput.summary })
+  );
+  await persistMemory(
+    supabase,
+    businessId,
+    agent.id,
+    "last_request",
+    input.slice(0, 1000)
+  );
 
   return { runId: run.id, status: "succeeded", output: finalOutput };
 }
