@@ -1,5 +1,5 @@
 export type ProductDraft={name:string;sku?:string|null;description?:string|null;unit:string;unitPrice:number;costPrice?:number|null;stockQuantity:number;lowStockThreshold:number};
-export type MoneyDraft={direction:'inflow'|'outflow';amount:number;currency:string;description:string;counterpartyName?:string|null;accountName?:string|null;occurredAt:string};
+export type MoneyDraft={direction:'inflow'|'outflow';amount:number;currency:string;description:string;counterpartyName?:string|null;accountName?:string|null;occurredAt:string;fxRate?:number|null};
 
 function parseNumber(raw:string){const n=Number(raw.replace(/,/g,''));return Number.isFinite(n)?n:null;}
 function firstAmount(text:string){
@@ -33,8 +33,27 @@ export function parseProductRequest(prompt:string,currency:string):ProductDraft{
 export function parseMoneyRequest(prompt:string,currency:string):MoneyDraft{
   const text=prompt.trim();
   const lower=text.toLowerCase();
-  const amountMatch=text.match(/[₦$€£]?\s*([\d,]+(?:\.\d+)?)\s*(?:ngn|usd|gbp|eur)?/i);
+  const amountMatch=text.match(/[₦$€£]?\s*([\d,]+(?:\.\d+)?)\s*(?:ngn|usd|gbp|eur|cad|aud|kes|ghs|zar|inr|aed)?/i);
   const amount=amountMatch?parseNumber(amountMatch[1]):null;
+  const currencyCode=text.match(/\b(NGN|USD|GBP|EUR|CAD|AUD|KES|GHS|ZAR|INR|AED)\b/i)?.[1]?.toUpperCase() || null;
+  const symbolCurrency=text.includes('₦')?'NGN':text.includes('£')?'GBP':text.includes('€')?'EUR':text.includes('
+  if(amount===null||amount<=0) throw new Error('A positive money amount is required.');
+  const outflow=/(expense|spent|spend|paid|payment|purchase|bought|fuel|rent|salary|wage|cost|fee|withdraw)/i.test(text);
+  const inflow=/(income|sale|sold|received|revenue|deposit|customer paid|payment received|cash sale)/i.test(text);
+  if(!outflow&&!inflow) throw new Error('Tell BizStack whether the money came in or went out. Example: “record an expense of 50000 for fuel”.');
+  const direction=outflow?'outflow':'inflow';
+  const accountRaw=text.match(/(?:from|using|through|into)\s+(?:my\s+)?(?:account\s+)?([A-Za-z0-9&.' -]{2,60}?)(?=\s+(?:for|on|today|yesterday|at\s+|,|$))/i)?.[1]?.trim()||null; const accountName=accountRaw?.replace(/\s+account$/i,'').trim()||null;
+  const counterpartyName=text.match(/(?:to|from|for)\s+(?:vendor|supplier|customer|client)?\s*[:\-]?\s*([A-Za-z0-9&.' -]{2,80}?)(?=\s+(?:for|using|through|from|on|today|yesterday|,|$))/i)?.[1]?.trim()||null;
+  let description='';
+  const descMatch=text.match(/(?:for|description|because|on)\s*[:\-]?\s*(.+)$/i);
+  if(descMatch) description=descMatch[1].trim();
+  if(!description) description=direction==='outflow'?'Business expense':'Business income';
+  return {direction,amount,currency:transactionCurrency,description,counterpartyName,accountName,occurredAt:new Date().toISOString(),fxRate};
+}
+)?'USD':null;
+  const transactionCurrency=currencyCode || symbolCurrency || currency;
+  const fxMatch=text.match(/(?:fx\s*rate|exchange\s*rate|rate)\s*(?:of|is|=|at|:)\s*([\d,.]+)/i);
+  const fxRate=fxMatch?parseNumber(fxMatch[1]):null;
   if(amount===null||amount<=0) throw new Error('A positive money amount is required.');
   const outflow=/(expense|spent|spend|paid|payment|purchase|bought|fuel|rent|salary|wage|cost|fee|withdraw)/i.test(text);
   const inflow=/(income|sale|sold|received|revenue|deposit|customer paid|payment received|cash sale)/i.test(text);
