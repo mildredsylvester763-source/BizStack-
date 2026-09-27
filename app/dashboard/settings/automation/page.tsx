@@ -1,7 +1,8 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase-server";
+import { createClient } from "@/lib/supabase-browser";
 
 const ACTION_TYPES = [
   { key: "send_payment_reminder", label: "Send payment reminders", description: "Nudge customers when an invoice is overdue." },
@@ -16,92 +17,72 @@ const MODES = [
   { value: "auto_execute", label: "Do automatically" }
 ];
 
-async function updateMode(formData: FormData) {
-  "use server";
+export default function AutomationSettingsPage() {
   const supabase = createClient();
-  const businessId = formData.get("business_id") as string;
-  const actionType = formData.get("action_type") as string;
-  const mode = formData.get("mode") as string;
+  const [businessId, setBusinessId] = useState("");
+  const [settings, setSettings] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState("");
 
-  await supabase
-    .from("automation_settings")
-    .upsert(
+  useEffect(() => {
+    async function load() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { window.location.href = "/login"; return; }
+      const { data: business } = await supabase.from("businesses").select("id,name").eq("owner_id", user.id).single();
+      if (!business) { window.location.href = "/onboarding"; return; }
+      setBusinessId(business.id);
+      const { data } = await supabase.from("automation_settings").select("action_type,mode").eq("business_id", business.id);
+      const next: Record<string,string> = {};
+      (data || []).forEach((row) => { next[row.action_type] = row.mode; });
+      setSettings(next);
+      setLoading(false);
+    }
+    load();
+  }, []);
+
+  async function changeMode(actionType: string, mode: string) {
+    if (!businessId) return;
+    setSaving(actionType);
+    const { error } = await supabase.from("automation_settings").upsert(
       { business_id: businessId, action_type: actionType, mode },
       { onConflict: "business_id,action_type" }
     );
-
-  revalidatePath("/dashboard/settings/automation");
-}
-
-export default async function AutomationSettingsPage() {
-  const supabase = createClient();
-
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-
-  if (!user) redirect("/login");
-
-  const { data: business } = await supabase
-    .from("businesses")
-    .select("id, name")
-    .eq("owner_id", user!.id)
-    .single();
-
-  if (!business) redirect("/onboarding");
-
-  const { data: settings } = await supabase
-    .from("automation_settings")
-    .select("action_type, mode")
-    .eq("business_id", business.id);
-
-  const modeFor = (actionType: string) =>
-    settings?.find((s) => s.action_type === actionType)?.mode ?? "ask_first";
+    if (error) alert(error.message);
+    else setSettings((current) => ({ ...current, [actionType]: mode }));
+    setSaving("");
+  }
 
   return (
     <main className="min-h-screen bg-ledger">
       <header className="border-b border-rule bg-white">
         <div className="max-w-3xl mx-auto px-6 py-5 flex items-center justify-between">
-          <Link href="/dashboard" className="font-display text-lg text-ink">
-            {business.name}
-          </Link>
-          <Link href="/dashboard" className="text-sm text-ink/45 hover:text-ink">
-            Back to dashboard
-          </Link>
+          <Link href="/dashboard" className="font-display text-lg text-ink">BizStack</Link>
+          <Link href="/dashboard" className="text-sm text-ink/45 hover:text-ink">Back to dashboard</Link>
         </div>
       </header>
-
       <section className="max-w-3xl mx-auto px-6 py-12">
         <h1 className="font-display text-3xl text-ink mb-1">Automation settings</h1>
-        <p className="text-ink/60 mb-10">
-          Choose how much BizStack does on its own for each kind of action.
-        </p>
-
-        <div className="divide-y divide-rule border-t border-b border-rule">
-          {ACTION_TYPES.map((action) => (
-            <div key={action.key} className="py-5 flex items-center justify-between gap-4">
-              <div>
-                <p className="text-ink font-medium">{action.label}</p>
-                <p className="text-sm text-ink/55 mt-0.5">{action.description}</p>
-              </div>
-
-              <form action={updateMode} className="shrink-0">
-                <input type="hidden" name="business_id" value={business.id} />
-                <input type="hidden" name="action_type" value={action.key} />
+        <p className="text-ink/60 mb-10">Choose how much BizStack does on its own for each kind of action.</p>
+        {loading ? <p className="text-sm text-ink/50">Loading…</p> : (
+          <div className="divide-y divide-rule border-t border-b border-rule">
+            {ACTION_TYPES.map((action) => (
+              <div key={action.key} className="py-5 flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-ink font-medium">{action.label}</p>
+                  <p className="text-sm text-ink/55 mt-0.5">{action.description}</p>
+                </div>
                 <select
-                  name="mode"
-                  defaultValue={modeFor(action.key)}
-                  onChange={(e) => e.currentTarget.form?.requestSubmit()}
-                  className="border border-rule px-4 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-vault/25"
+                  value={settings[action.key] ?? "ask_first"}
+                  onChange={(e) => changeMode(action.key, e.target.value)}
+                  disabled={saving === action.key}
+                  className="border border-rule px-4 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-vault/25 disabled:opacity-60"
                 >
-                  {MODES.map((m) => (
-                    <option key={m.value} value={m.value}>{m.label}</option>
-                  ))}
+                  {MODES.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
                 </select>
-              </form>
-            </div>
-          ))}
-        </div>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
     </main>
   );
