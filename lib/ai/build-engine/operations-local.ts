@@ -21,8 +21,10 @@ export function parseProductRequest(prompt:string,currency:string):ProductDraft{
   const unit=text.match(/(?:per|unit)\s*[:\-]?\s*(item|unit|kg|g|litre|liter|box|pack|hour|day)/i)?.[1]||'unit';
   const unitPrice=priceMatch?parseNumber(priceMatch[1]):null;
   if(unitPrice===null||unitPrice<0) throw new Error('Product price is missing. Example: “price 25000”.');
-  const stockQuantity=stockMatch?parseNumber(stockMatch[1]):0;
-  const lowStockThreshold=lowMatch?parseNumber(lowMatch[1]):5;
+  const parsedStockQuantity=stockMatch?parseNumber(stockMatch[1]):0;
+  const parsedLowStockThreshold=lowMatch?parseNumber(lowMatch[1]):5;
+  const stockQuantity=parsedStockQuantity ?? 0;
+  const lowStockThreshold=parsedLowStockThreshold ?? 5;
   const costPrice=costMatch?parseNumber(costMatch[1]):null;
   if(stockQuantity<0||lowStockThreshold<0) throw new Error('Stock values cannot be negative.');
   return {name,sku,description,unit,unitPrice,costPrice,stockQuantity,lowStockThreshold};
