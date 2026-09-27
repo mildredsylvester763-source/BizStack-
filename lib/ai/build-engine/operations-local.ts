@@ -38,7 +38,7 @@ export function parseMoneyRequest(prompt:string,currency:string):MoneyDraft{
   const inflow=/(income|sale|sold|received|revenue|deposit|customer paid|payment received|cash sale)/i.test(text);
   if(!outflow&&!inflow) throw new Error('Tell BizStack whether the money came in or went out. Example: “record an expense of 50000 for fuel”.');
   const direction=outflow?'outflow':'inflow';
-  const accountName=text.match(/(?:from|using|through|into)\s+(?:my\s+)?(?:account\s+)?([A-Za-z0-9&.' -]{2,60}?)(?=\s+(?:for|on|today|yesterday|at\s+|,|$))/i)?.[1]?.trim()||null;
+  const accountRaw=text.match(/(?:from|using|through|into)\s+(?:my\s+)?(?:account\s+)?([A-Za-z0-9&.' -]{2,60}?)(?=\s+(?:for|on|today|yesterday|at\s+|,|$))/i)?.[1]?.trim()||null; const accountName=accountRaw?.replace(/\s+account$/i,'').trim()||null;
   const counterpartyName=text.match(/(?:to|from|for)\s+(?:vendor|supplier|customer|client)?\s*[:\-]?\s*([A-Za-z0-9&.' -]{2,80}?)(?=\s+(?:for|using|through|from|on|today|yesterday|,|$))/i)?.[1]?.trim()||null;
   let description='';
   const descMatch=text.match(/(?:for|description|because|on)\s*[:\-]?\s*(.+)$/i);
