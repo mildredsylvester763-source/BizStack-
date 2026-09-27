@@ -7,7 +7,8 @@ function jsonHeaders(token:string){return {"Content-Type":"application/json","Au
 export async function sendEmail(input:SendMessageInput):Promise<ProviderResult>{
   if(process.env.RESEND_API_KEY){
     const from=input.from || process.env.BIZSTACK_EMAIL_FROM || "BizStack <onboarding@resend.dev>";
-    const res=await fetch("https://api.resend.com/emails",{method:"POST",headers:jsonHeaders(process.env.RESEND_API_KEY),body:JSON.stringify({from,to:[input.to],subject:input.subject||"BizStack message",html:`<div style="font-family:Arial,sans-serif;white-space:pre-wrap">${escapeHtml(input.body)}</div>`,reply_to:input.replyTo})});
+    const headers={...jsonHeaders(process.env.RESEND_API_KEY),...(typeof input.metadata?.idempotencyKey==="string"?{"Idempotency-Key":input.metadata.idempotencyKey}: {})};
+    const res=await fetch("https://api.resend.com/emails",{method:"POST",headers,body:JSON.stringify({from,to:[input.to],subject:input.subject||"BizStack message",html:`<div style="font-family:Arial,sans-serif;white-space:pre-wrap">${escapeHtml(input.body)}</div>`,reply_to:input.replyTo})});
     const data=await res.json().catch(()=>({}));
     if(!res.ok) return {ok:false,provider:"resend",error:typeof data?.message==="string"?data.message:`Resend HTTP ${res.status}`,response:data};
     return {ok:true,provider:"resend",messageId:data?.id,response:data};
