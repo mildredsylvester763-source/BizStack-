@@ -53,7 +53,23 @@ export async function runMoneyEntryBuild(args:{businessId:string;userId:string;p
   if(re||!run)throw new Error(re?.message||'Could not create money build run.');
   try{
     const draft=parseMoneyRequest(prompt,business.currency||'USD');
-    await supabase.from('ai_build_steps').insert({business_id:businessId,build_run_id:run.id,sequence_no:1,step_key:'parse_transaction',step_type:'compiler',status:'succeeded',input:{prompt},output:draft,finished_at:new Date().toISOString()});
+    const baseCurrency=(business.currency||'USD').toUpperCase();
+    const transactionCurrency=(draft.currency||baseCurrency).toUpperCase();
+    let fxRate=1;
+    let fxRateSource='same_currency';
+    if(transactionCurrency!==baseCurrency){
+      if(draft.fxRate && draft.fxRate>0){
+        fxRate=draft.fxRate;
+        fxRateSource='explicit_request';
+      }else{
+        const {data:rate,error:rateError}=await supabase.rpc('get_business_exchange_rate',{p_business_id:businessId,p_from_currency:transactionCurrency,p_to_currency:baseCurrency,p_at:draft.occurredAt});
+        if(rateError||rate==null) throw new Error('No FX rate is available for '+transactionCurrency+' → '+baseCurrency+'. Add a business exchange rate or include “rate 1600” in the transaction request.');
+        fxRate=Number(rate);
+        fxRateSource='business_rate';
+      }
+    }
+    const baseAmount=Number(draft.amount)*fxRate;
+    await supabase.from('ai_build_steps').insert({business_id:businessId,build_run_id:run.id,sequence_no:1,step_key:'parse_transaction',step_type:'compiler',status:'succeeded',input:{prompt},output:{...draft,currency:transactionCurrency,baseCurrency,fxRate,baseAmount},finished_at:new Date().toISOString()});
     let account=null as any;
     if(draft.accountName){
       const {data:accounts}=await supabase.from('financial_accounts').select('id,display_name,currency,status').eq('business_id',businessId).ilike('display_name','%'+draft.accountName+'%').limit(5);
@@ -62,13 +78,15 @@ export async function runMoneyEntryBuild(args:{businessId:string;userId:string;p
     }
     await supabase.from('ai_build_steps').insert({business_id:businessId,build_run_id:run.id,sequence_no:2,step_key:'resolve_account',step_type:'lookup',status:'succeeded',input:{accountName:draft.accountName},output:{accountId:account?.id??null},finished_at:new Date().toISOString()});
     const externalId='bizstack-ai-'+run.id;
-    const {data:tx,error:te}=await supabase.from('financial_transactions').insert({business_id:businessId,financial_account_id:account?.id??null,source_type:'manual',external_id:externalId,direction:draft.direction,amount:draft.amount,currency:draft.currency,status:'posted',occurred_at:draft.occurredAt,counterparty_name:draft.counterpartyName,description:draft.description,tax_amount:0,fee_amount:0,reconciled:false,reconciliation_status:'unmatched',metadata:{created_by:'ai_build_engine',build_run_id:run.id}}).select('id,direction,amount,currency,description,counterparty_name,financial_account_id,reconciled,reconciliation_status').single();
+    const accountCurrency=account?.currency?String(account.currency).toUpperCase():transactionCurrency;
+    if(accountCurrency!==transactionCurrency && account) throw new Error('Transaction currency '+transactionCurrency+' does not match account currency '+accountCurrency+'. Use a matching account or record a transfer/conversion separately.');
+    const {data:tx,error:te}=await supabase.from('financial_transactions').insert({business_id:businessId,financial_account_id:account?.id??null,source_type:'manual',external_id:externalId,direction:draft.direction,amount:draft.amount,currency:transactionCurrency,base_amount:baseAmount,base_currency:baseCurrency,fx_rate:fxRate,fx_rate_source:fxRateSource,fx_rate_at:draft.occurredAt,status:'posted',occurred_at:draft.occurredAt,counterparty_name:draft.counterpartyName,description:draft.description,tax_amount:0,fee_amount:0,reconciled:false,reconciliation_status:'unmatched',metadata:{created_by:'ai_build_engine',build_run_id:run.id,dual_currency:true}}).select('id,direction,amount,currency,base_amount,base_currency,fx_rate,fx_rate_source,description,counterparty_name,financial_account_id,reconciled,reconciliation_status').single();
     if(te||!tx)throw new Error(te?.message||'Could not create financial transaction.');
     await supabase.from('ai_build_steps').insert({business_id:businessId,build_run_id:run.id,sequence_no:3,step_key:'create_transaction',step_type:'execution',status:'succeeded',input:{transactionId:tx.id},output:tx,finished_at:new Date().toISOString()});
     const tests=[{key:'positive_amount',pass:Number(tx.amount)>0},{key:'direction_valid',pass:tx.direction==='inflow'||tx.direction==='outflow'},{key:'currency_present',pass:Boolean(tx.currency)}];
     for(const test of tests)await supabase.from('ai_build_tests').insert({business_id:businessId,build_run_id:run.id,test_key:test.key,test_type:'transaction_integrity',status:test.pass?'passed':'failed',assertion:{expected:true},actual:test.pass,completed_at:new Date().toISOString()});
     const failed=tests.filter(t=>!t.pass);if(failed.length)throw new Error('Money entry validation failed.');
-    const result={transaction:tx,tests};
+    const result={transaction:tx,tests,dualCurrency:{transactionCurrency,baseCurrency,fxRate,fxRateSource}};
     await supabase.from('ai_build_artifacts').insert({business_id:businessId,build_run_id:run.id,artifact_type:'money_transaction',artifact_key:'transaction',version:1,status:'validated',content:result,checksum:checksum(result)});
     await supabase.from('ai_build_runs').update({status:'succeeded',provider_key:'local-money-compiler',provider_status:'fallback',result,finished_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',run.id).eq('business_id',businessId);
     await supabase.from('events').insert({business_id:businessId,event_type:'ai.build.money_recorded',summary:'AI Build Engine recorded a '+draft.direction+' of '+draft.amount+' '+draft.currency,evidence:{build_run_id:run.id,transaction_id:tx.id},status:'info',priority:'normal',category:'money'});
