@@ -67,7 +67,7 @@ export default function OnboardingPage() {
               required
               value={businessName}
               onChange={(e) => setBusinessName(e.target.value)}
-              className="w-full border border-line rounded-sm px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-moss"
+              className="w-full border border-rule rounded-sm px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-vault/25"
             />
           </div>
 
@@ -78,7 +78,7 @@ export default function OnboardingPage() {
               placeholder="Retail, salon, agency, importer..."
               value={industry}
               onChange={(e) => setIndustry(e.target.value)}
-              className="w-full border border-line rounded-sm px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-moss"
+              className="w-full border border-rule rounded-sm px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-vault/25"
             />
           </div>
 
@@ -89,7 +89,7 @@ export default function OnboardingPage() {
             <select
               value={currency}
               onChange={(e) => setCurrency(e.target.value)}
-              className="w-full border border-line rounded-sm px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-moss"
+              className="w-full border border-rule rounded-sm px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-vault/25"
             >
               {CURRENCIES.map((c) => (
                 <option key={c} value={c}>
@@ -99,12 +99,12 @@ export default function OnboardingPage() {
             </select>
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-alert">{error}</p>}
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-moss text-paper py-2 rounded-sm hover:bg-moss/90 disabled:opacity-60"
+            className="w-full bg-ink text-mist py-2 rounded-sm hover:bg-ink/90 disabled:opacity-60"
           >
             {loading ? "Setting up..." : "Set up business"}
           </button>
