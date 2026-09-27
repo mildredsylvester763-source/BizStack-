@@ -9,3 +9,36 @@ alter table public.ai_build_runs enable row level security;
 alter table public.ai_build_steps enable row level security;
 alter table public.ai_build_artifacts enable row level security;
 alter table public.ai_build_tests enable row level security;
+create unique index if not exists ai_build_runs_business_idempotency_uidx on public.ai_build_runs(business_id,idempotency_key) where idempotency_key is not null;
+create index if not exists ai_build_runs_business_status_idx on public.ai_build_runs(business_id,status,created_at desc);
+create unique index if not exists ai_build_steps_run_sequence_uidx on public.ai_build_steps(build_run_id,sequence_no);
+create index if not exists ai_build_steps_business_run_idx on public.ai_build_steps(business_id,build_run_id,sequence_no);
+create unique index if not exists ai_build_artifacts_run_key_version_uidx on public.ai_build_artifacts(build_run_id,artifact_key,version);
+create index if not exists ai_build_artifacts_business_key_idx on public.ai_build_artifacts(business_id,artifact_type,artifact_key,created_at desc);
+create index if not exists ai_build_tests_business_run_idx on public.ai_build_tests(business_id,build_run_id,status);
+
+drop policy if exists ai_build_runs_owner_select on public.ai_build_runs;
+create policy ai_build_runs_owner_select on public.ai_build_runs for select to authenticated
+using (exists (select 1 from public.businesses b where b.id=ai_build_runs.business_id and b.owner_id=(select auth.uid())));
+drop policy if exists ai_build_runs_owner_insert on public.ai_build_runs;
+create policy ai_build_runs_owner_insert on public.ai_build_runs for insert to authenticated
+with check (exists (select 1 from public.businesses b where b.id=ai_build_runs.business_id and b.owner_id=(select auth.uid())) and created_by=(select auth.uid()));
+drop policy if exists ai_build_runs_owner_update on public.ai_build_runs;
+create policy ai_build_runs_owner_update on public.ai_build_runs for update to authenticated
+using (exists (select 1 from public.businesses b where b.id=ai_build_runs.business_id and b.owner_id=(select auth.uid())))
+with check (exists (select 1 from public.businesses b where b.id=ai_build_runs.business_id and b.owner_id=(select auth.uid())));
+
+drop policy if exists ai_build_steps_owner_all on public.ai_build_steps;
+create policy ai_build_steps_owner_all on public.ai_build_steps for all to authenticated
+using (exists (select 1 from public.businesses b where b.id=ai_build_steps.business_id and b.owner_id=(select auth.uid())))
+with check (exists (select 1 from public.businesses b where b.id=ai_build_steps.business_id and b.owner_id=(select auth.uid())));
+
+drop policy if exists ai_build_artifacts_owner_all on public.ai_build_artifacts;
+create policy ai_build_artifacts_owner_all on public.ai_build_artifacts for all to authenticated
+using (exists (select 1 from public.businesses b where b.id=ai_build_artifacts.business_id and b.owner_id=(select auth.uid())))
+with check (exists (select 1 from public.businesses b where b.id=ai_build_artifacts.business_id and b.owner_id=(select auth.uid())));
+
+drop policy if exists ai_build_tests_owner_all on public.ai_build_tests;
+create policy ai_build_tests_owner_all on public.ai_build_tests for all to authenticated
+using (exists (select 1 from public.businesses b where b.id=ai_build_tests.business_id and b.owner_id=(select auth.uid())))
+with check (exists (select 1 from public.businesses b where b.id=ai_build_tests.business_id and b.owner_id=(select auth.uid())));
