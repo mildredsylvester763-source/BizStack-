@@ -8,6 +8,7 @@ import { runConnectorBuild } from '@/lib/ai/build-engine/connector-runtime';
 import { runQuoteBuild } from '@/lib/ai/build-engine/quote-runtime';
 import { runCashSaleBuild } from '@/lib/ai/build-engine/cash-sale-runtime';
 import { runSupplierPriceBuild } from '@/lib/ai/build-engine/supplier-price-runtime';
+import { runCommissionBuild } from '@/lib/ai/build-engine/commission-runtime';
 import type { BuildMode } from '@/lib/ai/build-engine/types';
 
 export async function POST(request: Request) {
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
   const {data:business}=await supabase.from('businesses').select('id').eq('owner_id',user.id).single();
   if(!business) return NextResponse.json({error:'Business not found'},{status:404});
   try{
-    const capability=['invoice','product_inventory','money_transaction','customer','connector','quote','cash_sale','supplier_price'].includes(body.capability) ? body.capability : 'website';
+    const capability=['invoice','product_inventory','money_transaction','customer','connector','quote','cash_sale','supplier_price','commission'].includes(body.capability) ? body.capability : 'website';
     const result=capability==='invoice'
       ? await runInvoiceBuild({businessId:business.id,userId:user.id,prompt,mode})
       : capability==='product_inventory'
@@ -37,7 +38,9 @@ export async function POST(request: Request) {
                   ? await runCashSaleBuild({businessId:business.id,userId:user.id,prompt,mode})
                   : capability==='supplier_price'
                     ? await runSupplierPriceBuild({businessId:business.id,userId:user.id,prompt,mode})
-                    : await runWebsiteBuild({businessId:business.id,userId:user.id,prompt,websiteId:typeof body.websiteId==='string'?body.websiteId:null,mode,publish:Boolean(body.publish)});
+                    : capability==='commission'
+                      ? await runCommissionBuild({businessId:business.id,userId:user.id,prompt,mode})
+                      : await runWebsiteBuild({businessId:business.id,userId:user.id,prompt,websiteId:typeof body.websiteId==='string'?body.websiteId:null,mode,publish:Boolean(body.publish)});
     return NextResponse.json(result);
   }catch(error){
     return NextResponse.json({error:error instanceof Error?error.message:'Build failed'},{status:400});
