@@ -9,3 +9,6 @@ export * from '@/lib/ai/build-engine/customer-runtime';
 
 export * from '@/lib/ai/build-engine/connector-local';
 export * from '@/lib/ai/build-engine/connector-runtime';
+
+export * from '@/lib/ai/build-engine/quote-local';
+export * from '@/lib/ai/build-engine/quote-runtime';
