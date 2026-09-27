@@ -9,6 +9,7 @@ export type ExternalCredential = {
   password?: string;
   accessToken?: string;
   refreshToken?: string;
+  webhookSecret?: string;
   metadata?: Record<string, unknown>;
 };
 
