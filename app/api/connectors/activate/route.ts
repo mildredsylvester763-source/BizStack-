@@ -20,7 +20,7 @@ export async function POST(req:NextRequest){
   const connectionType=connectionMap[def.auth_type]||"api_key";
   const category=categoryMap[def.category]||"other";
   const syncMode=def.capabilities?.webhooks?"near_realtime":def.capabilities?.scheduledSync?"scheduled":"manual";
-  const config={...(def.config||{}),connector_definition_id:def.id,base_url:def.base_url||null,test_url:def.config?.test_url||null,credentials_required:def.auth_type!=="file_import"&&def.auth_type!=="native"};
+  const config={...(def.config||{}),connector_definition_id:def.id,base_url:def.base_url||null,test_url:def.config?.test_url||null,credentials_required:def.auth_type!=="file_import"&&def.auth_type!=="native",auth_type:def.auth_type};
   const {data:existing}=await supabase.from("integrations").select("id,status").eq("business_id",body.businessId).eq("provider",def.slug).limit(1);
   if(existing?.length)return NextResponse.json({ok:true,integrationId:existing[0].id,existing:true,status:existing[0].status});
   const {data:integration,error:ie}=await supabase.from("integrations").insert({
