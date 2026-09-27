@@ -1,118 +1,115 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase-server";
-import NewCustomerForm from "./new-customer-form";
 
-type Customer = {
-  id: string;
-  name: string;
-  email: string | null;
-  phone: string | null;
-  created_at: string;
-};
-
-export default async function CustomersPage() {
+async function addCustomer(formData: FormData) {
+  "use server";
   const supabase = createClient();
+
   const {
     data: { user }
   } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
+  if (!user) return;
 
   const { data: business } = await supabase
     .from("businesses")
-    .select("*")
+    .select("id")
     .eq("owner_id", user.id)
     .single();
+  if (!business) return;
 
-  if (!business) {
-    redirect("/onboarding");
-  }
+  const name = formData.get("name") as string;
+  const email = formData.get("email") as string;
+  const phone = formData.get("phone") as string;
 
-  const { data: customers, error } = await supabase
+  await supabase.from("customers").insert({
+    business_id: business.id,
+    name,
+    email: email || null,
+    phone: phone || null
+  });
+
+  revalidatePath("/dashboard/customers");
+}
+
+export default async function CustomersPage() {
+  const supabase = createClient();
+
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data: business } = await supabase
+    .from("businesses")
+    .select("id, name")
+    .eq("owner_id", user.id)
+    .single();
+  if (!business) redirect("/onboarding");
+
+  const { data: customers } = await supabase
     .from("customers")
     .select("id, name, email, phone, created_at")
     .eq("business_id", business.id)
-    .order("name", { ascending: true });
-
-  if (error) {
-    throw new Error("Unable to load customers: " + error.message);
-  }
-
-  const customerRows = (customers ?? []) as Customer[];
+    .order("created_at", { ascending: false });
 
   return (
-    <main className="min-h-screen">
-      <header className="flex flex-col gap-4 border-b border-line px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <Link href="/dashboard" className="font-display text-lg text-ink hover:text-moss">
+    <main className="min-h-screen bg-ledger">
+      <header className="border-b border-rule bg-white">
+        <div className="max-w-4xl mx-auto px-6 py-5 flex items-center justify-between">
+          <Link href="/dashboard" className="font-display text-lg text-ink">
             {business.name}
           </Link>
-          <p className="text-xs text-ink/50">Customers</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-4">
-          <nav className="flex flex-wrap items-center gap-4 text-sm">
-            <Link href="/dashboard/invoices" className="text-ink/60 hover:text-ink">Invoices</Link>
-            <Link href="/dashboard/actions" className="text-ink/60 hover:text-ink">Action Center</Link>
-            <Link href="/dashboard/settings/automation" className="text-ink/60 hover:text-ink">
-              Automation Settings
-            </Link>
-          </nav>
-          <form action="/auth/sign-out" method="post">
-            <button className="text-sm text-ink/60 hover:text-ink">Sign out</button>
-          </form>
+          <Link href="/dashboard" className="text-sm text-ink/45 hover:text-ink">
+            Back to dashboard
+          </Link>
         </div>
       </header>
 
-      <section className="mx-auto max-w-5xl px-6 py-12 sm:py-16">
-        <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="mb-3 text-xs uppercase tracking-[0.18em] text-moss">Module 3</p>
-            <h1 className="font-display text-3xl text-ink">Customers</h1>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-ink/65">
-              The people your business serves, ready for invoicing and future follow-up.
-            </p>
-          </div>
-          <Link href="/dashboard/invoices" className="text-sm text-moss hover:text-ink">
-            View invoices →
-          </Link>
-        </div>
+      <section className="max-w-4xl mx-auto px-6 py-12">
+        <h1 className="font-display text-3xl text-ink mb-1">Customers</h1>
+        <p className="text-ink/60 mb-8">Everyone the business sells to.</p>
 
-        <NewCustomerForm />
+        <form
+          action={addCustomer}
+          className="bg-white border border-rule p-5 mb-10 grid sm:grid-cols-[1fr_1fr_1fr_auto] gap-3"
+        >
+          <input
+            name="name"
+            required
+            placeholder="Name"
+            className="border border-rule px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-vault/25"
+          />
+          <input
+            name="email"
+            type="email"
+            placeholder="Email (optional)"
+            className="border border-rule px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-vault/25"
+          />
+          <input
+            name="phone"
+            placeholder="Phone (optional)"
+            className="border border-rule px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-vault/25"
+          />
+          <button className="bg-ink text-mist px-5 py-2.5 text-sm font-medium hover:bg-vaultDeep transition-colors">
+            Add
+          </button>
+        </form>
 
-        <div className="mt-10 overflow-hidden border border-line bg-white">
-          <div className="border-b border-line px-5 py-4">
-            <h2 className="font-display text-lg text-ink">Customer list</h2>
+        {!customers || customers.length === 0 ? (
+          <p className="text-sm text-ink/40">No customers yet — add the first one above.</p>
+        ) : (
+          <div className="divide-y divide-rule border-t border-b border-rule">
+            {customers.map((c) => (
+              <div key={c.id} className="py-4 grid sm:grid-cols-3 gap-2">
+                <p className="text-ink font-medium">{c.name}</p>
+                <p className="text-sm text-ink/60">{c.email || "—"}</p>
+                <p className="text-sm text-ink/60">{c.phone || "—"}</p>
+              </div>
+            ))}
           </div>
-          {customerRows.length === 0 ? (
-            <p className="px-5 py-8 text-sm text-ink/55">
-              No customers yet. Add the first one above to start creating invoices.
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[560px] text-left text-sm">
-                <thead className="border-b border-line text-xs uppercase tracking-[0.12em] text-ink/45">
-                  <tr>
-                    <th className="px-5 py-3 font-normal">Name</th>
-                    <th className="px-5 py-3 font-normal">Email</th>
-                    <th className="px-5 py-3 font-normal">Phone</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line">
-                  {customerRows.map((customer) => (
-                    <tr key={customer.id}>
-                      <td className="px-5 py-4 text-ink">{customer.name}</td>
-                      <td className="px-5 py-4 text-ink/65">{customer.email || "—"}</td>
-                      <td className="px-5 py-4 text-ink/65">{customer.phone || "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        )}
       </section>
     </main>
   );

@@ -1,251 +1,202 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase-server";
-import { logEvent } from "@/lib/events";
-import { calculateInvoiceTotal } from "@/lib/invoices";
-import { markInvoicePaid, markInvoiceSent } from "../actions";
+import { calculateInvoiceTotal, isOverdue } from "@/lib/invoices";
 
-type InvoiceItem = {
-  id: string;
-  description: string;
-  quantity: number;
-  unit_price: number;
-};
-
-type InvoiceDetail = {
-  id: string;
-  invoice_number: string;
-  status: string;
-  due_date: string | null;
-  currency: string;
-  created_at: string;
-  paid_at: string | null;
-  customer: { id: string; name: string; email: string | null; phone: string | null } | null;
-  invoice_items: InvoiceItem[];
-};
-
-function isPastDue(value: string | null) {
-  return Boolean(value) && value! < new Date().toISOString().slice(0, 10);
-}
-
-function formatMoney(amount: number, currency: string) {
-  try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);
-  } catch {
-    return amount.toFixed(2) + " " + currency;
-  }
-}
-
-function statusClasses(status: string) {
-  const styles: Record<string, string> = {
-    draft: "bg-ink/10 text-ink/65",
-    sent: "bg-moss/10 text-moss",
-    paid: "bg-emerald-100 text-emerald-800",
-    overdue: "bg-clay/10 text-clay"
-  };
-  return styles[status] ?? styles.draft;
-}
-
-async function recordOverdueEvent(
-  supabase: ReturnType<typeof createClient>,
-  businessId: string,
-  invoice: InvoiceDetail,
-  total: number,
-  mode: string
-) {
-  const { data: existingEvent, error: eventLookupError } = await supabase
-    .from("events")
-    .select("id")
-    .eq("business_id", businessId)
-    .eq("event_type", "payment.overdue")
-    .eq("evidence->>invoice_id", invoice.id)
-    .limit(1)
-    .maybeSingle();
-
-  if (eventLookupError) {
-    throw new Error("Unable to check overdue activity: " + eventLookupError.message);
-  }
-
-  if (existingEvent) {
-    return;
-  }
-
-  const automatic = mode === "auto_execute";
-  const summary = automatic
-    ? "Invoice " + invoice.invoice_number + " is overdue — reminder would be sent automatically (reminder sending itself is not built yet, this just logs the action)"
-    : "Invoice " + invoice.invoice_number + " is overdue — needs your decision before a payment reminder is sent";
-
-  await logEvent(
-    businessId,
-    "payment.overdue",
-    summary,
-    {
-      invoice_id: invoice.id,
-      invoice_number: invoice.invoice_number,
-      total,
-      currency: invoice.currency,
-      mode
-    },
-    automatic ? "auto_handled" : "needs_approval"
-  );
-}
-
-export default async function InvoiceDetailPage({ params }: { params: { id: string } }) {
+async function markSent(formData: FormData) {
+  "use server";
   const supabase = createClient();
+  const invoiceId = formData.get("invoice_id") as string;
+  const businessId = formData.get("business_id") as string;
+  const invoiceNumber = formData.get("invoice_number") as string;
+
+  await supabase.from("invoices").update({ status: "sent" }).eq("id", invoiceId);
+
+  await supabase.from("events").insert({
+    business_id: businessId,
+    event_type: "invoice.sent",
+    summary: `Invoice ${invoiceNumber} marked as sent`,
+    evidence: { invoice_id: invoiceId },
+    status: "info"
+  });
+
+  revalidatePath(`/dashboard/invoices/${invoiceId}`);
+}
+
+async function markPaid(formData: FormData) {
+  "use server";
+  const supabase = createClient();
+  const invoiceId = formData.get("invoice_id") as string;
+  const businessId = formData.get("business_id") as string;
+  const invoiceNumber = formData.get("invoice_number") as string;
+  const total = formData.get("total") as string;
+  const currency = formData.get("currency") as string;
+  const customerName = formData.get("customer_name") as string;
+
+  await supabase
+    .from("invoices")
+    .update({ status: "paid", paid_at: new Date().toISOString() })
+    .eq("id", invoiceId);
+
+  await supabase.from("events").insert({
+    business_id: businessId,
+    event_type: "invoice.paid",
+    summary: `${total} ${currency} received from ${customerName} for invoice ${invoiceNumber}`,
+    evidence: { invoice_id: invoiceId, total, currency },
+    status: "info"
+  });
+
+  revalidatePath(`/dashboard/invoices/${invoiceId}`);
+}
+
+export default async function InvoiceDetailPage({
+  params
+}: {
+  params: { id: string };
+}) {
+  const supabase = createClient();
+
   const {
     data: { user }
   } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
+  if (!user) redirect("/login");
 
   const { data: business } = await supabase
     .from("businesses")
-    .select("*")
+    .select("id, name")
     .eq("owner_id", user.id)
     .single();
+  if (!business) redirect("/onboarding");
 
-  if (!business) {
-    redirect("/onboarding");
-  }
-
-  const { data: invoice, error } = await supabase
+  const { data: invoice } = await supabase
     .from("invoices")
-    .select("id, invoice_number, status, due_date, currency, created_at, paid_at, customer:customers(id, name, email, phone), invoice_items(id, description, quantity, unit_price)")
+    .select(
+      "id, invoice_number, status, due_date, currency, customer:customers(name), invoice_items(id, description, quantity, unit_price)"
+    )
     .eq("id", params.id)
     .eq("business_id", business.id)
     .single();
 
-  if (error || !invoice) {
-    notFound();
-  }
+  if (!invoice) redirect("/dashboard/invoices");
 
-  const invoiceDetail = invoice as unknown as InvoiceDetail;
-  const total = calculateInvoiceTotal(invoiceDetail.invoice_items ?? []);
-  const overdue = invoiceDetail.status === "sent" && isPastDue(invoiceDetail.due_date);
-  const displayStatus = overdue ? "overdue" : invoiceDetail.status;
+  const customer = invoice.customer as unknown as { name: string } | null;
+  const items = (invoice.invoice_items ?? []) as {
+    id: string;
+    description: string;
+    quantity: number;
+    unit_price: number;
+  }[];
+  const total = calculateInvoiceTotal(items);
+  const overdue = isOverdue(invoice.status, invoice.due_date);
 
+  // Autonomy-aware overdue handling: log at most once per invoice, using
+  // the business's chosen mode from Module 2's automation_settings.
   if (overdue) {
-    const { data: automationSetting, error: automationError } = await supabase
-      .from("automation_settings")
-      .select("mode")
+    const { data: existing } = await supabase
+      .from("events")
+      .select("id")
       .eq("business_id", business.id)
-      .eq("action_type", "send_payment_reminder")
-      .maybeSingle();
+      .eq("event_type", "payment.overdue")
+      .contains("evidence", { invoice_id: invoice.id });
 
-    if (automationError) {
-      throw new Error("Unable to load payment reminder settings: " + automationError.message);
+    if (!existing || existing.length === 0) {
+      const { data: setting } = await supabase
+        .from("automation_settings")
+        .select("mode")
+        .eq("business_id", business.id)
+        .eq("action_type", "send_payment_reminder")
+        .maybeSingle();
+
+      const mode = setting?.mode ?? "ask_first";
+      const autoExecute = mode === "auto_execute";
+
+      await supabase.from("events").insert({
+        business_id: business.id,
+        event_type: "payment.overdue",
+        summary: autoExecute
+          ? `Invoice ${invoice.invoice_number} is overdue — reminder would be sent automatically (sending itself isn't built yet, this just logs the action)`
+          : `Invoice ${invoice.invoice_number} is overdue and needs your decision on a reminder`,
+        evidence: { invoice_id: invoice.id },
+        status: autoExecute ? "auto_handled" : "needs_approval"
+      });
     }
-
-    await recordOverdueEvent(
-      supabase,
-      business.id,
-      invoiceDetail,
-      total,
-      automationSetting?.mode ?? "ask_first"
-    );
   }
 
   return (
-    <main className="min-h-screen">
-      <header className="flex flex-col gap-4 border-b border-line px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <Link href="/dashboard" className="font-display text-lg text-ink hover:text-moss">
-            {business.name}
+    <main className="min-h-screen bg-ledger">
+      <header className="border-b border-rule bg-white">
+        <div className="max-w-2xl mx-auto px-6 py-5">
+          <Link href="/dashboard/invoices" className="text-sm text-ink/45 hover:text-ink">
+            ← Back to invoices
           </Link>
-          <p className="text-xs text-ink/50">Invoice detail</p>
         </div>
-        <nav className="flex flex-wrap items-center gap-4 text-sm">
-          <Link href="/dashboard/customers" className="text-ink/60 hover:text-ink">Customers</Link>
-          <Link href="/dashboard/invoices" className="text-ink/60 hover:text-ink">Invoices</Link>
-          <Link href="/dashboard/actions" className="text-ink/60 hover:text-ink">Action Center</Link>
-        </nav>
       </header>
 
-      <section className="mx-auto max-w-3xl px-6 py-12 sm:py-16">
-        <div className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+      <section className="max-w-2xl mx-auto px-6 py-12">
+        <div className="flex items-start justify-between mb-8">
           <div>
-            <p className="mb-3 text-xs uppercase tracking-[0.18em] text-moss">Module 3</p>
-            <h1 className="font-display text-3xl text-ink">{invoiceDetail.invoice_number}</h1>
-            <p className="mt-2 text-sm text-ink/60">
-              Created {new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(invoiceDetail.created_at))}
-            </p>
+            <h1 className="font-display text-3xl text-ink">{invoice.invoice_number}</h1>
+            <p className="text-ink/60 mt-1">{customer?.name ?? "No customer"}</p>
           </div>
-          <span className={"inline-flex self-start rounded-full px-3 py-1.5 text-sm " + statusClasses(displayStatus)}>
-            {displayStatus}
+          <span className="text-xs px-2.5 py-1 rounded-full bg-ink/10 text-ink/60 capitalize">
+            {overdue ? "overdue" : invoice.status}
           </span>
         </div>
 
-        <div className="space-y-5">
-          <div className="grid gap-5 sm:grid-cols-2">
-            <div className="border border-line bg-white px-5 py-5">
-              <p className="text-xs uppercase tracking-[0.12em] text-ink/45">Customer</p>
-              <p className="mt-2 font-display text-lg text-ink">{invoiceDetail.customer?.name ?? "—"}</p>
-              {invoiceDetail.customer?.email && <p className="mt-1 text-sm text-ink/60">{invoiceDetail.customer.email}</p>}
-              {invoiceDetail.customer?.phone && <p className="mt-1 text-sm text-ink/60">{invoiceDetail.customer.phone}</p>}
-            </div>
-            <div className="border border-line bg-white px-5 py-5">
-              <p className="text-xs uppercase tracking-[0.12em] text-ink/45">Payment details</p>
-              <p className="mt-2 text-sm text-ink/70">Due: {invoiceDetail.due_date ?? "No due date"}</p>
-              {invoiceDetail.paid_at && <p className="mt-1 text-sm text-moss">Paid: {new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(invoiceDetail.paid_at))}</p>}
-            </div>
-          </div>
-
-          <div className="overflow-hidden border border-line bg-white">
-            <div className="border-b border-line px-5 py-4">
-              <h2 className="font-display text-lg text-ink">Line items</h2>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[560px] text-left text-sm">
-                <thead className="border-b border-line text-xs uppercase tracking-[0.12em] text-ink/45">
-                  <tr>
-                    <th className="px-5 py-3 font-normal">Description</th>
-                    <th className="px-5 py-3 font-normal">Quantity</th>
-                    <th className="px-5 py-3 font-normal">Unit price</th>
-                    <th className="px-5 py-3 text-right font-normal">Amount</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line">
-                  {invoiceDetail.invoice_items.map((item) => (
-                    <tr key={item.id}>
-                      <td className="px-5 py-4 text-ink">{item.description}</td>
-                      <td className="px-5 py-4 text-ink/65">{item.quantity}</td>
-                      <td className="px-5 py-4 text-ink/65">{formatMoney(item.unit_price, invoiceDetail.currency)}</td>
-                      <td className="px-5 py-4 text-right text-ink">{formatMoney(item.quantity * item.unit_price, invoiceDetail.currency)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot className="border-t border-line">
-                  <tr>
-                    <td colSpan={3} className="px-5 py-4 text-right text-sm text-ink/60">Total</td>
-                    <td className="px-5 py-4 text-right font-display text-xl text-ink">{formatMoney(total, invoiceDetail.currency)}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </div>
-
-          {(invoiceDetail.status === "draft" || invoiceDetail.status === "sent" || invoiceDetail.status === "overdue") && (
-            <div className="flex flex-wrap items-center justify-between gap-4 border-t border-line pt-5">
-              <Link href="/dashboard/invoices" className="text-sm text-ink/60 hover:text-ink">← Back to invoices</Link>
-              <div className="flex gap-3">
-                {invoiceDetail.status === "draft" && (
-                  <form action={markInvoiceSent.bind(null, invoiceDetail.id)}>
-                    <button type="submit" className="rounded-sm bg-moss px-4 py-2 text-sm text-paper hover:bg-moss/90">
-                      Mark as Sent
-                    </button>
-                  </form>
-                )}
-                {(invoiceDetail.status === "sent" || invoiceDetail.status === "overdue") && (
-                  <form action={markInvoicePaid.bind(null, invoiceDetail.id)}>
-                    <button type="submit" className="rounded-sm bg-moss px-4 py-2 text-sm text-paper hover:bg-moss/90">
-                      Mark as Paid
-                    </button>
-                  </form>
-                )}
+        <div className="bg-white border border-rule p-6 mb-6">
+          <div className="divide-y divide-rule">
+            {items.map((item) => (
+              <div key={item.id} className="py-3 flex items-center justify-between">
+                <div>
+                  <p className="text-ink">{item.description}</p>
+                  <p className="text-xs text-ink/45">
+                    {item.quantity} × {item.unit_price.toFixed(2)}
+                  </p>
+                </div>
+                <p className="text-ink/80">
+                  {(item.quantity * item.unit_price).toFixed(2)}
+                </p>
               </div>
-            </div>
+            ))}
+          </div>
+          <div className="border-t border-ink mt-4 pt-4 flex items-center justify-between">
+            <span className="text-ink/60">Total</span>
+            <span className="font-display text-2xl text-ink">
+              {total.toFixed(2)} {invoice.currency}
+            </span>
+          </div>
+          {invoice.due_date && (
+            <p className="text-xs text-ink/45 mt-3">
+              Due {new Date(invoice.due_date).toLocaleDateString()}
+            </p>
+          )}
+        </div>
+
+        <div className="flex gap-3">
+          {invoice.status === "draft" && (
+            <form action={markSent}>
+              <input type="hidden" name="invoice_id" value={invoice.id} />
+              <input type="hidden" name="business_id" value={business.id} />
+              <input type="hidden" name="invoice_number" value={invoice.invoice_number} />
+              <button className="bg-ink text-mist px-5 py-2.5 text-sm font-medium hover:bg-vaultDeep transition-colors">
+                Mark as sent
+              </button>
+            </form>
+          )}
+
+          {(invoice.status === "sent" || overdue) && (
+            <form action={markPaid}>
+              <input type="hidden" name="invoice_id" value={invoice.id} />
+              <input type="hidden" name="business_id" value={business.id} />
+              <input type="hidden" name="invoice_number" value={invoice.invoice_number} />
+              <input type="hidden" name="total" value={total.toFixed(2)} />
+              <input type="hidden" name="currency" value={invoice.currency} />
+              <input type="hidden" name="customer_name" value={customer?.name ?? "a customer"} />
+              <button className="bg-vault text-mist px-5 py-2.5 text-sm font-medium hover:bg-vaultDeep transition-colors">
+                Mark as paid
+              </button>
+            </form>
           )}
         </div>
       </section>

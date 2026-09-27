@@ -1,279 +1,253 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase-browser";
 import { calculateInvoiceTotal } from "@/lib/invoices";
-import { createInvoice, type CreateInvoiceInput } from "../actions";
 
-type Customer = {
-  id: string;
-  name: string;
-  email: string | null;
-};
-
-type LineItem = {
-  id: number;
-  description: string;
-  quantity: number;
-  unit_price: number;
-};
-
-const emptyLine = (id: number): LineItem => ({
-  id,
-  description: "",
-  quantity: 1,
-  unit_price: 0
-});
+type Customer = { id: string; name: string };
+type LineItem = { description: string; quantity: number; unit_price: number };
 
 export default function NewInvoicePage() {
   const router = useRouter();
+  const supabase = createClient();
+
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [customersLoading, setCustomersLoading] = useState(true);
-  const [customerError, setCustomerError] = useState<string | null>(null);
   const [customerId, setCustomerId] = useState("");
   const [dueDate, setDueDate] = useState("");
-  const [items, setItems] = useState<LineItem[]>([emptyLine(1)]);
-  const [saving, setSaving] = useState(false);
+  const [items, setItems] = useState<LineItem[]>([
+    { description: "", quantity: 1, unit_price: 0 }
+  ]);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let active = true;
-    const supabase = createClient();
-
     async function loadCustomers() {
-      const { data, error: loadError } = await supabase
+      const {
+        data: { user }
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: business } = await supabase
+        .from("businesses")
+        .select("id")
+        .eq("owner_id", user.id)
+        .single();
+      if (!business) return;
+
+      const { data } = await supabase
         .from("customers")
-        .select("id, name, email")
-        .order("name", { ascending: true });
+        .select("id, name")
+        .eq("business_id", business.id)
+        .order("name");
 
-      if (!active) {
-        return;
-      }
-
-      if (loadError) {
-        setCustomerError("Unable to load customers: " + loadError.message);
-      } else {
-        setCustomers((data ?? []) as Customer[]);
-        if (data?.[0]) {
-          setCustomerId(data[0].id);
-        }
-      }
-      setCustomersLoading(false);
+      setCustomers(data ?? []);
     }
-
     loadCustomers();
-    return () => {
-      active = false;
-    };
-  }, []);
+  }, [supabase]);
 
-  const total = useMemo(
-    () => calculateInvoiceTotal(items.map(({ quantity, unit_price }) => ({ quantity, unit_price }))),
-    [items]
-  );
-
-  function updateItem(id: number, field: keyof Omit<LineItem, "id">, value: string) {
-    setItems((current) =>
-      current.map((item) => {
-        if (item.id !== id) {
-          return item;
-        }
-        if (field === "description") {
-          return { ...item, description: value };
-        }
-        return { ...item, [field]: Number(value) };
-      })
+  function updateItem(index: number, field: keyof LineItem, value: string) {
+    setItems((prev) =>
+      prev.map((item, i) =>
+        i === index
+          ? {
+              ...item,
+              [field]: field === "description" ? value : Number(value)
+            }
+          : item
+      )
     );
   }
 
   function addLine() {
-    const nextId = Math.max(...items.map((item) => item.id), 0) + 1;
-    setItems((current) => [...current, emptyLine(nextId)]);
+    setItems((prev) => [...prev, { description: "", quantity: 1, unit_price: 0 }]);
   }
 
-  function removeLine(id: number) {
-    if (items.length === 1) {
-      return;
-    }
-    setItems((current) => current.filter((item) => item.id !== id));
-  }
-
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSaving(true);
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
     setError(null);
 
-    const payload: CreateInvoiceInput = {
-      customerId,
-      dueDate: dueDate || null,
-      currency: "USD",
-      items: items.map(({ description, quantity, unit_price }) => ({
-        description,
-        quantity,
-        unit_price
-      }))
-    };
-
-    try {
-      const result = await createInvoice(payload);
-      router.push("/dashboard/invoices/" + result.invoiceId);
-    } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "Unable to create invoice.");
-      setSaving(false);
+    const {
+      data: { user }
+    } = await supabase.auth.getUser();
+    if (!user) {
+      setError("Your session expired — please log in again.");
+      setLoading(false);
+      return;
     }
+
+    const { data: business } = await supabase
+      .from("businesses")
+      .select("id, currency")
+      .eq("owner_id", user.id)
+      .single();
+    if (!business) {
+      setError("Business not found.");
+      setLoading(false);
+      return;
+    }
+
+    const { count } = await supabase
+      .from("invoices")
+      .select("id", { count: "exact", head: true })
+      .eq("business_id", business.id);
+
+    const invoiceNumber = `INV-${String((count ?? 0) + 1).padStart(4, "0")}`;
+
+    const { data: invoice, error: invoiceError } = await supabase
+      .from("invoices")
+      .insert({
+        business_id: business.id,
+        customer_id: customerId || null,
+        invoice_number: invoiceNumber,
+        status: "draft",
+        due_date: dueDate || null,
+        currency: business.currency
+      })
+      .select()
+      .single();
+
+    if (invoiceError || !invoice) {
+      setError(invoiceError?.message ?? "Could not create invoice.");
+      setLoading(false);
+      return;
+    }
+
+    const itemRows = items
+      .filter((item) => item.description.trim() !== "")
+      .map((item) => ({
+        invoice_id: invoice.id,
+        description: item.description,
+        quantity: item.quantity,
+        unit_price: item.unit_price
+      }));
+
+    if (itemRows.length > 0) {
+      await supabase.from("invoice_items").insert(itemRows);
+    }
+
+    const total = calculateInvoiceTotal(items);
+    const customerName = customers.find((c) => c.id === customerId)?.name ?? "a customer";
+
+    await supabase.from("events").insert({
+      business_id: business.id,
+      event_type: "invoice.created",
+      summary: `Invoice ${invoiceNumber} created for ${customerName} — ${total.toFixed(2)} ${business.currency}`,
+      evidence: { invoice_id: invoice.id, total, currency: business.currency },
+      status: "info"
+    });
+
+    router.push(`/dashboard/invoices/${invoice.id}`);
   }
 
+  const total = calculateInvoiceTotal(items);
+
   return (
-    <main className="min-h-screen">
-      <header className="flex flex-col gap-4 border-b border-line px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <Link href="/dashboard" className="font-display text-lg text-ink hover:text-moss">BizStack</Link>
-          <p className="text-xs text-ink/50">New invoice</p>
+    <main className="min-h-screen bg-ledger">
+      <header className="border-b border-rule bg-white">
+        <div className="max-w-2xl mx-auto px-6 py-5">
+          <Link href="/dashboard/invoices" className="text-sm text-ink/45 hover:text-ink">
+            ← Back to invoices
+          </Link>
         </div>
-        <nav className="flex flex-wrap items-center gap-4 text-sm">
-          <Link href="/dashboard/customers" className="text-ink/60 hover:text-ink">Customers</Link>
-          <Link href="/dashboard/invoices" className="text-ink/60 hover:text-ink">Invoices</Link>
-          <Link href="/dashboard/actions" className="text-ink/60 hover:text-ink">Action Center</Link>
-        </nav>
       </header>
 
-      <section className="mx-auto max-w-3xl px-6 py-12 sm:py-16">
-        <div className="mb-8">
-          <p className="mb-3 text-xs uppercase tracking-[0.18em] text-moss">Module 3</p>
-          <h1 className="font-display text-3xl text-ink">New invoice</h1>
-          <p className="mt-3 max-w-xl text-sm leading-6 text-ink/65">
-            Build a clear draft now. You can mark it sent when it is ready to go.
-          </p>
-        </div>
+      <section className="max-w-2xl mx-auto px-6 py-12">
+        <h1 className="font-display text-3xl text-ink mb-8">New invoice</h1>
 
-        {customersLoading ? (
-          <div className="border border-line bg-white px-5 py-6 text-sm text-ink/55">Loading customers...</div>
-        ) : customers.length === 0 ? (
-          <div className="border border-line bg-white px-5 py-6">
-            <h2 className="font-display text-lg text-ink">Add a customer first</h2>
-            <p className="mt-2 text-sm text-ink/60">
-              An invoice needs a customer to belong to before it can be created.
-            </p>
-            <Link href="/dashboard/customers" className="mt-4 inline-flex rounded-sm bg-moss px-4 py-2 text-sm text-paper hover:bg-moss/90">
-              Add customer
-            </Link>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="border border-line bg-white px-5 py-5">
-              <label className="mb-1 block text-sm text-ink/70" htmlFor="customer">
-                Customer
-              </label>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label className="block text-sm text-ink/70 mb-1.5">Customer</label>
+            {customers.length === 0 ? (
+              <p className="text-sm text-ink/50">
+                No customers yet —{" "}
+                <Link href="/dashboard/customers" className="text-vault underline">
+                  add one first
+                </Link>
+                .
+              </p>
+            ) : (
               <select
-                id="customer"
                 value={customerId}
-                onChange={(event) => setCustomerId(event.target.value)}
-                className="w-full rounded-sm border border-line bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-moss"
+                onChange={(e) => setCustomerId(e.target.value)}
+                required
+                className="w-full border border-rule px-3 py-2.5 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-vault/25"
               >
-                {customers.map((customer) => (
-                  <option key={customer.id} value={customer.id}>
-                    {customer.name}{customer.email ? " — " + customer.email : ""}
+                <option value="">Select a customer</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
                   </option>
                 ))}
               </select>
-              {customerError && <p className="mt-2 text-sm text-clay">{customerError}</p>}
-            </div>
+            )}
+          </div>
 
-            <div className="border border-line bg-white px-5 py-5">
-              <div className="mb-5 flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="font-display text-lg text-ink">Line items</h2>
-                  <p className="mt-1 text-sm text-ink/60">Add what the customer is paying for.</p>
+          <div>
+            <label className="block text-sm text-ink/70 mb-1.5">Due date</label>
+            <input
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              className="w-full border border-rule px-3 py-2.5 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-vault/25"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-ink/70 mb-2">Line items</label>
+            <div className="space-y-2">
+              {items.map((item, i) => (
+                <div key={i} className="grid grid-cols-[1fr_70px_90px] gap-2">
+                  <input
+                    placeholder="Description"
+                    value={item.description}
+                    onChange={(e) => updateItem(i, "description", e.target.value)}
+                    className="border border-rule px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-vault/25"
+                  />
+                  <input
+                    type="number"
+                    min={0}
+                    value={item.quantity}
+                    onChange={(e) => updateItem(i, "quantity", e.target.value)}
+                    className="border border-rule px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-vault/25"
+                  />
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={item.unit_price}
+                    onChange={(e) => updateItem(i, "unit_price", e.target.value)}
+                    className="border border-rule px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-vault/25"
+                  />
                 </div>
-                <button type="button" onClick={addLine} className="text-sm text-moss hover:text-ink">
-                  + Add line
-                </button>
-              </div>
-
-              <div className="space-y-3">
-                {items.map((item) => (
-                  <div key={item.id} className="grid gap-3 sm:grid-cols-[1fr_110px_140px_auto] sm:items-end">
-                    <div>
-                      <label className="mb-1 block text-xs text-ink/60">Description</label>
-                      <input
-                        value={item.description}
-                        onChange={(event) => updateItem(item.id, "description", event.target.value)}
-                        required
-                        className="w-full rounded-sm border border-line bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-moss"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs text-ink/60">Quantity</label>
-                      <input
-                        type="number"
-                        min="0.01"
-                        step="0.01"
-                        value={item.quantity}
-                        onChange={(event) => updateItem(item.id, "quantity", event.target.value)}
-                        required
-                        className="w-full rounded-sm border border-line bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-moss"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs text-ink/60">Unit price (USD)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={item.unit_price}
-                        onChange={(event) => updateItem(item.id, "unit_price", event.target.value)}
-                        required
-                        className="w-full rounded-sm border border-line bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-moss"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeLine(item.id)}
-                      disabled={items.length === 1}
-                      className="pb-2 text-xs text-ink/45 hover:text-clay disabled:invisible"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-6 flex items-center justify-between border-t border-line pt-4">
-                <span className="text-sm text-ink/60">Total</span>
-                <span className="font-display text-xl text-ink">
-                  {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(total)}
-                </span>
-              </div>
+              ))}
             </div>
+            <button
+              type="button"
+              onClick={addLine}
+              className="mt-2 text-sm text-vault underline underline-offset-2"
+            >
+              + Add line
+            </button>
+          </div>
 
-            <div className="border border-line bg-white px-5 py-5">
-              <label className="mb-1 block text-sm text-ink/70" htmlFor="due-date">
-                Due date
-              </label>
-              <input
-                id="due-date"
-                type="date"
-                value={dueDate}
-                onChange={(event) => setDueDate(event.target.value)}
-                className="rounded-sm border border-line bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-moss"
-              />
-            </div>
+          <div className="flex items-center justify-between border-t border-rule pt-4">
+            <span className="text-ink/60 text-sm">Total</span>
+            <span className="font-display text-2xl text-ink">{total.toFixed(2)}</span>
+          </div>
 
-            {error && <p className="text-sm text-clay" role="alert">{error}</p>}
-            <div className="flex items-center justify-between gap-4">
-              <Link href="/dashboard/invoices" className="text-sm text-ink/60 hover:text-ink">Cancel</Link>
-              <button
-                type="submit"
-                disabled={saving || !customerId}
-                className="rounded-sm bg-moss px-5 py-2.5 text-sm text-paper hover:bg-moss/90 disabled:opacity-60"
-              >
-                {saving ? "Creating..." : "Create draft invoice"}
-              </button>
-            </div>
-          </form>
-        )}
+          {error && <p className="text-sm text-alert">{error}</p>}
+
+          <button
+            type="submit"
+            disabled={loading || customers.length === 0}
+            className="w-full bg-ink text-mist py-3 hover:bg-vaultDeep transition-colors disabled:opacity-50 font-medium"
+          >
+            {loading ? "Creating..." : "Create invoice"}
+          </button>
+        </form>
       </section>
     </main>
   );

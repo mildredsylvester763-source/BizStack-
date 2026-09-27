@@ -1,168 +1,113 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase-server";
-import { calculateInvoiceTotal } from "@/lib/invoices";
+import { calculateInvoiceTotal, isOverdue } from "@/lib/invoices";
 
-type InvoiceListRow = {
-  id: string;
-  invoice_number: string;
-  status: string;
-  due_date: string | null;
-  currency: string;
-  created_at: string;
-  customer: { name: string } | null;
-  invoice_items: { quantity: number; unit_price: number }[];
+const STATUS_STYLES: Record<string, string> = {
+  draft: "bg-ink/10 text-ink/60",
+  sent: "bg-vault/10 text-vault",
+  paid: "bg-vault text-mist",
+  overdue: "bg-alert/10 text-alert"
 };
-
-function isPastDue(value: string | null) {
-  return Boolean(value) && value! < new Date().toISOString().slice(0, 10);
-}
-
-function formatMoney(amount: number, currency: string) {
-  try {
-    return new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency
-    }).format(amount);
-  } catch {
-    return amount.toFixed(2) + " " + currency;
-  }
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    draft: "bg-ink/10 text-ink/65",
-    sent: "bg-moss/10 text-moss",
-    paid: "bg-emerald-100 text-emerald-800",
-    overdue: "bg-clay/10 text-clay"
-  };
-
-  return (
-    <span className={"inline-flex rounded-full px-2.5 py-1 text-xs " + (styles[status] ?? styles.draft)}>
-      {status}
-    </span>
-  );
-}
 
 export default async function InvoicesPage() {
   const supabase = createClient();
+
   const {
     data: { user }
   } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
+  if (!user) redirect("/login");
 
   const { data: business } = await supabase
     .from("businesses")
-    .select("*")
+    .select("id, name")
     .eq("owner_id", user.id)
     .single();
+  if (!business) redirect("/onboarding");
 
-  if (!business) {
-    redirect("/onboarding");
-  }
-
-  const { data: invoices, error } = await supabase
+  const { data: invoices } = await supabase
     .from("invoices")
-    .select("id, invoice_number, status, due_date, currency, created_at, customer:customers(name), invoice_items(quantity, unit_price)")
+    .select(
+      "id, invoice_number, status, due_date, currency, created_at, customer:customers(name), invoice_items(quantity, unit_price)"
+    )
     .eq("business_id", business.id)
     .order("created_at", { ascending: false });
 
-  if (error) {
-    throw new Error("Unable to load invoices: " + error.message);
-  }
-
-  const invoiceRows = (invoices ?? []) as InvoiceListRow[];
+  const rows = invoices ?? [];
 
   return (
-    <main className="min-h-screen">
-      <header className="flex flex-col gap-4 border-b border-line px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <Link href="/dashboard" className="font-display text-lg text-ink hover:text-moss">
+    <main className="min-h-screen bg-ledger">
+      <header className="border-b border-rule bg-white">
+        <div className="max-w-4xl mx-auto px-6 py-5 flex items-center justify-between">
+          <Link href="/dashboard" className="font-display text-lg text-ink">
             {business.name}
           </Link>
-          <p className="text-xs text-ink/50">Invoices</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-4">
-          <nav className="flex flex-wrap items-center gap-4 text-sm">
-            <Link href="/dashboard/customers" className="text-ink/60 hover:text-ink">Customers</Link>
-            <Link href="/dashboard/actions" className="text-ink/60 hover:text-ink">Action Center</Link>
-            <Link href="/dashboard/settings/automation" className="text-ink/60 hover:text-ink">
-              Automation Settings
-            </Link>
-          </nav>
-          <form action="/auth/sign-out" method="post">
-            <button className="text-sm text-ink/60 hover:text-ink">Sign out</button>
-          </form>
+          <Link href="/dashboard" className="text-sm text-ink/45 hover:text-ink">
+            Back to dashboard
+          </Link>
         </div>
       </header>
 
-      <section className="mx-auto max-w-5xl px-6 py-12 sm:py-16">
-        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <section className="max-w-4xl mx-auto px-6 py-12">
+        <div className="flex items-center justify-between mb-8">
           <div>
-            <p className="mb-3 text-xs uppercase tracking-[0.18em] text-moss">Module 3</p>
-            <h1 className="font-display text-3xl text-ink">Invoices</h1>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-ink/65">
-              Draft, track, and follow the money your business is owed.
-            </p>
+            <h1 className="font-display text-3xl text-ink mb-1">Invoices</h1>
+            <p className="text-ink/60">Everything sent, paid, or waiting.</p>
           </div>
           <Link
             href="/dashboard/invoices/new"
-            className="inline-flex rounded-sm bg-moss px-4 py-2 text-sm text-paper hover:bg-moss/90"
+            className="bg-ink text-mist px-5 py-2.5 text-sm font-medium hover:bg-vaultDeep transition-colors"
           >
-            New Invoice
+            New invoice
           </Link>
         </div>
 
-        <div className="overflow-hidden border border-line bg-white">
-          {invoiceRows.length === 0 ? (
-            <div className="px-5 py-10">
-              <h2 className="font-display text-lg text-ink">No invoices yet.</h2>
-              <p className="mt-2 text-sm text-ink/55">
-                Create your first invoice to start tracking money in.
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[760px] text-left text-sm">
-                <thead className="border-b border-line text-xs uppercase tracking-[0.12em] text-ink/45">
-                  <tr>
-                    <th className="px-5 py-3 font-normal">Invoice</th>
-                    <th className="px-5 py-3 font-normal">Customer</th>
-                    <th className="px-5 py-3 font-normal">Total</th>
-                    <th className="px-5 py-3 font-normal">Status</th>
-                    <th className="px-5 py-3 font-normal">Due</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line">
-                  {invoiceRows.map((invoice) => {
-                    const displayStatus =
-                      invoice.status === "sent" && isPastDue(invoice.due_date)
-                        ? "overdue"
-                        : invoice.status;
-                    const total = calculateInvoiceTotal(invoice.invoice_items ?? []);
+        {rows.length === 0 ? (
+          <p className="text-sm text-ink/40">
+            No invoices yet — create the first one.
+          </p>
+        ) : (
+          <div className="divide-y divide-rule border-t border-b border-rule">
+            {rows.map((inv) => {
+              // Supabase embeds a to-one relation (customer, via customer_id)
+              // as a single object, and a to-many relation (invoice_items)
+              // as an array — this reflects that shape directly instead of
+              // forcing a mismatched cast.
+              const customer = inv.customer as unknown as { name: string } | null;
+              const items = (inv.invoice_items ?? []) as {
+                quantity: number;
+                unit_price: number;
+              }[];
+              const total = calculateInvoiceTotal(items);
+              const overdue = isOverdue(inv.status, inv.due_date);
+              const displayStatus = overdue ? "overdue" : inv.status;
 
-                    return (
-                      <tr key={invoice.id} className="hover:bg-paper">
-                        <td className="px-5 py-4">
-                          <Link href={"/dashboard/invoices/" + invoice.id} className="text-moss hover:text-ink">
-                            {invoice.invoice_number}
-                          </Link>
-                        </td>
-                        <td className="px-5 py-4 text-ink">{invoice.customer?.name ?? "—"}</td>
-                        <td className="px-5 py-4 text-ink">{formatMoney(total, invoice.currency)}</td>
-                        <td className="px-5 py-4"><StatusBadge status={displayStatus} /></td>
-                        <td className="px-5 py-4 text-ink/65">{invoice.due_date ?? "—"}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+              return (
+                <Link
+                  key={inv.id}
+                  href={`/dashboard/invoices/${inv.id}`}
+                  className="py-4 grid sm:grid-cols-[100px_1fr_120px_100px_90px] gap-3 items-center hover:bg-white transition-colors -mx-2 px-2"
+                >
+                  <span className="text-sm text-ink/50">{inv.invoice_number}</span>
+                  <span className="text-ink">{customer?.name ?? "—"}</span>
+                  <span className="text-sm text-ink/70">
+                    {total.toFixed(2)} {inv.currency}
+                  </span>
+                  <span className="text-xs text-ink/45">
+                    {inv.due_date ? new Date(inv.due_date).toLocaleDateString() : "—"}
+                  </span>
+                  <span
+                    className={`text-xs px-2.5 py-1 rounded-full text-center capitalize ${
+                      STATUS_STYLES[displayStatus] ?? "bg-ink/10 text-ink/60"
+                    }`}
+                  >
+                    {displayStatus}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </section>
     </main>
   );
