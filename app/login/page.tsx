@@ -88,29 +88,7 @@ export default function LoginPage() {
           <h1 className="font-display text-3xl text-ink mb-1">Welcome back</h1>
           <p className="text-sm text-ink/60 mb-8">Log in to your business.</p>
 
-          <div className="space-y-2.5 mb-6">
-            <button
-              onClick={() => handleOAuth("google")}
-              className="w-full flex items-center justify-center gap-2.5 border border-rule rounded-sm py-2.5 text-sm text-ink hover:bg-mist transition-colors"
-            >
-              <GoogleIcon />
-              Continue with Google
-            </button>
-            <button
-              onClick={() => handleOAuth("facebook")}
-              className="w-full flex items-center justify-center gap-2.5 border border-rule rounded-sm py-2.5 text-sm text-ink hover:bg-mist transition-colors"
-            >
-              <FacebookIcon />
-              Continue with Facebook
-            </button>
-            <button
-              onClick={() => handleOAuth("apple")}
-              className="w-full flex items-center justify-center gap-2.5 border border-rule rounded-sm py-2.5 text-sm text-ink hover:bg-mist transition-colors"
-            >
-              <AppleIcon />
-              Continue with Apple
-            </button>
-          </div>
+          <div className="mb-6 rounded-sm border border-rule bg-mist/60 px-4 py-3 text-xs text-ink/55">Social sign-in will appear here when its provider is connected. Email authentication is available now.</div>
 
           <div className="flex items-center gap-3 mb-6">
             <div className="h-px bg-rule flex-1" />
