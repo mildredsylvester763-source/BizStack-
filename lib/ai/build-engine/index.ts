@@ -6,3 +6,6 @@ export * from '@/lib/ai/build-engine/operations-runtime';
 
 export * from '@/lib/ai/build-engine/customer-local';
 export * from '@/lib/ai/build-engine/customer-runtime';
+
+export * from '@/lib/ai/build-engine/connector-local';
+export * from '@/lib/ai/build-engine/connector-runtime';
