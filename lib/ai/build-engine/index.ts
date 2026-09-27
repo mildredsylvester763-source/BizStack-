@@ -19,3 +19,5 @@ export * from '@/lib/ai/build-engine/cash-sale-local';
 export * from '@/lib/ai/build-engine/cash-sale-runtime';
 export * from '@/lib/ai/build-engine/supplier-price-local';
 export * from '@/lib/ai/build-engine/supplier-price-runtime';
+export * from '@/lib/ai/build-engine/commission-local';
+export * from '@/lib/ai/build-engine/commission-runtime';
