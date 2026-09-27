@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase-server";
 import { decideAgentApproval, type ApprovalDecision } from "@/lib/agents/approvals";
+import { decideBuildApproval, type BuildApprovalDecision } from "@/lib/ai/build-engine/approvals";
 
 type EventRow = {
   id: string;
@@ -19,6 +20,19 @@ type EventRow = {
   resolved_at: string | null;
 };
 
+
+
+type BuildApproval = {
+  id: string;
+  build_run_id: string;
+  requested_action: string;
+  reason: string;
+  status: string;
+  target_type: string | null;
+  target_id: string | null;
+  proposed_payload: Record<string, unknown>;
+  created_at: string;
+};
 type AgentApproval = {
   id: string;
   requested_action: string;
@@ -87,6 +101,39 @@ async function decideAgentApprovalAction(formData: FormData) {
 
   revalidatePath("/dashboard/actions");
   revalidatePath("/dashboard/activity");
+}
+
+
+
+async function decideBuildApprovalAction(formData: FormData) {
+  "use server";
+  const approvalId = String(formData.get("build_approval_id") || "");
+  const rawDecision = String(formData.get("decision") || "approve");
+  const decision: BuildApprovalDecision = rawDecision === "reject" ? "reject" : "approve";
+  if (!approvalId) return;
+
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data: business } = await supabase
+    .from("businesses")
+    .select("id")
+    .eq("owner_id", user.id)
+    .single();
+
+  if (!business) redirect("/onboarding");
+
+  await decideBuildApproval({
+    approvalId,
+    businessId: business.id,
+    userId: user.id,
+    decision
+  });
+
+  revalidatePath("/dashboard/actions");
+  revalidatePath("/dashboard/activity");
+  revalidatePath("/dashboard/website");
 }
 
 function label(value: string | null | undefined) {
@@ -172,6 +219,49 @@ function EventCard({ event }: { event: EventRow }) {
           </form>
         </div>
       )}
+    </div>
+  );
+}
+
+
+function BuildApprovalCard({ approval }: { approval: BuildApproval }) {
+  const payload = approval.proposed_payload && typeof approval.proposed_payload === "object" ? approval.proposed_payload : {};
+  const metrics = payload.metrics && typeof payload.metrics === "object" ? payload.metrics as Record<string, unknown> : {};
+
+  return (
+    <div className="bg-white border border-vault/30 p-5">
+      <div className="flex flex-wrap items-center gap-2 mb-2">
+        <span className="text-xs text-vault">AI build approval</span>
+        <span className="text-[11px] px-2 py-0.5 bg-alert/10 text-alert">Publish</span>
+      </div>
+      <p className="text-sm font-medium text-ink">{approval.requested_action}</p>
+      <p className="text-sm text-ink/65 mt-2 leading-relaxed">{approval.reason}</p>
+      {Object.keys(metrics).length > 0 && (
+        <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {Object.entries(metrics).map(([key, value]) => (
+            <div key={key} className="border border-rule bg-mist p-3">
+              <p className="text-[10px] uppercase tracking-[.12em] text-ink/40">{label(key)}</p>
+              <p className="text-sm text-ink mt-1">{String(value)}</p>
+            </div>
+          ))}
+        </div>
+      )}
+      <details className="mt-4">
+        <summary className="cursor-pointer text-sm text-vault">Show build request</summary>
+        <pre className="mt-3 text-xs text-ink/60 whitespace-pre-wrap border border-rule bg-white p-3 overflow-x-auto">{JSON.stringify(payload, null, 2)}</pre>
+      </details>
+      <div className="mt-5 flex flex-wrap gap-2">
+        <form action={decideBuildApprovalAction}>
+          <input type="hidden" name="build_approval_id" value={approval.id} />
+          <input type="hidden" name="decision" value="approve" />
+          <button className="bg-ink text-mist text-sm px-4 py-2 hover:bg-vaultDeep transition-colors">Approve & publish</button>
+        </form>
+        <form action={decideBuildApprovalAction}>
+          <input type="hidden" name="build_approval_id" value={approval.id} />
+          <input type="hidden" name="decision" value="reject" />
+          <button className="border border-rule text-ink/70 text-sm px-4 py-2 hover:bg-mist transition-colors">Reject</button>
+        </form>
+      </div>
     </div>
   );
 }
@@ -264,7 +354,7 @@ export default async function ActionCenterPage() {
 
   if (!business) redirect("/onboarding");
 
-  const [{ data: events }, { data: agentApprovalRows }] = await Promise.all([
+  const [{ data: events }, { data: agentApprovalRows }, { data: buildApprovalRows }] = await Promise.all([
     supabase
       .from("events")
       .select("id,event_type,summary,evidence,status,created_at,priority,category,action_type,due_at,assigned_to,resolved_at")
@@ -277,11 +367,19 @@ export default async function ActionCenterPage() {
       .eq("business_id", business.id)
       .eq("status", "pending")
       .order("created_at", { ascending: false })
+      .limit(100),
+    supabase
+      .from("ai_build_approvals")
+      .select("id,build_run_id,requested_action,reason,status,target_type,target_id,proposed_payload,created_at")
+      .eq("business_id", business.id)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false })
       .limit(100)
   ]);
 
   const all = (events ?? []) as EventRow[];
   const agentApprovals = (agentApprovalRows ?? []) as AgentApproval[];
+  const buildApprovals = (buildApprovalRows ?? []) as BuildApproval[];
   const agentApprovalEventIds = new Set(
     all
       .filter(event => event.event_type === "agent.approval_requested")
@@ -327,7 +425,7 @@ export default async function ActionCenterPage() {
     }, new Map<string, EventRow[]>()).values()
   );
 
-  const needsApprovalCount = agentApprovals.length + regularApprovalEvents.length;
+  const needsApprovalCount = agentApprovals.length + buildApprovals.length + regularApprovalEvents.length;
 
   return (
     <main className="min-h-screen bg-ledger">
@@ -368,6 +466,15 @@ export default async function ActionCenterPage() {
         </div>
 
         <div className="space-y-10">
+          <section>
+            <h2 className="text-sm text-alert font-medium mb-3">AI build approvals</h2>
+            {buildApprovals.length ? (
+              <div className="space-y-3">{buildApprovals.map(approval => <BuildApprovalCard key={approval.id} approval={approval} />)}</div>
+            ) : (
+              <p className="text-sm text-ink/40">No AI builds are waiting to be published.</p>
+            )}
+          </section>
+
           <section>
             <h2 className="text-sm text-alert font-medium mb-3">AI agent approvals</h2>
             {agentApprovals.length ? (
