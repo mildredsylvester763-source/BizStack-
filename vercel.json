@@ -1,8 +1,0 @@
-{
-  "crons": [
-    {
-      "path": "/api/communications/worker?limit=25",
-      "schedule": "* * * * *"
-    }
-  ]
-}
