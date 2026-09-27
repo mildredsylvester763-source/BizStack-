@@ -42,3 +42,29 @@ drop policy if exists ai_build_tests_owner_all on public.ai_build_tests;
 create policy ai_build_tests_owner_all on public.ai_build_tests for all to authenticated
 using (exists (select 1 from public.businesses b where b.id=ai_build_tests.business_id and b.owner_id=(select auth.uid())))
 with check (exists (select 1 from public.businesses b where b.id=ai_build_tests.business_id and b.owner_id=(select auth.uid())));
+
+
+create table if not exists public.ai_build_approvals (
+  id uuid primary key default gen_random_uuid(),
+  business_id uuid not null references public.businesses(id) on delete cascade,
+  build_run_id uuid not null references public.ai_build_runs(id) on delete cascade,
+  requested_by uuid not null references auth.users(id) on delete restrict,
+  requested_action text not null,
+  status text not null default 'pending' check (status = any (array['pending','approved','rejected','expired','cancelled'])),
+  reason text not null default '',
+  target_type text,
+  target_id uuid,
+  proposed_payload jsonb not null default '{}'::jsonb,
+  decided_by uuid references auth.users(id) on delete set null,
+  decided_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists ai_build_approvals_business_status_idx on public.ai_build_approvals(business_id,status,created_at desc);
+create index if not exists ai_build_approvals_build_run_idx on public.ai_build_approvals(build_run_id);
+create index if not exists ai_build_approvals_requested_by_idx on public.ai_build_approvals(requested_by);
+alter table public.ai_build_approvals enable row level security;
+drop policy if exists ai_build_approvals_owner_all on public.ai_build_approvals;
+create policy ai_build_approvals_owner_all on public.ai_build_approvals for all to authenticated
+using (exists (select 1 from public.businesses b where b.id=ai_build_approvals.business_id and b.owner_id=(select auth.uid())))
+with check (exists (select 1 from public.businesses b where b.id=ai_build_approvals.business_id and b.owner_id=(select auth.uid())));
