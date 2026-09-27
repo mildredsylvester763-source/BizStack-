@@ -17,3 +17,5 @@ export * from '@/lib/ai/build-engine/quote-local';
 export * from '@/lib/ai/build-engine/quote-runtime';
 export * from '@/lib/ai/build-engine/cash-sale-local';
 export * from '@/lib/ai/build-engine/cash-sale-runtime';
+export * from '@/lib/ai/build-engine/supplier-price-local';
+export * from '@/lib/ai/build-engine/supplier-price-runtime';
