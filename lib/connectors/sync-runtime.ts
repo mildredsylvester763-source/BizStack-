@@ -145,7 +145,8 @@ export async function syncConnectorResource(args:{
     await supabase.from("connector_runs").update({
       status:"failed",records_read:total,records_written:0,finished_at:failedAt,error_message:message
     }).eq("id",runId).eq("business_id",businessId);
-    const authFailure=/Provider returned HTTP (401|403)/i.test(message);\n    await supabase.from("integrations").update({...(authFailure?{status:"error"}:{}),error_message:message}).eq("id",integrationId).eq("business_id",businessId);
+    const authFailure=/Provider returned HTTP (401|403)/i.test(message);
+    await supabase.from("integrations").update({...(authFailure?{status:"error"}:{}),error_message:message}).eq("id",integrationId).eq("business_id",businessId);
     throw error;
   }
 }
