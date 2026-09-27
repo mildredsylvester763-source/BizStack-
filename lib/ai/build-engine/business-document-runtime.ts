@@ -7,7 +7,7 @@ function checksum(value:unknown){const json=JSON.stringify(value);let hash=21661
 
 export async function runBusinessDocumentBuild({businessId,userId,prompt,mode='draft_only'}:{businessId:string;userId:string;prompt:string;mode?:BuildMode}){
  const supabase=createClient();
- const {data:business,error}=await supabase.from('businesses').select('id,name,currency,industry,description,workspace_id').eq('id',businessId).eq('owner_id',userId).single();
+ const {data:business,error}=await supabase.from('businesses').select('id,name,currency,workspace_id').eq('id',businessId).eq('owner_id',userId).single();
  if(error||!business)throw new Error('Business context is not available.');
  const draft=parseBusinessDocumentRequest(prompt);
  const plan=buildPlan({capability:'business_plan',prompt,mode,context:{business}});
@@ -19,7 +19,7 @@ export async function runBusinessDocumentBuild({businessId,userId,prompt,mode='d
  try{
    const sections={
      executive_summary:'A concise description of the business, opportunity, operating model and intended outcome.',
-     business_overview:(business.description||business.name+' is a business operating in '+(business.industry||'its target market')+'.'),
+     business_overview:(business.name+' is the business context for this draft; company-specific description and industry assumptions should be validated before submission.'),
      problem:'Define the customer problem, unmet need or funding constraint addressed by this document.',
      solution:'Describe the product/service, delivery model and why customers can obtain measurable value.',
      market:'Define target customers, market segments, competitors, positioning and the assumptions that should be validated before submission.',
