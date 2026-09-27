@@ -41,5 +41,6 @@ export type BuildContext = {
   existingWebsite?: unknown;
 };
 
-export type BuildRequest = { capability: 'website' | 'general'; prompt: string; mode?: BuildMode; websiteId?: string | null; context: BuildContext };
+export type BuildCapability = 'website' | 'invoice' | 'product_inventory' | 'money_transaction' | 'customer' | 'connector' | 'quote' | 'general';
+export type BuildRequest = { capability: BuildCapability; prompt: string; mode?: BuildMode; websiteId?: string | null; context: BuildContext };
 export type BuildProviderResult = { providerKey: string; status: 'available' | 'failed' | 'fallback'; spec?: WebsiteSpec; raw?: unknown; model?: string; error?: string };
