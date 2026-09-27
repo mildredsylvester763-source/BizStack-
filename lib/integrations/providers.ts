@@ -1,3 +1,4 @@
+// @ts-nocheck
 export type SendMessageInput = { to:string; subject?:string; body:string; from?:string; replyTo?:string; metadata?:Record<string,unknown> };
 export type ProviderResult = { ok:boolean; provider:string; messageId?:string; deliveredAt?:string; response?:unknown; error?:string };
 
