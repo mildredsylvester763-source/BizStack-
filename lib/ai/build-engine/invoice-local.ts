@@ -27,7 +27,7 @@ export function parseInvoiceRequest(prompt:string,currency:string):InvoiceDraft{
     let match:RegExpExecArray|null;
     while((match=pattern.exec(text))!==null){
       let quantity:number,description:string,unitPrice:number|null;
-      if(/^\\d/.test(match[1])){ quantity=Number(match[1]); description=match[2].trim(); unitPrice=money(match[3].replace(/^[₦$€£]\s*/,'')); }
+      if(/^\d/.test(match[1])){ quantity=Number(match[1]); description=match[2].trim(); unitPrice=money(match[3].replace(/^[₦$€£]\s*/,'')); }
       else{ description=match[1].trim(); quantity=Number(match[2]); unitPrice=money(match[3].replace(/^[₦$€£]\s*/,'')); }
       if(description && unitPrice!==null && quantity>0 && unitPrice>0) lines.push({description,quantity,unitPrice});
     }
