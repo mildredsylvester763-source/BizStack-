@@ -207,6 +207,7 @@ export default async function AIBuilderPage() {
                   {run.result?.connector && <p className="text-xs text-ink/45 mt-2">Connector {run.result.connector.name} · {run.result.connector.schema_definition?.resources?.length || 0} resources · credentials required</p>}
                   {run.result?.quoteNumber && <p className="text-xs text-ink/45 mt-2">Quote {run.result.quoteNumber} · {run.result.currency} {run.result.total}</p>}
                   {run.result?.alert && <p className="text-xs text-alert mt-2">Supplier price alert created: +{Number(run.result.alert.change_percent || 0).toFixed(2)}%</p>}
+                  {run.result?.commission && <p className="text-xs text-vault mt-2">Commission {Number(run.result.commission.commission_amount || 0).toLocaleString()} {run.result.commission.currency} · {Number(run.result.commission.rate_percent || 0).toFixed(2)}%</p>}
                 </div>
                 <div className="text-xs capitalize text-ink/60">{String(run.status).replace("_", " ")}</div>
                 <div className="text-xs text-ink/40 md:text-right">{new Date(run.created_at).toLocaleString()}</div>
