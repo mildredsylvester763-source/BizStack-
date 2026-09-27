@@ -21,3 +21,5 @@ export * from '@/lib/ai/build-engine/supplier-price-local';
 export * from '@/lib/ai/build-engine/supplier-price-runtime';
 export * from '@/lib/ai/build-engine/commission-local';
 export * from '@/lib/ai/build-engine/commission-runtime';
+export * from '@/lib/ai/build-engine/business-document-local';
+export * from '@/lib/ai/build-engine/business-document-runtime';
