@@ -86,7 +86,10 @@ export default async function ActionCenterPage() {
     .order("created_at", { ascending: false });
 
   const all = (events ?? []) as EventRow[];
-  const needsApproval = all.filter((e) => e.status === "needs_approval");
+  const approvals = all.filter((e) => e.status === "needs_approval");
+  const attention = all.filter((e) => ["warning", "needs_attention", "failed", "overdue"].includes(e.status));
+  const recommendations = all.filter((e) => ["recommendation", "recommended"].includes(e.status));
+  const needsApproval = approvals;
   const autoHandled = all.filter((e) => e.status === "auto_handled");
   const info = all.filter((e) => e.status === "info");
 
@@ -103,13 +106,13 @@ export default async function ActionCenterPage() {
         </div>
       </header>
 
-      <section className="max-w-4xl mx-auto px-6 py-12">
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
         <h1 className="font-display text-3xl text-ink mb-1">Action Center</h1>
         <p className="text-ink/60 mb-10">
           What BizStack noticed, what it recommends, and what it already handled.
         </p>
 
-        <div className="space-y-10">
+        <div className="grid sm:grid-cols-4 gap-3 mb-8">\n          <div className="bg-white border border-rule p-4"><p className="text-xs text-ink/45">Needs approval</p><p className="text-2xl font-display text-alert mt-1">{needsApproval.length}</p></div>\n          <div className="bg-white border border-rule p-4"><p className="text-xs text-ink/45">Needs attention</p><p className="text-2xl font-display text-ink mt-1">{attention.length}</p></div>\n          <div className="bg-white border border-rule p-4"><p className="text-xs text-ink/45">Recommendations</p><p className="text-2xl font-display text-vault mt-1">{recommendations.length}</p></div>\n          <div className="bg-white border border-rule p-4"><p className="text-xs text-ink/45">Activity</p><p className="text-2xl font-display text-ink mt-1">{all.length}</p></div>\n        </div>\n\n        <div className="mb-8 bg-white border border-rule p-4">\n          <p className="text-xs uppercase tracking-[0.16em] text-vault font-medium mb-2">Command view</p>\n          <p className="text-sm text-ink/65">Action Center is the operational inbox for BizStack: approvals, exceptions, overdue work, recommendations, automation results, integration failures and business events should converge here.</p>\n        </div>\n\n        <div className="space-y-10">
           <div>
             <h2 className="text-sm text-alert font-medium mb-3">Needs your approval</h2>
             {needsApproval.length === 0 ? (
