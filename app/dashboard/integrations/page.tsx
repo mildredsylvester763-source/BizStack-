@@ -11,11 +11,11 @@ const catalog=[
 export default function IntegrationsPage(){
  const supabase=createClient(); const [items,setItems]=useState<Integration[]>([]); const [loading,setLoading]=useState(true); const [businessId,setBusinessId]=useState("");
  async function load(){const {data:{user}}=await supabase.auth.getUser(); if(!user)return; const {data:b}=await supabase.from("businesses").select("id").eq("owner_id",user.id).single(); if(!b)return; setBusinessId(b.id); const {data}=await supabase.from("integrations").select("*").eq("business_id",b.id).order("created_at"); setItems(data||[]); setLoading(false)}
- useEffect(()=>{load()},[]);
+ useEffect(()=>{\n  load();\n},[]);\n useEffect(()=>{\n   if(!businessId) return;\n   const channel=supabase.channel("bizstack-integrations").on("postgres_changes",{event:"*",schema:"public",table:"integrations",filter:"business_id=eq."+businessId},()=>load()).subscribe();\n   return ()=>{supabase.removeChannel(channel)};\n },[businessId]);
  async function add(c:string,category:string,type:string,mode:string){
    const name=c;
    const {data,error}=await supabase.from("integrations").insert({business_id:businessId,provider:c.toLowerCase().replace(/\s+/g,"-"),category,connection_type:type,display_name:name,status:"pending",sync_mode:mode,capabilities:{webhooks:mode==="realtime",incremental_sync:true,manual_sync:true}}).select("*").single();
-   if(!error&&data)setItems(v=>[...v,data]);
+   if(!error&&data){setItems(v=>[...v,data]);} else if(error){alert(error.message);}
  }
  return <main className="min-h-screen bg-ledger"><header className="border-b border-rule bg-white"><div className="max-w-6xl mx-auto px-6 py-5 flex justify-between items-center"><div><Link href="/dashboard" className="text-xs text-ink/45">← Dashboard</Link><h1 className="font-display text-2xl mt-1">Integration Hub</h1></div><Link href="/dashboard/money" className="text-sm text-vault">Money Center</Link></div></header>
  <section className="max-w-6xl mx-auto px-6 py-10"><div className="mb-8"><p className="text-xs uppercase tracking-[.18em] text-vault">Connected business</p><h2 className="font-display text-3xl mt-2">Connect the systems you already use.</h2><p className="text-sm text-ink/55 mt-2 max-w-2xl">BizStack keeps its own canonical records while tracking where synchronized information came from. Real-time is used when a provider supports events; otherwise the integration reports its actual sync mode.</p></div>
