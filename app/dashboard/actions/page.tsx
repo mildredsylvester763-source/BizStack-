@@ -112,7 +112,19 @@ export default async function ActionCenterPage() {
           What BizStack noticed, what it recommends, and what it already handled.
         </p>
 
-        <div className="grid sm:grid-cols-4 gap-3 mb-8">\n          <div className="bg-white border border-rule p-4"><p className="text-xs text-ink/45">Needs approval</p><p className="text-2xl font-display text-alert mt-1">{needsApproval.length}</p></div>\n          <div className="bg-white border border-rule p-4"><p className="text-xs text-ink/45">Needs attention</p><p className="text-2xl font-display text-ink mt-1">{attention.length}</p></div>\n          <div className="bg-white border border-rule p-4"><p className="text-xs text-ink/45">Recommendations</p><p className="text-2xl font-display text-vault mt-1">{recommendations.length}</p></div>\n          <div className="bg-white border border-rule p-4"><p className="text-xs text-ink/45">Activity</p><p className="text-2xl font-display text-ink mt-1">{all.length}</p></div>\n        </div>\n\n        <div className="mb-8 bg-white border border-rule p-4">\n          <p className="text-xs uppercase tracking-[0.16em] text-vault font-medium mb-2">Command view</p>\n          <p className="text-sm text-ink/65">Action Center is the operational inbox for BizStack: approvals, exceptions, overdue work, recommendations, automation results, integration failures and business events should converge here.</p>\n        </div>\n\n        <div className="space-y-10">
+        <div className="grid sm:grid-cols-4 gap-3 mb-8">
+          <div className="bg-white border border-rule p-4"><p className="text-xs text-ink/45">Needs approval</p><p className="text-2xl font-display text-alert mt-1">{needsApproval.length}</p></div>
+          <div className="bg-white border border-rule p-4"><p className="text-xs text-ink/45">Needs attention</p><p className="text-2xl font-display text-ink mt-1">{attention.length}</p></div>
+          <div className="bg-white border border-rule p-4"><p className="text-xs text-ink/45">Recommendations</p><p className="text-2xl font-display text-vault mt-1">{recommendations.length}</p></div>
+          <div className="bg-white border border-rule p-4"><p className="text-xs text-ink/45">Activity</p><p className="text-2xl font-display text-ink mt-1">{all.length}</p></div>
+        </div>
+
+        <div className="mb-8 bg-white border border-rule p-4">
+          <p className="text-xs uppercase tracking-[0.16em] text-vault font-medium mb-2">Command view</p>
+          <p className="text-sm text-ink/65">Action Center is the operational inbox for BizStack: approvals, exceptions, overdue work, recommendations, automation results, integration failures and business events should converge here.</p>
+        </div>
+
+        <div className="space-y-10">
           <div>
             <h2 className="text-sm text-alert font-medium mb-3">Needs your approval</h2>
             {needsApproval.length === 0 ? (
