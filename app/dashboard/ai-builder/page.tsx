@@ -129,6 +129,14 @@ export default async function AIBuilderPage() {
       placeholder: "Create a quote for Acme Ltd for 2 website packages at 450000 each, VAT 7.5%, valid for 14 days, discount 5%.",
       tone: "vault"
     }
+    ,{
+      capability: "cash_sale",
+      eyebrow: "Cash register",
+      title: "Record a market-style cash sale",
+      description: "Resolves real products, checks stock, records the sale, decrements inventory and updates the open register.",
+      placeholder: "Cash sale 2 Premium Hoodie at 25000, cash received 60000.",
+      tone: "ink"
+    }
   ];
 
   return (
