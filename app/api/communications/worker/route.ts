@@ -23,7 +23,7 @@ export async function POST(req:NextRequest){
   const results=[];
   for(const job of jobs||[]){
     let result:ProviderResult;
-    if(job.channel==="email") result=await sendEmail({to:job.recipient,subject:job.subject||undefined,body:job.body||""});
+    if(job.channel==="email") result=await sendEmail({to:job.recipient,subject:job.subject||undefined,body:job.body||"",metadata:{idempotencyKey:job.idempotency_key}});
     else if(job.channel==="sms") result=await sendSms({to:job.recipient,body:job.body||""});
     else if(job.channel==="whatsapp") result=await sendWhatsApp({to:job.recipient,body:job.body||""});
     else result={ok:false,provider:"none",error:`Channel ${job.channel} is not enabled by the current provider runtime`};
@@ -32,6 +32,7 @@ export async function POST(req:NextRequest){
       const now=new Date().toISOString();
       await supabase.from("communication_delivery_jobs").update({status:"sent",provider:result.provider,provider_status:"accepted",provider_message_id:result.messageId||null,response_metadata:result.response||{},sent_at:now,last_error:null}).eq("id",job.id);
       await supabase.from("communication_messages").update({status:"sent",provider_message_id:result.messageId||null,sent_at:now,error_message:null}).eq("id",job.communication_id);
+      if(job.entity_type==="invoice"&&job.entity_id) await supabase.from("invoices").update({status:"sent"}).eq("id",job.entity_id).eq("business_id",job.business_id).eq("status","draft");
       results.push({id:job.id,status:"sent",provider:result.provider,messageId:result.messageId});
     }else{
       const terminal=(job.attempts||0)>=((job.max_attempts||5));
