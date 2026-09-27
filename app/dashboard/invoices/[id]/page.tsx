@@ -178,7 +178,7 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
               <label className="text-xs text-ink/55">Reference<input name="reference" placeholder="Payment reference" className="mt-1 block w-40 border border-rule px-2.5 py-2 text-sm" /></label>
               <button className="bg-vault text-mist px-5 py-2.5 text-sm font-medium hover:bg-vaultDeep transition-colors">Record payment</button>
             </form>
-          )}}
+          )}
           <Link href="/dashboard/invoices" className="border border-rule px-5 py-2.5 text-sm text-ink/60 hover:text-ink">All invoices</Link>
         </div>
       </section>
