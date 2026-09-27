@@ -11,7 +11,14 @@ const catalog=[
 export default function IntegrationsPage(){
  const supabase=createClient(); const [items,setItems]=useState<Integration[]>([]); const [loading,setLoading]=useState(true); const [businessId,setBusinessId]=useState("");
  async function load(){const {data:{user}}=await supabase.auth.getUser(); if(!user)return; const {data:b}=await supabase.from("businesses").select("id").eq("owner_id",user.id).single(); if(!b)return; setBusinessId(b.id); const {data}=await supabase.from("integrations").select("*").eq("business_id",b.id).order("created_at"); setItems(data||[]); setLoading(false)}
- useEffect(()=>{\n  load();\n},[]);\n useEffect(()=>{\n   if(!businessId) return;\n   const channel=supabase.channel("bizstack-integrations").on("postgres_changes",{event:"*",schema:"public",table:"integrations",filter:"business_id=eq."+businessId},()=>load()).subscribe();\n   return ()=>{supabase.removeChannel(channel)};\n },[businessId]);
+ useEffect(()=>{
+  load();
+},[]);
+ useEffect(()=>{
+   if(!businessId) return;
+   const channel=supabase.channel("bizstack-integrations").on("postgres_changes",{event:"*",schema:"public",table:"integrations",filter:"business_id=eq."+businessId},()=>load()).subscribe();
+   return ()=>{supabase.removeChannel(channel)};
+ },[businessId]);
  async function add(c:string,category:string,type:string,mode:string){
    const name=c;
    const {data,error}=await supabase.from("integrations").insert({business_id:businessId,provider:c.toLowerCase().replace(/\s+/g,"-"),category,connection_type:type,display_name:name,status:"pending",sync_mode:mode,capabilities:{webhooks:mode==="realtime",incremental_sync:true,manual_sync:true}}).select("*").single();
