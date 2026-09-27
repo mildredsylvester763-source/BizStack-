@@ -13,6 +13,7 @@ const registry: CapabilityDefinition[] = [
   { key: 'cash_sale', name: 'AI Cash Sale Builder', description: 'Translate a market-style cash sale into a real register sale, decrement inventory and prepare daily reconciliation.', actions: ['resolve_session','resolve_products','create_sale','update_inventory','validate_sale','audit'], approvalRequired: false },
   { key: 'supplier_price', name: 'AI Supplier Price Alert Builder', description: 'Translate a natural-language supplier cost change into a real supplier-product price update, historical record and thresholded alert.', actions: ['resolve_supplier','resolve_product','record_price','validate_change','audit'], approvalRequired: false },
   { key: 'commission', name: 'AI Commission Builder', description: 'Calculate and record an invoice-linked commission for an agent or broker with a durable payable ledger.', actions: ['resolve_agent','resolve_invoice','calculate_commission','validate_commission','audit'], approvalRequired: false },
+  { key: 'business_plan', name: 'AI Business Plan & Grant Builder', description: 'Compile a structured business plan, grant draft, loan pack or CFO brief from the business graph and user brief.', actions: ['collect_business_context','draft_sections','calculate_assumptions','validate_document','persist_version','audit'], approvalRequired: false },
   { key: 'general', name: 'Business Build Engine', description: 'Generic structured build orchestration for future BizStack modules.', actions: ['interpret','plan','validate','execute','audit'], approvalRequired: true }
 ];
 
