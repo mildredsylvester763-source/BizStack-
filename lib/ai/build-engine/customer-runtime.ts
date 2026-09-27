@@ -40,6 +40,7 @@ export async function runCustomerBuild({businessId,userId,prompt,mode='auto_exec
    for(const test of tests)await supabase.from('ai_build_tests').insert({business_id:businessId,build_run_id:run.id,test_key:test.key,test_type:'customer_integrity',status:test.pass?'passed':'failed',assertion:{expected:true},actual:test.pass,completed_at:new Date().toISOString()});
    const failed=tests.filter(t=>!t.pass);if(failed.length)throw new Error('Customer validation failed.');
    const result={customer,tests};
+   await supabase.from('ai_build_artifacts').insert({business_id:businessId,build_run_id:run.id,artifact_type:'customer',artifact_key:'customer',version:1,status:'validated',content:result,checksum:checksum(result)});
    await supabase.from('ai_build_runs').update({status:'succeeded',provider_key:'local-customer-compiler',provider_status:'fallback',result,finished_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',run.id).eq('business_id',businessId);
    await supabase.from('events').insert({business_id:businessId,event_type:'ai.build.customer_created',summary:'AI Build Engine created customer '+customer.name,evidence:{build_run_id:run.id,customer_id:customer.id},status:'info',priority:'normal',category:'customers'});
    return{runId:run.id,status:'succeeded',result};
