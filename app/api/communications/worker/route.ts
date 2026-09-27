@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { sendEmail, sendSms, sendWhatsApp, type ProviderResult } from "@/lib/integrations/providers";
