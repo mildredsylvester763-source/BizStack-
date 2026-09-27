@@ -47,6 +47,23 @@ export default async function AIBuilderPage(){
       <textarea name="prompt" required rows={7} className="mt-5 w-full border border-rule px-4 py-3 text-sm" placeholder="Create an invoice for Acme Ltd for 2 logo design at 150000, due in 14 days, VAT 7.5%."/>
       <button className="mt-4 bg-vault text-white px-5 py-3 text-sm">Create draft invoice</button>
     </form>
+       
+    <form action={runBuild} className="bg-white border border-rule p-6">
+      <input type="hidden" name="capability" value="product_inventory"/>
+      <p className="text-xs uppercase tracking-[.16em] text-vault">Product + inventory</p>
+      <h3 className="font-display text-2xl mt-2">Create a product and opening stock</h3>
+      <p className="text-sm text-ink/50 mt-2">Creates the real product, price, cost, low-stock threshold and audited opening stock movement.</p>
+      <textarea name="prompt" required rows={7} className="mt-5 w-full border border-rule px-4 py-3 text-sm" placeholder="Create product Premium Hoodie, SKU PH-001, price 25000, cost 14000, stock 20, low stock 5."/>
+      <button className="mt-4 bg-vault text-white px-5 py-3 text-sm">Create product</button>
+    </form>
+    <form action={runBuild} className="bg-white border border-rule p-6">
+      <input type="hidden" name="capability" value="money_transaction"/>
+      <p className="text-xs uppercase tracking-[.16em] text-vault">Money entry</p>
+      <h3 className="font-display text-2xl mt-2">Record cash movement</h3>
+      <p className="text-sm text-ink/50 mt-2">Records a real inflow or outflow with an optional matching financial account and reconciliation state.</p>
+      <textarea name="prompt" required rows={7} className="mt-5 w-full border border-rule px-4 py-3 text-sm" placeholder="Record an expense of ₦50000 for fuel from my Main Cash account."/>
+      <button className="mt-4 bg-ink text-white px-5 py-3 text-sm">Record money</button>
+    </form>
    </div>
    <div className="mt-10 bg-white border border-rule">
     <div className="p-5 border-b border-rule"><p className="text-xs uppercase tracking-[.16em] text-vault">Build ledger</p><h3 className="font-display text-xl mt-1">Recent execution history</h3></div>
