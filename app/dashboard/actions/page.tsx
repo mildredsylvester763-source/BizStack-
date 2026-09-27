@@ -387,13 +387,16 @@ export default async function ActionCenterPage() {
   );
 
   const regularApprovalEvents = all.filter(
-    event => !agentApprovalEventIds.has(event.id) && event.status === "needs_approval"
+    event =>
+      !agentApprovalEventIds.has(event.id) &&
+      event.event_type !== "ai.build.approval_requested" &&
+      event.status === "needs_approval"
   );
 
   const active = all
     .filter(isAction)
     .filter(e => e.status !== "auto_handled" && e.status !== "dismissed")
-    .filter(e => e.event_type !== "agent.approval_requested");
+    .filter(e => e.event_type !== "agent.approval_requested" && e.event_type !== "ai.build.approval_requested");
 
   const critical = active.filter(e => e.status !== "needs_approval" && (e.priority === "critical" || e.priority === "high"));
   const attention = active.filter(
