@@ -1,3 +1,5 @@
 export * from '@/lib/ai/build-engine/types';
 export * from '@/lib/ai/build-engine/capabilities';
 export * from '@/lib/ai/build-engine/runtime';\nexport * from '@/lib/ai/build-engine/invoice-runtime';\nexport * from '@/lib/ai/build-engine/approvals';\n
+export * from '@/lib/ai/build-engine/operations-local';
+export * from '@/lib/ai/build-engine/operations-runtime';
