@@ -17,7 +17,7 @@ async function publishWebsite(formData: FormData){
  "use server";
  const supabase=createClient(); const {data:{user}}=await supabase.auth.getUser(); if(!user) redirect("/login");
  const id=String(formData.get("id")||""); const {data:business}=await supabase.from("businesses").select("id").eq("owner_id",user.id).single(); if(!business) redirect("/onboarding");
- await supabase.from("websites").update({status:"published",published_at:new Date().toISOString(),current_version:1}).eq("id",id).eq("business_id",business.id);
+ await supabase.from("websites").update({status:"published",published_at:new Date().toISOString(),current_version:1}).eq("id",id).eq("business_id",business.id); await supabase.from("website_pages").update({status:"published"}).eq("website_id",id);
  revalidatePath("/dashboard/website"); revalidatePath("/site");
 }
 export default async function WebsitePage(){
