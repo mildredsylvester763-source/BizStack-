@@ -94,8 +94,9 @@ export default function NewInvoicePage() {
     const { data: customer } = await supabase.from("customers").select("id, name").eq("id", customerId).eq("business_id", business.id).single();
     if (!customer) { setError("Customer not found."); setLoading(false); return; }
 
-    const { count } = await supabase.from("invoices").select("id", { count: "exact", head: true }).eq("business_id", business.id);
-    const invoiceNumber = `INV-${String((count ?? 0) + 1).padStart(4, "0")}`;
+    const { data: generatedInvoiceNumber, error: numberError } = await supabase.rpc("next_invoice_number", { p_business_id: business.id });
+    if (numberError || !generatedInvoiceNumber) { setError(numberError?.message ?? "Could not generate an invoice number."); setLoading(false); return; }
+    const invoiceNumber = String(generatedInvoiceNumber);
 
     const { data: invoice, error: invoiceError } = await supabase.from("invoices").insert({
       business_id: business.id,
