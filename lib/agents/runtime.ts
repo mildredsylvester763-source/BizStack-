@@ -94,6 +94,23 @@ export async function runAgent({
   let sequence = 1;
   let waitingApprovalId: string | null = null;
 
+  const { data: bindingRows } = await supabase
+    .from("ai_agent_tool_bindings")
+    .select("tool_id,enabled")
+    .eq("business_id", businessId)
+    .eq("agent_id", agent.id)
+    .eq("enabled", true);
+
+  let boundToolKeys = new Set<string>();
+  if (bindingRows?.length) {
+    const toolIds = bindingRows.map((row) => row.tool_id);
+    const { data: boundTools } = await supabase
+      .from("ai_tools")
+      .select("id,tool_key")
+      .in("id", toolIds);
+    boundToolKeys = new Set((boundTools ?? []).map((tool) => String(tool.tool_key)));
+  }
+
   const planStep = await supabase.from("ai_agent_run_steps").insert({
     business_id: businessId,
     agent_run_id: run.id,
@@ -118,6 +135,22 @@ export async function runAgent({
     for (const step of plan) {
       const definition = getToolDefinition(step.toolKey);
       if (!definition) continue;
+
+      if (bindingRows?.length && !boundToolKeys.has(step.toolKey)) {
+        await supabase.from("ai_agent_run_steps").insert({
+          business_id: businessId,
+          agent_run_id: run.id,
+          sequence_no: sequence++,
+          step_type: "tool_call",
+          tool_key: step.toolKey,
+          status: "skipped",
+          input: step.input,
+          output: {},
+          error_message: "Agent tool is not enabled in the agent binding policy.",
+          finished_at: new Date().toISOString()
+        });
+        continue;
+      }
 
       if (!permissionAllows(agent, definition.permission)) {
         await supabase.from("ai_agent_run_steps").insert({
