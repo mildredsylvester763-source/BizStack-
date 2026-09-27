@@ -24,7 +24,7 @@ function websiteContext(business: any, existingWebsite?: unknown): BuildContext 
   };
 }
 
-async function applyWebsiteSpec(supabase: any, businessId: string, websiteId: string | null | undefined, spec: WebsiteSpec, publish: boolean) {
+export async function applyWebsiteSpec(supabase: any, businessId: string, websiteId: string | null | undefined, spec: WebsiteSpec, publish: boolean) {
   let finalWebsiteId = websiteId || null;
   if (finalWebsiteId) {
     const { data: existing } = await supabase.from('websites').select('id').eq('id', finalWebsiteId).eq('business_id', businessId).single();
@@ -99,8 +99,11 @@ export async function runWebsiteBuild(args: { businessId:string; userId:string; 
     if(failed.length) throw new Error('Website validation failed: ' + failed.map((test)=>test.key).join(', '));
     const needsApproval=Boolean(publish && mode !== 'auto_execute' && plan.steps.some((step)=>step.key==='publish' && step.requiresApproval));
     if(needsApproval){
-      await supabase.from('ai_build_runs').update({status:'waiting_approval',result:{spec,tests,metrics,action:'publish',websiteId:websiteId??null}}).eq('id',run.id).eq('business_id',businessId);
-      return {runId:run.id,status:'waiting_approval',result:{spec,tests,metrics}};
+      const {data:approval,error:approvalError}=await supabase.from('ai_build_approvals').insert({business_id:businessId,build_run_id:run.id,requested_by:userId,requested_action:'Publish website build',reason:'Publishing changes makes the generated website publicly visible.',target_type:'website',target_id:websiteId??null,proposed_payload:{websiteId:websiteId??null,artifactType:'website_spec',spec,tests,metrics}}).select('id').single();
+      if(approvalError||!approval) throw new Error(approvalError?.message||'Could not create website publish approval.');
+      await supabase.from('ai_build_runs').update({status:'waiting_approval',result:{spec,tests,metrics,action:'publish',websiteId:websiteId??null,approvalId:approval.id}}).eq('id',run.id).eq('business_id',businessId);
+      await supabase.from('events').insert({business_id:businessId,event_type:'ai.build.approval_requested',summary:'Website build is ready for approval before publishing.',evidence:{build_run_id:run.id,approval_id:approval.id,website_id:websiteId??null,metrics},status:'needs_approval',priority:'high',category:'ai_build',action_type:'approve_ai_build'});
+      return {runId:run.id,status:'waiting_approval',approvalId:approval.id,result:{spec,tests,metrics}};
     }
     const finalWebsiteId=await applyWebsiteSpec(supabase,businessId,websiteId,spec,Boolean(publish));
     const result={websiteId:finalWebsiteId,published:Boolean(publish),metrics,provider:generated.providerKey,providerStatus:generated.status,spec,tests};
