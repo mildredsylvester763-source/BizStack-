@@ -24,7 +24,7 @@ export default function NewInvoicePage() {
   const [terms, setTerms] = useState("Payment is due according to the terms stated above.");
   const [discountType, setDiscountType] = useState<"none" | "percentage" | "fixed">("none");
   const [discountValue, setDiscountValue] = useState(0);
-  const [taxRate, setTaxRate] = useState(0);
+  const [taxEnabled, setTaxEnabled] = useState(false);\n  const [taxName, setTaxName] = useState("Tax");\n  const [taxRate, setTaxRate] = useState(0);
   const [items, setItems] = useState<LineItem[]>([{ description: "", quantity: 1, unit_price: 0 }]);
   const [currency, setCurrency] = useState("USD");
   const [loading, setLoading] = useState(false);
@@ -36,7 +36,7 @@ export default function NewInvoicePage() {
       if (!user) return;
       const { data: business } = await supabase.from("businesses").select("id, currency").eq("owner_id", user.id).single();
       if (!business) return;
-      setCurrency(business.currency || "USD");
+      setCurrency(business.currency || "USD");\n      const { data: settings } = await supabase.from("business_settings").select("tax_mode, default_tax_rate, default_tax_name, tax_jurisdiction, invoice_settings").eq("business_id", business.id).maybeSingle();\n      if (settings) {\n        setTaxEnabled(settings.tax_mode !== "disabled" && Boolean(settings.default_tax_rate));\n        setTaxRate(Number(settings.default_tax_rate || 0));\n        setTaxName(settings.default_tax_name || "Tax");\n      }
       const { data } = await supabase.from("customers").select("id, name, email, phone").eq("business_id", business.id).order("name");
       setCustomers(data ?? []);
     }
@@ -50,7 +50,7 @@ export default function NewInvoicePage() {
       ? Math.min(subtotal, Math.max(0, discountValue))
       : 0;
   const taxable = Math.max(0, subtotal - discountAmount);
-  const taxAmount = taxable * Math.max(0, taxRate) / 100;
+  const taxAmount = taxEnabled ? taxable * Math.max(0, taxRate) / 100 : 0;
   const total = taxable + taxAmount;
 
   function updateItem(index: number, field: keyof LineItem, value: string) {
@@ -103,7 +103,7 @@ export default function NewInvoicePage() {
       terms_and_conditions: terms.trim() || null,
       discount_type: discountType,
       discount_value: discountValue,
-      tax_rate: taxRate,
+      tax_rate: taxEnabled ? taxRate : 0,\n      tax_enabled: taxEnabled,\n      tax_name: taxEnabled ? taxName.trim() || "Tax" : null,\n      tax_treatment: taxEnabled ? "standard" : "none",
       subtotal,
       discount_amount: discountAmount,
       tax_amount: taxAmount,
