@@ -6,13 +6,17 @@ import { createClient } from "@/lib/supabase-server";
 async function markSent(formData: FormData) {
   "use server";
   const supabase = createClient();
-  const invoiceId = String(formData.get("invoice_id"));
-  const businessId = String(formData.get("business_id"));
-  const invoiceNumber = String(formData.get("invoice_number"));
-  await supabase.from("invoices").update({ status: "sent" }).eq("id", invoiceId).eq("business_id", businessId);
-  await supabase.from("events").insert({ business_id: businessId, event_type: "invoice.sent", summary: `Invoice ${invoiceNumber} marked as sent`, evidence: { invoice_id: invoiceId }, status: "info" });
+  const invoiceId = String(formData.get("invoice_id") || "");
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const { data: business } = await supabase.from("businesses").select("id").eq("owner_id", user.id).single();
+  if (!business) redirect("/onboarding");
+  const { data: job, error } = await supabase.rpc("queue_invoice_email", { p_invoice_id: invoiceId });
+  if (error) throw new Error("Unable to queue invoice delivery: " + error.message);
   revalidatePath(`/dashboard/invoices/${invoiceId}`);
   revalidatePath("/dashboard/invoices");
+  revalidatePath("/dashboard/activity");
+  revalidatePath("/dashboard/actions");
 }
 
 async function recordPayment(formData: FormData) {
@@ -159,7 +163,7 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
               <input type="hidden" name="invoice_id" value={invoice.id} />
               <input type="hidden" name="business_id" value={business.id} />
               <input type="hidden" name="invoice_number" value={invoice.invoice_number} />
-              <button className="bg-ink text-mist px-5 py-2.5 text-sm font-medium hover:bg-vaultDeep transition-colors">Mark as sent</button>
+              <button className="bg-ink text-mist px-5 py-2.5 text-sm font-medium hover:bg-vaultDeep transition-colors">Send invoice</button>
             </form>
           )}
           {(invoice.status === "sent" || invoice.status === "partially_paid" || overdue) && Number(invoice.paid_amount || 0) < total && (
