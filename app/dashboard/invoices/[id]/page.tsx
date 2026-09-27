@@ -15,19 +15,39 @@ async function markSent(formData: FormData) {
   revalidatePath("/dashboard/invoices");
 }
 
-async function markPaid(formData: FormData) {
+async function recordPayment(formData: FormData) {
   "use server";
   const supabase = createClient();
   const invoiceId = String(formData.get("invoice_id"));
-  const businessId = String(formData.get("business_id"));
-  const invoiceNumber = String(formData.get("invoice_number"));
-  const total = String(formData.get("total"));
-  const currency = String(formData.get("currency"));
-  const customerName = String(formData.get("customer_name"));
-  await supabase.from("invoices").update({ status: "paid", paid_at: new Date().toISOString() }).eq("id", invoiceId).eq("business_id", businessId);
-  await supabase.from("events").insert({ business_id: businessId, event_type: "invoice.paid", summary: `${total} ${currency} received from ${customerName} for invoice ${invoiceNumber}`, evidence: { invoice_id: invoiceId, total, currency }, status: "info" });
-  revalidatePath(`/dashboard/invoices/${invoiceId}`);
+  const amount = Number(formData.get("amount"));
+  const method = String(formData.get("method") || "").trim() || null;
+  const reference = String(formData.get("reference") || "").trim() || null;
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const { data: business } = await supabase.from("businesses").select("id, currency").eq("owner_id", user.id).single();
+  if (!business) redirect("/onboarding");
+  const { data: invoice, error: invoiceError } = await supabase.from("invoices").select("id, invoice_number, currency, total, paid_amount, tax_amount, customer:customers(name)").eq("id", invoiceId).eq("business_id", business.id).single();
+  if (invoiceError || !invoice) throw new Error("Invoice not found.");
+  const total = Number(invoice.total || 0);
+  const paid = Number(invoice.paid_amount || 0);
+  const remaining = Math.max(0, total - paid);
+  if (!Number.isFinite(amount) || amount <= 0 || amount > remaining + 0.000001) throw new Error("Payment amount must be greater than zero and cannot exceed the remaining balance.");
+  const taxTotal = Number(invoice.tax_amount || 0);
+  const taxPart = total > 0 ? Math.min(taxTotal, amount * taxTotal / total) : 0;
+  const customerName = (invoice.customer as unknown as { name?: string } | null)?.name ?? null;
+  const { data: transaction, error: transactionError } = await supabase.from("financial_transactions").insert({ business_id: business.id, source_type: "manual", direction: "inflow", amount, currency: invoice.currency, status: "posted", occurred_at: new Date().toISOString(), counterparty_name: customerName, description: "Payment for invoice " + invoice.invoice_number, invoice_id: invoice.id, tax_amount: taxPart, metadata: { method, reference } }).select("id").single();
+  if (transactionError || !transaction) throw new Error("Unable to record the financial transaction: " + (transactionError?.message ?? "Unknown error"));
+  const { error: paymentError } = await supabase.from("invoice_payments").insert({ business_id: business.id, invoice_id: invoice.id, transaction_id: transaction.id, amount, currency: invoice.currency, payment_date: new Date().toISOString(), method, reference, source: "manual", status: "posted" });
+  if (paymentError) { await supabase.from("financial_transactions").delete().eq("id", transaction.id).eq("business_id", business.id); throw new Error("Unable to record the invoice payment: " + paymentError.message); }
+  const newPaid = Math.min(total, paid + amount);
+  const fullyPaid = newPaid >= total - 0.000001;
+  const { error: invoiceUpdateError } = await supabase.from("invoices").update({ paid_amount: newPaid, status: fullyPaid ? "paid" : "sent", paid_at: fullyPaid ? new Date().toISOString() : null }).eq("id", invoice.id).eq("business_id", business.id);
+  if (invoiceUpdateError) { await supabase.from("invoice_payments").delete().eq("transaction_id", transaction.id).eq("business_id", business.id); await supabase.from("financial_transactions").delete().eq("id", transaction.id).eq("business_id", business.id); throw new Error("Unable to update invoice balance: " + invoiceUpdateError.message); }
+  await supabase.from("events").insert({ business_id: business.id, event_type: fullyPaid ? "invoice.paid" : "invoice.payment_received", summary: amount.toFixed(2) + " " + invoice.currency + " received for invoice " + invoice.invoice_number + (fullyPaid ? " — fully paid" : ""), evidence: { invoice_id: invoice.id, payment_amount: amount, paid_amount: newPaid, remaining: Math.max(0, total - newPaid), currency: invoice.currency, method, reference }, status: "info" });
+  revalidatePath("/dashboard/invoices/" + invoiceId);
   revalidatePath("/dashboard/invoices");
+  revalidatePath("/dashboard/money");
+  revalidatePath("/dashboard/actions");
 }
 
 function money(value: number, currency: string) {
@@ -48,13 +68,14 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
 
   const { data: invoice } = await supabase
     .from("invoices")
-    .select("id, invoice_number, status, issue_date, due_date, payment_terms, reference, purchase_order, notes, terms_and_conditions, discount_type, discount_value, tax_rate, subtotal, discount_amount, tax_amount, total, currency, created_at, paid_at, customer:customers(name, email, phone), invoice_items(id, description, quantity, unit_price)")
+    .select("id, invoice_number, status, issue_date, due_date, payment_terms, reference, purchase_order, notes, terms_and_conditions, discount_type, discount_value, tax_enabled, tax_name, tax_treatment, tax_jurisdiction, tax_registration_number, tax_rate, subtotal, discount_amount, tax_amount, total, paid_amount, currency, created_at, paid_at, customer:customers(name, email, phone), invoice_items(id, description, quantity, unit_price)")
     .eq("id", params.id)
     .eq("business_id", business.id)
     .single();
 
   if (!invoice) redirect("/dashboard/invoices");
-
+  const { data: businessSettings } = await supabase.from("business_settings").select("invoice_settings").eq("business_id", business.id).maybeSingle();
+  const invoiceSettings = { show_tax: true, show_discount: true, show_reference: true, show_purchase_order: true, show_notes: true, show_terms: true, ...(businessSettings?.invoice_settings ?? {}) };
   const customer = invoice.customer as unknown as { name: string; email: string | null; phone: string | null } | null;
   const items = (invoice.invoice_items ?? []) as { id: string; description: string; quantity: number; unit_price: number }[];
   const subtotal = Number(invoice.subtotal ?? items.reduce((s, i) => s + i.quantity * i.unit_price, 0));
@@ -77,7 +98,7 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
           <div>
             <p className="text-xs uppercase tracking-[0.18em] text-vault mb-2">{business.name}</p>
             <h1 className="font-display text-4xl text-ink">{invoice.invoice_number}</h1>
-            <p className="text-ink/55 mt-2">{customer?.name ?? "No customer"} · {invoice.payment_terms}</p>
+            <p className="text-ink/55 mt-2">{customer?.name ?? "No customer"} · {invoice.payment_terms} · Paid {money(Number(invoice.paid_amount || 0), invoice.currency)}</p>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs px-3 py-1.5 rounded-full bg-ink/10 text-ink/65 capitalize">{overdue ? "overdue" : invoice.status}</span>
@@ -105,8 +126,8 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
           <div className="p-8 border-b border-rule grid grid-cols-2 md:grid-cols-4 gap-6">
             <div><p className="text-[11px] uppercase tracking-wider text-ink/35">Issue date</p><p className="text-sm text-ink mt-1">{invoice.issue_date ? new Date(invoice.issue_date).toLocaleDateString() : "—"}</p></div>
             <div><p className="text-[11px] uppercase tracking-wider text-ink/35">Due date</p><p className="text-sm text-ink mt-1">{invoice.due_date ? new Date(invoice.due_date).toLocaleDateString() : "—"}</p></div>
-            <div><p className="text-[11px] uppercase tracking-wider text-ink/35">Reference</p><p className="text-sm text-ink mt-1">{invoice.reference || "—"}</p></div>
-            <div><p className="text-[11px] uppercase tracking-wider text-ink/35">Purchase order</p><p className="text-sm text-ink mt-1">{invoice.purchase_order || "—"}</p></div>
+            <div><p className="text-[11px] uppercase tracking-wider text-ink/35">Reference</p><p className="text-sm text-ink mt-1">{invoiceSettings.show_reference ? (invoice.reference || "—") : "—"}</p></div>
+            <div><p className="text-[11px] uppercase tracking-wider text-ink/35">Purchase order</p><p className="text-sm text-ink mt-1">{invoiceSettings.show_purchase_order ? (invoice.purchase_order || "—") : "—"}</p></div>
           </div>
 
           <div className="p-8">
@@ -126,16 +147,16 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
 
             <div className="mt-8 ml-auto max-w-sm space-y-3 text-sm">
               <div className="flex justify-between"><span className="text-ink/55">Subtotal</span><span>{money(subtotal, invoice.currency)}</span></div>
-              {discount > 0 && <div className="flex justify-between"><span className="text-ink/55">Discount</span><span>-{money(discount, invoice.currency)}</span></div>}
-              {Number(invoice.tax_rate) > 0 && <div className="flex justify-between"><span className="text-ink/55">Tax ({Number(invoice.tax_rate).toFixed(2)}%)</span><span>{money(tax, invoice.currency)}</span></div>}
+              {invoiceSettings.show_discount && discount > 0 && <div className="flex justify-between"><span className="text-ink/55">Discount</span><span>-{money(discount, invoice.currency)}</span></div>}
+              {invoiceSettings.show_tax && Boolean(invoice.tax_enabled) && Number(invoice.tax_amount) > 0 && <div className="flex justify-between"><span className="text-ink/55">{invoice.tax_name || "Tax"} ({Number(invoice.tax_rate).toFixed(2)}%)</span><span>{money(tax, invoice.currency)}</span></div>}
               <div className="border-t border-ink pt-4 flex justify-between items-end"><span className="text-ink/60">Total</span><span className="font-display text-2xl text-ink">{money(total, invoice.currency)}</span></div>
             </div>
           </div>
 
-          {(invoice.notes || invoice.terms_and_conditions) && (
+          {((invoiceSettings.show_notes && invoice.notes) || (invoiceSettings.show_terms && invoice.terms_and_conditions)) && (
             <div className="p-8 border-t border-rule grid md:grid-cols-2 gap-8">
-              {invoice.notes && <div><p className="text-[11px] uppercase tracking-wider text-ink/35 mb-2">Note</p><p className="text-sm text-ink/65 whitespace-pre-line">{invoice.notes}</p></div>}
-              {invoice.terms_and_conditions && <div><p className="text-[11px] uppercase tracking-wider text-ink/35 mb-2">Terms & conditions</p><p className="text-sm text-ink/65 whitespace-pre-line">{invoice.terms_and_conditions}</p></div>}
+              {invoiceSettings.show_notes && invoice.notes && <div><p className="text-[11px] uppercase tracking-wider text-ink/35 mb-2">Note</p><p className="text-sm text-ink/65 whitespace-pre-line">{invoice.notes}</p></div>}
+              {invoiceSettings.show_terms && invoice.terms_and_conditions && <div><p className="text-[11px] uppercase tracking-wider text-ink/35 mb-2">Terms & conditions</p><p className="text-sm text-ink/65 whitespace-pre-line">{invoice.terms_and_conditions}</p></div>}
             </div>
           )}
         </article>
@@ -149,17 +170,15 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
               <button className="bg-ink text-mist px-5 py-2.5 text-sm font-medium hover:bg-vaultDeep transition-colors">Mark as sent</button>
             </form>
           )}
-          {(invoice.status === "sent" || overdue) && (
-            <form action={markPaid}>
+          {(invoice.status === "sent" || overdue) && Number(invoice.paid_amount || 0) < total && (
+            <form action={recordPayment} className="flex flex-wrap items-end gap-2 border border-rule bg-white p-3">
               <input type="hidden" name="invoice_id" value={invoice.id} />
-              <input type="hidden" name="business_id" value={business.id} />
-              <input type="hidden" name="invoice_number" value={invoice.invoice_number} />
-              <input type="hidden" name="total" value={total.toFixed(2)} />
-              <input type="hidden" name="currency" value={invoice.currency} />
-              <input type="hidden" name="customer_name" value={customer?.name ?? "customer"} />
-              <button className="bg-vault text-mist px-5 py-2.5 text-sm font-medium hover:bg-vaultDeep transition-colors">Mark as paid</button>
+              <label className="text-xs text-ink/55">Payment amount<input required name="amount" type="number" min="0.01" step="0.01" max={Math.max(0,total-Number(invoice.paid_amount||0)).toFixed(2)} defaultValue={Math.max(0,total-Number(invoice.paid_amount||0)).toFixed(2)} className="mt-1 block w-32 border border-rule px-2.5 py-2 text-sm" /></label>
+              <label className="text-xs text-ink/55">Method<input name="method" placeholder="Bank transfer, cash..." className="mt-1 block w-40 border border-rule px-2.5 py-2 text-sm" /></label>
+              <label className="text-xs text-ink/55">Reference<input name="reference" placeholder="Payment reference" className="mt-1 block w-40 border border-rule px-2.5 py-2 text-sm" /></label>
+              <button className="bg-vault text-mist px-5 py-2.5 text-sm font-medium hover:bg-vaultDeep transition-colors">Record payment</button>
             </form>
-          )}
+          )}}
           <Link href="/dashboard/invoices" className="border border-rule px-5 py-2.5 text-sm text-ink/60 hover:text-ink">All invoices</Link>
         </div>
       </section>
