@@ -24,7 +24,9 @@ export default function NewInvoicePage() {
   const [terms, setTerms] = useState("Payment is due according to the terms stated above.");
   const [discountType, setDiscountType] = useState<"none" | "percentage" | "fixed">("none");
   const [discountValue, setDiscountValue] = useState(0);
-  const [taxEnabled, setTaxEnabled] = useState(false);\n  const [taxName, setTaxName] = useState("Tax");\n  const [taxRate, setTaxRate] = useState(0);
+  const [taxEnabled, setTaxEnabled] = useState(false);
+  const [taxName, setTaxName] = useState("Tax");
+  const [taxRate, setTaxRate] = useState(0);
   const [items, setItems] = useState<LineItem[]>([{ description: "", quantity: 1, unit_price: 0 }]);
   const [currency, setCurrency] = useState("USD");
   const [loading, setLoading] = useState(false);
@@ -36,7 +38,13 @@ export default function NewInvoicePage() {
       if (!user) return;
       const { data: business } = await supabase.from("businesses").select("id, currency").eq("owner_id", user.id).single();
       if (!business) return;
-      setCurrency(business.currency || "USD");\n      const { data: settings } = await supabase.from("business_settings").select("tax_mode, default_tax_rate, default_tax_name, tax_jurisdiction, invoice_settings").eq("business_id", business.id).maybeSingle();\n      if (settings) {\n        setTaxEnabled(settings.tax_mode !== "disabled" && Boolean(settings.default_tax_rate));\n        setTaxRate(Number(settings.default_tax_rate || 0));\n        setTaxName(settings.default_tax_name || "Tax");\n      }
+      setCurrency(business.currency || "USD");
+      const { data: settings } = await supabase.from("business_settings").select("tax_mode, default_tax_rate, default_tax_name, tax_jurisdiction, invoice_settings").eq("business_id", business.id).maybeSingle();
+      if (settings) {
+        setTaxEnabled(settings.tax_mode !== "disabled" && Boolean(settings.default_tax_rate));
+        setTaxRate(Number(settings.default_tax_rate || 0));
+        setTaxName(settings.default_tax_name || "Tax");
+      }
       const { data } = await supabase.from("customers").select("id, name, email, phone").eq("business_id", business.id).order("name");
       setCustomers(data ?? []);
     }
@@ -103,7 +111,10 @@ export default function NewInvoicePage() {
       terms_and_conditions: terms.trim() || null,
       discount_type: discountType,
       discount_value: discountValue,
-      tax_rate: taxEnabled ? taxRate : 0,\n      tax_enabled: taxEnabled,\n      tax_name: taxEnabled ? taxName.trim() || "Tax" : null,\n      tax_treatment: taxEnabled ? "standard" : "none",
+      tax_rate: taxEnabled ? taxRate : 0,
+      tax_enabled: taxEnabled,
+      tax_name: taxEnabled ? taxName.trim() || "Tax" : null,
+      tax_treatment: taxEnabled ? "standard" : "none",
       subtotal,
       discount_amount: discountAmount,
       tax_amount: taxAmount,
@@ -231,8 +242,9 @@ export default function NewInvoicePage() {
                   <input type="number" min="0" step="0.01" value={discountValue} onChange={e => setDiscountValue(Number(e.target.value))} disabled={discountType === "none"} className="border border-rule px-3 py-2 text-sm disabled:opacity-40" />
                 </div>
                 <div className="flex justify-between text-sm"><span className="text-ink/55">Discount</span><span>-{discountAmount.toFixed(2)} {currency}</span></div>
-                <label className="flex items-center justify-between gap-4 text-sm"><span className="text-ink/55">Tax rate %</span><input type="number" min="0" step="0.01" value={taxRate} onChange={e => setTaxRate(Number(e.target.value))} className="w-24 border border-rule px-3 py-2 text-right" /></label>
-                <div className="flex justify-between text-sm"><span className="text-ink/55">Tax</span><span>{taxAmount.toFixed(2)} {currency}</span></div>
+                <label className="flex items-center justify-between gap-4 text-sm"><span className="text-ink/55">Apply tax to this invoice</span><input type="checkbox" checked={taxEnabled} onChange={e => setTaxEnabled(e.target.checked)} /></label>
+                {taxEnabled && <div className="grid grid-cols-[1fr_100px] gap-2"><input value={taxName} onChange={e => setTaxName(e.target.value)} placeholder="VAT / GST / Sales tax" className="border border-rule px-3 py-2 text-sm" /><input type="number" min="0" step="0.01" value={taxRate} onChange={e => setTaxRate(Number(e.target.value))} className="border border-rule px-3 py-2 text-right" /></div>}
+                {taxEnabled && <div className="flex justify-between text-sm"><span className="text-ink/55">{taxName || "Tax"}</span><span>{taxAmount.toFixed(2)} {currency}</span></div>}
                 <div className="border-t border-ink pt-4 flex justify-between items-end"><span className="text-ink/60">Total</span><span className="font-display text-2xl text-ink">{total.toFixed(2)} {currency}</span></div>
               </div>
             </div>
