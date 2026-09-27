@@ -7,6 +7,7 @@ import { runWebsiteBuild } from "@/lib/ai/build-engine/runtime";
 import { runInvoiceBuild } from "@/lib/ai/build-engine/invoice-runtime";
 import { runMoneyEntryBuild, runProductInventoryBuild } from "@/lib/ai/build-engine/operations-runtime";
 import { runCustomerBuild } from "@/lib/ai/build-engine/customer-runtime";
+import { runQuoteBuild } from "@/lib/ai/build-engine/quote-runtime";
 import { runConnectorBuild } from "@/lib/ai/build-engine/connector-runtime";
 
 async function runBuild(formData:FormData){
@@ -22,6 +23,7 @@ async function runBuild(formData:FormData){
   else if(capability==="money_transaction") await runMoneyEntryBuild({businessId:business.id,userId:user.id,prompt,mode:"auto_execute"});
   else if(capability==="customer") await runCustomerBuild({businessId:business.id,userId:user.id,prompt,mode:"auto_execute"});
   else if(capability==="connector") await runConnectorBuild({businessId:business.id,userId:user.id,prompt,mode:"auto_execute"});
+  else if(capability==="quote") await runQuoteBuild({businessId:business.id,userId:user.id,prompt,mode:"draft_only"});
   else await runWebsiteBuild({businessId:business.id,userId:user.id,prompt,mode:"auto_execute",publish:false});
   revalidatePath("/dashboard/ai-builder");
   revalidatePath("/dashboard/invoices");
@@ -88,13 +90,23 @@ export default async function AIBuilderPage(){
       <textarea name="prompt" required rows={7} className="mt-5 w-full border border-rule px-4 py-3 text-sm" placeholder="Connect to Acme Shipping API at https://api.example.com using bearer token. Resources: orders GET /orders, shipments GET /shipments. Webhooks supported. Test URL https://api.example.com/health."/>
       <button className="mt-4 bg-ink text-white px-5 py-3 text-sm">Compile connector</button>
     </form>
+    <form action={runBuild} className="bg-white border border-rule p-6">
+      <input type="hidden" name="capability" value="quote"/>
+      <p className="text-xs uppercase tracking-[.16em] text-vault">Sales Quote</p>
+      <h3 className="font-display text-2xl mt-2">Build a real quote</h3>
+      <p className="text-sm text-ink/50 mt-2">Matches an existing customer, parses commercial lines, calculates totals and saves a draft quote.</p>
+      <textarea name="prompt" required rows={7} className="mt-5 w-full border border-rule px-4 py-3 text-sm" placeholder="Create a quote for Acme Ltd for 2 website packages at 450000 each, VAT 7.5%, valid for 14 days, discount 5%."/>
+      <div className="mt-3"><Link href="/dashboard/quotes" className="text-xs text-vault">Open Quotes workspace →</Link></div>
+      <button className="mt-4 bg-vault text-white px-5 py-3 text-sm">Create quote draft</button>
+    </form>
    <div className="mt-10 bg-white border border-rule">
     <div className="p-5 border-b border-rule"><p className="text-xs uppercase tracking-[.16em] text-vault">Build ledger</p><h3 className="font-display text-xl mt-1">Recent execution history</h3></div>
     <div className="divide-y divide-rule">{(runs??[]).map(run=><div key={run.id} className="p-5 grid md:grid-cols-[130px_1fr_110px_110px] gap-4 items-start"><div className="text-xs uppercase text-vault">{run.capability_key}</div><div><p className="text-sm text-ink">{run.request_text}</p>{run.error_message&&<p className="text-xs text-alert mt-2">{run.error_message}</p>}{run.result?.invoiceNumber&&<p className="text-xs text-ink/45 mt-2">Invoice {run.result.invoiceNumber} · {run.result.currency} {run.result.total}</p>}{run.result?.metrics&&<p className="text-xs text-ink/45 mt-2">{run.result.metrics.pages} pages · {run.result.metrics.sections} sections</p>}
 {run.result?.product&&<p className="text-xs text-ink/45 mt-2">Product {run.result.product.name} · stock {run.result.product.stock_quantity}</p>}
 {run.result?.transaction&&<p className="text-xs text-ink/45 mt-2">{run.result.transaction.direction} · {run.result.transaction.amount} {run.result.transaction.currency}</p>}
 {run.result?.customer&&<p className="text-xs text-ink/45 mt-2">Customer {run.result.customer.name} · {run.result.customer.customer_type}</p>}
-{run.result?.connector&&<p className="text-xs text-ink/45 mt-2">Connector {run.result.connector.name} · {run.result.connector.schema_definition?.resources?.length||0} resources · credentials required</p>}</div><div className="text-xs capitalize text-ink/60">{String(run.status).replace("_"," ")}</div><div className="text-xs text-ink/40 text-right">{new Date(run.created_at).toLocaleString()}</div></div>)}{!(runs??[]).length&&<p className="p-5 text-sm text-ink/45">No build runs yet.</p>}</div>
+{run.result?.connector&&<p className="text-xs text-ink/45 mt-2">Connector {run.result.connector.name} · {run.result.connector.schema_definition?.resources?.length||0} resources · credentials required</p>}
+{run.result?.quoteNumber&&<p className="text-xs text-ink/45 mt-2">Quote {run.result.quoteNumber} · {run.result.currency} {run.result.total}</p>}</div><div className="text-xs capitalize text-ink/60">{String(run.status).replace("_"," ")}</div><div className="text-xs text-ink/40 text-right">{new Date(run.created_at).toLocaleString()}</div></div>)}{!(runs??[]).length&&<p className="p-5 text-sm text-ink/45">No build runs yet.</p>}</div>
    </div>
   </section>
  </main>;
