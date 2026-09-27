@@ -34,6 +34,7 @@ export async function runProductInventoryBuild(args:{businessId:string;userId:st
     for(const test of tests)await supabase.from('ai_build_tests').insert({business_id:businessId,build_run_id:run.id,test_key:test.key,test_type:'product_integrity',status:test.pass?'passed':'failed',assertion:{expected:true},actual:test.pass,completed_at:new Date().toISOString()});
     const failed=tests.filter(t=>!t.pass);if(failed.length)throw new Error('Product validation failed: '+failed.map(t=>t.key).join(', '));
     const result={product,stockMovementRecorded:draft.stockQuantity>0,tests};
+    await supabase.from('ai_build_artifacts').insert({business_id:businessId,build_run_id:run.id,artifact_type:'product',artifact_key:'product',version:1,status:'validated',content:result,checksum:checksum(result)});
     await supabase.from('ai_build_runs').update({status:'succeeded',provider_key:'local-product-compiler',provider_status:'fallback',result,finished_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',run.id).eq('business_id',businessId);
     await supabase.from('events').insert({business_id:businessId,event_type:'ai.build.product_created',summary:'AI Build Engine created product '+product.name,evidence:{build_run_id:run.id,product_id:product.id,stock_quantity:draft.stockQuantity},status:'info',priority:'normal',category:'inventory'});
     return{runId:run.id,status:'succeeded',result};
@@ -68,6 +69,7 @@ export async function runMoneyEntryBuild(args:{businessId:string;userId:string;p
     for(const test of tests)await supabase.from('ai_build_tests').insert({business_id:businessId,build_run_id:run.id,test_key:test.key,test_type:'transaction_integrity',status:test.pass?'passed':'failed',assertion:{expected:true},actual:test.pass,completed_at:new Date().toISOString()});
     const failed=tests.filter(t=>!t.pass);if(failed.length)throw new Error('Money entry validation failed.');
     const result={transaction:tx,tests};
+    await supabase.from('ai_build_artifacts').insert({business_id:businessId,build_run_id:run.id,artifact_type:'money_transaction',artifact_key:'transaction',version:1,status:'validated',content:result,checksum:checksum(result)});
     await supabase.from('ai_build_runs').update({status:'succeeded',provider_key:'local-money-compiler',provider_status:'fallback',result,finished_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',run.id).eq('business_id',businessId);
     await supabase.from('events').insert({business_id:businessId,event_type:'ai.build.money_recorded',summary:'AI Build Engine recorded a '+draft.direction+' of '+draft.amount+' '+draft.currency,evidence:{build_run_id:run.id,transaction_id:tx.id},status:'info',priority:'normal',category:'money'});
     return{runId:run.id,status:'succeeded',result};
