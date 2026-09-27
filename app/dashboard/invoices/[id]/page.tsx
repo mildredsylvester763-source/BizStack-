@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase-server";
+import { sendEmail } from "@/lib/integrations/providers";
 
 async function markSent(formData: FormData) {
   "use server";
@@ -13,6 +14,19 @@ async function markSent(formData: FormData) {
   if (!business) redirect("/onboarding");
   const { data: job, error } = await supabase.rpc("queue_invoice_email", { p_invoice_id: invoiceId });
   if (error) throw new Error("Unable to queue invoice delivery: " + error.message);
+  const { data: delivery } = await supabase.from("communication_delivery_jobs").select("id,recipient,subject,body,idempotency_key,communication_id").eq("id",job).eq("business_id",business.id).single();
+  if (delivery) {
+    const result = await sendEmail({to:delivery.recipient,subject:delivery.subject||undefined,body:delivery.body||"",metadata:{idempotencyKey:delivery.idempotency_key}});
+    if (result.ok) {
+      const now=new Date().toISOString();
+      await supabase.from("communication_delivery_jobs").update({status:"sent",provider:result.provider,provider_status:"accepted",provider_message_id:result.messageId||null,response_metadata:result.response||{},sent_at:now,last_error:null}).eq("id",delivery.id).eq("business_id",business.id);
+      await supabase.from("communication_messages").update({status:"sent",provider_message_id:result.messageId||null,sent_at:now,error_message:null}).eq("id",delivery.communication_id);
+      await supabase.from("invoices").update({status:"sent"}).eq("id",invoiceId).eq("business_id",business.id).eq("status","draft");
+    } else {
+      await supabase.from("communication_delivery_jobs").update({status:"queued",provider:result.provider,provider_status:"provider_required_or_error",last_error:result.error,response_metadata:result.response||{}}).eq("id",delivery.id).eq("business_id",business.id);
+      await supabase.from("communication_messages").update({status:"queued",error_message:result.error}).eq("id",delivery.communication_id);
+    }
+  }
   revalidatePath(`/dashboard/invoices/${invoiceId}`);
   revalidatePath("/dashboard/invoices");
   revalidatePath("/dashboard/activity");
@@ -78,6 +92,7 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
   const discount = Number(invoice.discount_amount ?? 0);
   const tax = Number(invoice.tax_amount ?? 0);
   const total = Number(invoice.total ?? Math.max(0, subtotal - discount + tax));
+  const { data: latestDelivery } = await supabase.from("communication_delivery_jobs").select("id,status,provider,provider_status,last_error,sent_at,created_at").eq("business_id",business.id).eq("entity_type","invoice").eq("entity_id",invoice.id).order("created_at",{ascending:false}).limit(1).maybeSingle();
   const overdue = invoice.status !== "draft" && invoice.status !== "paid" && !!invoice.due_date && new Date(invoice.due_date + "T23:59:59") < new Date();
 
   return (
@@ -157,7 +172,9 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
           )}
         </article>
 
-        <div className="flex flex-wrap gap-3 mt-6">
+        <div className="mt-6">{latestDelivery && <div className={"border border-rule bg-white p-3 text-xs " + (latestDelivery.status==="sent" ? "text-ink/65" : "text-ink/55")}><span className="font-medium">Delivery:</span> {latestDelivery.status}{latestDelivery.provider ? " via " + latestDelivery.provider : ""}{latestDelivery.last_error ? " · " + latestDelivery.last_error : ""}</div>}</div>
+
+        <div className="flex flex-wrap gap-3 mt-3">
           {invoice.status === "draft" && (
             <form action={markSent}>
               <input type="hidden" name="invoice_id" value={invoice.id} />
