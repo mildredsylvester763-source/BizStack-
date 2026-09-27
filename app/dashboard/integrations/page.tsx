@@ -42,12 +42,12 @@ export default function IntegrationsPage(){
   if(!selected||!businessId||!method)return;
   setSaving(true);setMessage("");
   const connectionType=typeFor(method);
-  const config={setup_stage:"credentials_saved",connection_method:method,base_url:baseUrl.trim()||null,test_url:testUrl.trim()||null,webhook_secret:webhookSecret||null,setup_started_at:new Date().toISOString()};
+  const config={setup_stage:"credentials_saved",connection_method:method,base_url:baseUrl.trim()||null,test_url:testUrl.trim()||null,setup_started_at:new Date().toISOString()};
   const {data,error}=await supabase.from("integrations").insert({business_id:businessId,provider:selected.name.toLowerCase().replace(/\\s+/g,"-"),category:selected.category,connection_type:connectionType,display_name:label.trim()||selected.name,status:"pending",sync_mode:selected.mode,capabilities:{setup_method:method,authorization_required:connectionType==="oauth",manual_sync:true,incremental_sync:true,webhooks:selected.mode!=="manual"},config}).select("id,display_name,category,connection_type,status,sync_mode,error_message").single();
   if(error){setSaving(false);setMessage(error.message);return;}
   if(data)setItems(v=>[...v,data]);
   if(connectionType!=="oauth"&&connectionType!=="file_import"&&connectionType!=="native"){
-    const credential=connectionType==="webhook"?{metadata:{configured:true}}:{apiKey};
+    const credential=connectionType==="webhook"?{webhookSecret}:{apiKey};
     if(connectionType==="api_key"&&!apiKey.trim()){setSaving(false);setMessage("Enter an API key before saving this connection.");return;}
     const response=await fetch("/api/integrations/connect",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({businessId,integrationId:data.id,kind:connectionType,credential})});
     const result=await response.json().catch(()=>({}));
