@@ -20,13 +20,34 @@ async function persistMemory(
   key: string,
   content: string
 ) {
-  await supabase.from("ai_agent_memory").upsert({
+  const { data: existing } = await supabase
+    .from("ai_agent_memory")
+    .select("id")
+    .eq("business_id", businessId)
+    .eq("agent_id", agentId)
+    .eq("memory_key", key)
+    .maybeSingle();
+
+  if (existing?.id) {
+    await supabase
+      .from("ai_agent_memory")
+      .update({
+        memory_type: "runtime",
+        content,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", existing.id)
+      .eq("business_id", businessId);
+    return;
+  }
+
+  await supabase.from("ai_agent_memory").insert({
     business_id: businessId,
     agent_id: agentId,
     memory_type: "runtime",
     memory_key: key,
     content
-  }, { onConflict: "agent_id,memory_key" });
+  });
 }
 
 export async function runAgent({
