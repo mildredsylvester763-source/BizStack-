@@ -4,7 +4,7 @@ export type CapabilityDefinition = { key: string; name: string; description: str
 
 const registry: CapabilityDefinition[] = [
   { key: 'website', name: 'AI Website Builder', description: 'Translate a business request into a structured, editable website specification and apply it to real website records.', actions: ['generate_sitemap','generate_content_model','generate_sections','configure_forms','configure_integrations','validate_seo','publish'], approvalRequired: true },
-  { key: 'general', name: 'Business Build Engine', description: 'Generic structured build orchestration for future BizStack modules.', actions: ['interpret','plan','validate','execute','audit'], approvalRequired: true }
+  { key: 'invoice', name: 'AI Invoice Builder', description: 'Translate a natural-language invoice request into a real draft invoice with real customer matching, line items, totals and validation.', actions: ['resolve_customer','parse_line_items','create_draft','recalculate_totals','validate_invoice','audit'], approvalRequired: false },\n  { key: 'general', name: 'Business Build Engine', description: 'Generic structured build orchestration for future BizStack modules.', actions: ['interpret','plan','validate','execute','audit'], approvalRequired: true }
 ];
 
 export function getCapability(key: string) { return registry.find((item) => item.key === key) ?? null; }
