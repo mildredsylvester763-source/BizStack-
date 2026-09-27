@@ -10,6 +10,7 @@ const registry: CapabilityDefinition[] = [
   { key: 'customer', name: 'AI Customer Builder', description: 'Create a real CRM customer record from natural language with duplicate detection and normalized contact data.', actions: ['parse_customer','check_duplicates','create_customer','validate_customer','audit'], approvalRequired: false },
   { key: 'connector', name: 'AI Universal Connector Builder', description: 'Compile API, auth, webhook and resource descriptions into a real draft connector definition ready for credentials and testing.', actions: ['parse_connector_spec','validate_auth','compile_resources','create_definition','validate_connector','audit'], approvalRequired: false },
   { key: 'quote', name: 'AI Quote Builder', description: 'Translate a natural-language proposal or quotation into a real draft quote linked to an existing customer and validated totals.', actions: ['resolve_customer','parse_line_items','create_draft','recalculate_totals','validate_quote','audit'], approvalRequired: false },
+  { key: 'cash_sale', name: 'AI Cash Sale Builder', description: 'Translate a market-style cash sale into a real register sale, decrement inventory and prepare daily reconciliation.', actions: ['resolve_session','resolve_products','create_sale','update_inventory','validate_sale','audit'], approvalRequired: false },
   { key: 'general', name: 'Business Build Engine', description: 'Generic structured build orchestration for future BizStack modules.', actions: ['interpret','plan','validate','execute','audit'], approvalRequired: true }
 ];
 
