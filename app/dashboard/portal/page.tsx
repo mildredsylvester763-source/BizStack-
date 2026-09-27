@@ -1,0 +1,9 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase-server";
+export default async function PortalPage(){
+ const supabase=createClient(); const {data:{user}}=await supabase.auth.getUser(); if(!user) redirect("/login");
+ const {data:business}=await supabase.from("businesses").select("id,name").eq("owner_id",user.id).single(); if(!business) redirect("/onboarding");
+ const {data:portals}=await supabase.from("customer_portals").select("id,name,status,slug,created_at").eq("business_id",business.id).order("created_at",{ascending:false});
+ return <main className="min-h-screen bg-ledger"><header className="border-b border-rule bg-white"><div className="max-w-6xl mx-auto px-6 py-5"><Link href="/dashboard" className="text-xs text-ink/45">← Dashboard</Link><h1 className="font-display text-2xl mt-1">Customer portal</h1></div></header><section className="max-w-5xl mx-auto px-6 py-10"><p className="text-sm text-ink/55 mb-8">A separate customer-facing space for invoices, payments, documents, appointments, orders and messages. Authentication and identity verification remain separate from the business customer record.</p><div className="space-y-3">{(portals||[]).map((p:any)=><div key={p.id} className="bg-white border border-rule p-5 flex justify-between"><div><p className="font-medium">{p.name}</p><p className="text-xs text-ink/45 mt-1">{p.slug||"No public slug"} · {p.status}</p></div><span className="text-xs text-ink/40">Portal foundation</span></div>)}{!(portals||[]).length&&<div className="bg-white border border-dashed border-rule p-8 text-sm text-ink/45">No customer portal yet. The portal data layer is ready for the publishing and authentication pass.</div>}</div></section></main>;
+}
