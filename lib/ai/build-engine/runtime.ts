@@ -97,7 +97,7 @@ export async function runWebsiteBuild(args: { businessId:string; userId:string; 
     for(const test of tests) await supabase.from('ai_build_tests').insert({business_id:businessId,build_run_id:run.id,test_key:test.key,test_type:'structural',status:test.pass?'passed':'failed',assertion:{expected:test.expected},actual:test.actual,error_message:test.pass?null:'Structural test failed.',completed_at:new Date().toISOString()});
     const failed=tests.filter((test)=>!test.pass);
     if(failed.length) throw new Error('Website validation failed: ' + failed.map((test)=>test.key).join(', '));
-    const needsApproval=Boolean(publish && plan.steps.some((step)=>step.key==='publish' && step.requiresApproval));
+    const needsApproval=Boolean(publish && mode !== 'auto_execute' && plan.steps.some((step)=>step.key==='publish' && step.requiresApproval));
     if(needsApproval){
       await supabase.from('ai_build_runs').update({status:'waiting_approval',result:{spec,tests,metrics,action:'publish',websiteId:websiteId??null}}).eq('id',run.id).eq('business_id',businessId);
       return {runId:run.id,status:'waiting_approval',result:{spec,tests,metrics}};
