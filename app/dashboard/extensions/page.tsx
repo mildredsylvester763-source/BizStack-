@@ -36,7 +36,9 @@ type Embed = {
   status: string;
 };
 
-const agentTemplates = [
+type AgentTemplate = [string, string, string];
+
+const agentTemplates: AgentTemplate[] = [
   ["Collections Agent","receivables","Find overdue invoices, prepare reminders, reconcile responses, and escalate exceptions."],
   ["Customer Agent","customer_success","Monitor customer activity, draft replies, surface churn risks, and create follow-ups."],
   ["Inventory Agent","operations","Watch stock, supplier changes, reorder points, margins, and fulfilment exceptions."],
@@ -74,7 +76,7 @@ export default function ExtensionsPage() {
 
   useEffect(()=>{ load(); },[]);
 
-  async function createAgent(template: typeof agentTemplates[number]) {
+  async function createAgent(template: AgentTemplate) {
     if (!businessId) return;
     setBusy(template[0]);
     const slug = template[0].toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
