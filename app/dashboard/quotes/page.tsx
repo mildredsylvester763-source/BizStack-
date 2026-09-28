@@ -1,4 +1,3 @@
-// @ts-nocheck
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -6,7 +5,7 @@ import { createClient } from "@/lib/supabase-server";
 
 async function changeQuoteStatus(formData:FormData){
   "use server";
-  const supabase=createClient();
+  const supabase=await createClient();
   const {data:{user}}=await supabase.auth.getUser(); if(!user)redirect("/login");
   const {data:business}=await supabase.from("businesses").select("id").eq("owner_id",user.id).single(); if(!business)redirect("/onboarding");
   const id=String(formData.get("quoteId")||""),status=String(formData.get("status")||"");
@@ -21,7 +20,7 @@ async function changeQuoteStatus(formData:FormData){
 
 async function convertQuote(formData:FormData){
   "use server";
-  const supabase=createClient();
+  const supabase=await createClient();
   const {data:{user}}=await supabase.auth.getUser(); if(!user)redirect("/login");
   const {data:business}=await supabase.from("businesses").select("id").eq("owner_id",user.id).single(); if(!business)redirect("/onboarding");
   const id=String(formData.get("quoteId")||"");
@@ -33,7 +32,7 @@ async function convertQuote(formData:FormData){
 }
 
 export default async function QuotesPage(){
- const supabase=createClient();
+ const supabase=await createClient();
  const {data:{user}}=await supabase.auth.getUser(); if(!user)redirect("/login");
  const {data:business}=await supabase.from("businesses").select("id,name,currency").eq("owner_id",user.id).single(); if(!business)redirect("/onboarding");
  const {data:quotes}=await supabase.from("quotes").select("id,quote_number,status,issue_date,expiry_date,currency,total,customer:customers(name,email),converted_invoice_id,created_at").eq("business_id",business.id).order("created_at",{ascending:false});
