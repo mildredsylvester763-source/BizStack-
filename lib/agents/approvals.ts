@@ -14,7 +14,7 @@ export async function decideAgentApproval({
   userId: string;
   decision: ApprovalDecision;
 }) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: approval, error } = await supabase
     .from("ai_agent_approvals")
