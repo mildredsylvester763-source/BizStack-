@@ -34,7 +34,7 @@ export const TOOL_REGISTRY: ToolDefinition[] = [
   { toolKey: "wallet.summary", name: "Wallet Summary", riskLevel: "low", permission: "read_wallet", description: "Read wallet balances, statuses and recent wallet transactions.", inputSchema: emptyObject() },
   { toolKey: "integrations.list", name: "Inspect Connections", riskLevel: "low", permission: "read_integrations", description: "Inspect real integrations and their actual connection state.", inputSchema: emptyObject() },
   { toolKey: "integrations.sync", name: "Sync Connected Resource", riskLevel: "medium", permission: "write_integrations", description: "Run a governed sync for a connected custom connector resource and persist the external records, cursor, run evidence and errors.", inputSchema: { type: "object", properties: { integration_id: { type: "string" }, resource_key: { type: "string" } }, required: ["integration_id","resource_key"] } },
-  { toolKey: "website.build", name: "Build Website", riskLevel: "medium", permission: "build_websites", description: "Create or modify a real BizStack website from a natural-language request.", inputSchema: { type: "object", properties: { prompt: { type: "string" }, website_id: { type: "string" } }, required: ["prompt"] } },
+  { toolKey: "website.build", name: "Build Website", riskLevel: "medium", permission: "build_websites", description: "Create or modify a real BizStack website from natural language, optionally compiling the same design into an editable software project.", inputSchema: { type: "object", properties: { prompt: { type: "string" }, website_id: { type: "string" }, project_id: { type: "string" }, publish: { type: "boolean" } }, required: ["prompt"] } },
   { toolKey: "events.create", name: "Create Business Event", riskLevel: "low", permission: "draft_actions", description: "Record an auditable internal action, recommendation or handoff.", inputSchema: { type: "object", properties: { event_type: { type: "string" }, summary: { type: "string" }, category: { type: "string" }, priority: { type: "string" }, action_type: { type: "string" } }, required: ["summary"] } },
   { toolKey: "projects.list", name: "Project Directory", riskLevel: "low", permission: "read_projects", description: "Inspect persistent software projects and their verified deployment state.", inputSchema: emptyObject() },
   { toolKey: "projects.create", name: "Create Software Project", riskLevel: "medium", permission: "create_projects", description: "Create a real editable software project with persistent files and an initial version snapshot.", inputSchema: { type: "object", properties: { name: { type: "string" }, slug: { type: "string" }, project_type: { type: "string" }, framework: { type: "string" }, runtime: { type: "string" }, files: { type: "array" } }, required: ["name"] } },
@@ -194,7 +194,15 @@ export async function executeTool(toolKey: string, input: Record<string, unknown
   if (toolKey === "website.build") {
     const prompt = String(input.prompt ?? "").trim();
     if (!prompt) throw new Error("Website instructions are required.");
-    return await runWebsiteBuild({ businessId, userId, prompt, websiteId: input.website_id ? String(input.website_id) : null, mode: "auto_execute", publish: false });
+    return await runWebsiteBuild({
+      businessId,
+      userId,
+      prompt,
+      websiteId: input.website_id ? String(input.website_id) : null,
+      projectId: input.project_id ? String(input.project_id) : null,
+      mode: "auto_execute",
+      publish: input.publish === true
+    });
   }
 
   if (toolKey === "events.create") {
