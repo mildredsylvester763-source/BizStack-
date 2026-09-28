@@ -177,7 +177,7 @@ export default function OperatorCockpit({
 
   async function connect(app:App){
     if(app.slug==="custom-connector"){location.href="/dashboard/integrations?custom=1";return}
-    const r=await fetch("/api/apps/connect",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({app:app.slug})});
+    const r=await fetch("/api/apps/connect",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({app:app.slug,businessId})});
     const x=await r.json().catch(()=>({}));
     if(r.ok&&x.authorizationUrl)location.href=x.authorizationUrl;
     else if(r.ok&&x.redirect)location.href=x.redirect;
