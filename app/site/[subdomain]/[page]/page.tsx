@@ -1,10 +1,9 @@
-// @ts-nocheck
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase-server";
 
 export default async function PublicPage(props:{params: Promise<{subdomain:string;page:string}>}) {
  const params = await props.params;
- const supabase=createClient();
+ const supabase=await createClient();
  const {data:site}=await supabase.from("websites").select("id,name,subdomain,status,settings").eq("subdomain",params.subdomain).eq("status","published").maybeSingle();
  if(!site)notFound();
  const {data:page}=await supabase.from("website_pages").select("title,content,seo").eq("website_id",site.id).eq("slug",params.page).eq("status","published").maybeSingle();
