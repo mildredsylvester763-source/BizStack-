@@ -42,7 +42,7 @@ async function askModel(messages: ModelMessage[]) {
 }
 
 async function getBusiness(
-  supabase: ReturnType<typeof createClient>,
+  supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
   requestedBusinessId?: string | null
 ) {
@@ -63,7 +63,7 @@ async function getBusiness(
 }
 
 async function getOrCreateAgent(
-  supabase: ReturnType<typeof createClient>,
+  supabase: Awaited<ReturnType<typeof createClient>>,
   businessId: string
 ) {
   const { data: existing } = await supabase
@@ -115,7 +115,7 @@ async function getOrCreateAgent(
 }
 
 async function getConversationMessages(
-  supabase: ReturnType<typeof createClient>,
+  supabase: Awaited<ReturnType<typeof createClient>>,
   conversationId: string
 ): Promise<ModelMessage[]> {
   const { data } = await supabase
@@ -160,7 +160,7 @@ function systemPrompt(business: { name: string; industry?: string | null; curren
 }
 
 async function toolRequiresApproval(
-  supabase: ReturnType<typeof createClient>,
+  supabase: Awaited<ReturnType<typeof createClient>>,
   businessId: string,
   tool: ReturnType<typeof getToolDefinition>,
   agent: any
@@ -198,7 +198,7 @@ async function toolRequiresApproval(
 }
 
 async function saveMessage(
-  supabase: ReturnType<typeof createClient>,
+  supabase: Awaited<ReturnType<typeof createClient>>,
   conversationId: string,
   businessId: string,
   message: { role: "user" | "assistant" | "tool"; content: string; toolName?: string; toolCallId?: string; metadata?: Record<string, unknown> },
@@ -219,7 +219,7 @@ async function saveMessage(
 }
 
 async function createRun(
-  supabase: ReturnType<typeof createClient>,
+  supabase: Awaited<ReturnType<typeof createClient>>,
   businessId: string,
   agentId: string,
   conversationId: string,
@@ -247,7 +247,7 @@ async function createRun(
 }
 
 async function executeOperatorTurn(args: {
-  supabase: ReturnType<typeof createClient>;
+  supabase: Awaited<ReturnType<typeof createClient>>;
   businessId: string;
   userId: string;
   conversationId: string;
