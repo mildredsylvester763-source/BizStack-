@@ -172,6 +172,9 @@ export async function runWebsiteBuild(args: { businessId:string; userId:string; 
       if(versionError) throw versionError;
       projectResult={projectId:project.id,files:files.map(f=>f.path),versionId:version?.id??null};
       projectResult.verification = await verifyGeneratedProject(supabase,businessId,project.id,run.id,userId);
+      if (projectResult.verification?.status === 'failed') {
+        throw new Error('Generated Builder project failed runtime verification before the website build could be completed.');
+      }
     }
     await supabase.from('ai_build_runs').update({provider_key:generated.providerKey,provider_status:generated.status === 'available' ? 'available' : generated.status === 'fallback' ? 'fallback':'failed',status:'testing',plan:{...plan,metrics}}).eq('id',run.id).eq('business_id',businessId);
     await supabase.from('ai_build_artifacts').insert({business_id:businessId,build_run_id:run.id,artifact_type:'website_spec',artifact_key:'website',version:1,status:'validated',content:spec,checksum:checksum(spec)});
