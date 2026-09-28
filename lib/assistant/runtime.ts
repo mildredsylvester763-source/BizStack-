@@ -414,6 +414,8 @@ export async function runUniversalAssistant({
     conversationIdValue = conversation.id;
   }
 
+  if (!conversationIdValue) throw new Error("Assistant conversation could not be established.");
+
   await saveMessage(supabase, conversationIdValue, business.id, {
     role: "user",
     content: input.trim()
