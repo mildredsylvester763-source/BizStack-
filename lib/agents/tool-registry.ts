@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { createClient } from "@/lib/supabase-server";
 import { runWebsiteBuild } from "@/lib/ai/build-engine/runtime";
 import { runInvoiceBuild } from "@/lib/ai/build-engine/invoice-runtime";
@@ -46,6 +47,7 @@ export function buildPlan(input: string): { toolKey: string; input: Record<strin
   if (/(money|cash|revenue|expense|profit|financial|finance|balance)/.test(text)) plan.push({ toolKey: "money.summary", input: {} });
   if (/(wallet|bank balance|available funds|transfer)/.test(text)) plan.push({ toolKey: "wallet.summary", input: {} });
   if (/(connection|integration|connected|oauth|api|webhook)/.test(text)) plan.push({ toolKey: "integrations.list", input: {} });
+  if (/(build|create|make|edit|modify|code|app|application|website|project|repository|file|feature|terminal|preview)/.test(text)) plan.push({ toolKey: "projects.list", input: {} });
   if (/(record this|log this|create an action|create a task|note this|add to timeline)/.test(text)) {
     plan.push({ toolKey: "events.create", input: { event_type: "agent.requested_action", summary: input.trim(), category: "agent", priority: "normal", action_type: "agent_followup" } });
   }
@@ -189,5 +191,135 @@ export async function executeTool(toolKey: string, input: Record<string, unknown
     return data ?? {};
   }
 
-  throw new Error(`Unknown tool: ${toolKey}`);
+  if (toolKey === "projects.list") {
+    const { data, error } = await supabase
+      .from("ai_projects")
+      .select("id,name,slug,project_type,status,default_branch,framework,runtime,repository_name,preview_url,production_url,metadata,created_at,updated_at")
+      .eq("business_id", businessId)
+      .neq("status", "deleted")
+      .order("updated_at", { ascending: false });
+    if (error) throw error;
+    return { projects: data ?? [] };
+  }
+
+  if (toolKey === "projects.create") {
+    const name = String(input.name ?? "").trim();
+    const slug = String(input.slug ?? name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")).toLowerCase();
+    if (!name || !slug) throw new Error("Project name and slug are required.");
+    if (!/^[a-z0-9][a-z0-9-]{1,62}$/.test(slug)) throw new Error("Project slug must use lowercase letters, numbers, and hyphens.");
+    const { data: existing } = await supabase
+      .from("ai_projects")
+      .select("id,name,slug")
+      .eq("business_id", businessId)
+      .eq("slug", slug)
+      .maybeSingle();
+    if (existing) return { created: false, project: existing, reason: "already_exists" };
+
+    const { data: project, error } = await supabase.from("ai_projects").insert({
+      business_id: businessId,
+      name,
+      slug,
+      project_type: String(input.project_type ?? "app"),
+      framework: input.framework ? String(input.framework) : null,
+      runtime: input.runtime ? String(input.runtime) : null,
+      created_by: userId
+    }).select("id,name,slug,project_type,status,default_branch,framework,runtime,metadata,created_at,updated_at").single();
+    if (error) throw error;
+
+    const requestedFiles = Array.isArray(input.files) ? input.files : [];
+    const written: Array<Record<string, unknown>> = [];
+    for (const raw of requestedFiles.slice(0, 100)) {
+      const row = raw as Record<string, unknown>;
+      const path = String(row.path ?? "").trim().replace(/\\+/g, "/").replace(/^\\/+/, "");
+      const source = String(row.content ?? "");
+      if (!path || path.includes("..") || path.length > 500) throw new Error("Invalid project file path: " + path);
+      if (source.length > 2_000_000) throw new Error("Project file is too large: " + path);
+      const checksum = createHash("sha256").update(source, "utf8").digest("hex");
+      const { data: saved, error: saveError } = await supabase.from("ai_project_files").insert({
+        project_id: project.id,
+        path,
+        content: source,
+        content_sha: checksum,
+        language: row.language ? String(row.language) : null,
+        size_bytes: Buffer.byteLength(source, "utf8"),
+        version_no: 1,
+        updated_by: userId
+      }).select("id,path,content_sha,language,size_bytes,version_no").single();
+      if (saveError) throw saveError;
+      written.push(saved);
+    }
+
+    const { data: version, error: versionError } = await supabase.from("ai_project_versions").insert({
+      project_id: project.id,
+      version_no: 1,
+      message: "Initial project snapshot",
+      snapshot: { format: "bizstack-project-snapshot/v1", files: written },
+      created_by: userId
+    }).select("id,version_no,message,created_at").single();
+    if (versionError) throw versionError;
+
+    return { created: true, project, files: written, initial_version: version };
+  }
+
+  if (toolKey === "project.files.list") {
+    const projectId = String(input.project_id ?? "").trim();
+    if (!projectId) throw new Error("project_id is required.");
+    const { data: project, error: projectError } = await supabase.from("ai_projects").select("id,name,slug,status").eq("id", projectId).single();
+    if (projectError || !project || project.status === "deleted") throw new Error("Project not found.");
+    const { data, error } = await supabase.from("ai_project_files").select("id,path,content,content_sha,language,size_bytes,is_binary,version_no,updated_at").eq("project_id", projectId).order("path", { ascending: true });
+    if (error) throw error;
+    return { project, files: data ?? [] };
+  }
+
+  if (toolKey === "project.files.write") {
+    const projectId = String(input.project_id ?? "").trim();
+    const path = String(input.path ?? "").trim().replace(/\\+/g, "/").replace(/^\\/+/, "");
+    const source = String(input.content ?? "");
+    if (!projectId || !path || path.includes("..") || path.length > 500) throw new Error("Invalid project file input.");
+    if (source.length > 2_000_000) throw new Error("Project file is too large.");
+    const { data: project, error: projectError } = await supabase.from("ai_projects").select("id,status").eq("id", projectId).single();
+    if (projectError || !project || project.status === "deleted") throw new Error("Project not found.");
+    const { data: current } = await supabase.from("ai_project_files").select("id,version_no").eq("project_id", projectId).eq("path", path).maybeSingle();
+    const checksum = createHash("sha256").update(source, "utf8").digest("hex");
+    const { data, error } = await supabase.from("ai_project_files").upsert({
+      id: current?.id,
+      project_id: projectId,
+      path,
+      content: source,
+      content_sha: checksum,
+      language: input.language ? String(input.language) : null,
+      size_bytes: Buffer.byteLength(source, "utf8"),
+      is_binary: false,
+      version_no: Number(current?.version_no ?? 0) + 1,
+      updated_by: userId,
+      updated_at: new Date().toISOString()
+    }, { onConflict: "project_id,path" }).select("id,path,content_sha,language,size_bytes,version_no,updated_at").single();
+    if (error) throw error;
+    return { saved: true, file: data };
+  }
+
+  if (toolKey === "project.version.create") {
+    const projectId = String(input.project_id ?? "").trim();
+    if (!projectId) throw new Error("project_id is required.");
+    const { data: project, error: projectError } = await supabase.from("ai_projects").select("id,name,slug,status").eq("id", projectId).single();
+    if (projectError || !project || project.status === "deleted") throw new Error("Project not found.");
+    const [{ data: files, error: filesError }, { data: latest, error: latestError }] = await Promise.all([
+      supabase.from("ai_project_files").select("path,content,content_sha,language,size_bytes,version_no").eq("project_id", projectId).order("path", { ascending: true }),
+      supabase.from("ai_project_versions").select("version_no").eq("project_id", projectId).order("version_no", { ascending: false }).limit(1).maybeSingle()
+    ]);
+    if (filesError) throw filesError;
+    if (latestError) throw latestError;
+    const versionNo = Number(latest?.version_no ?? 0) + 1;
+    const { data: version, error } = await supabase.from("ai_project_versions").insert({
+      project_id: projectId,
+      version_no: versionNo,
+      message: String(input.message ?? "Operator snapshot").slice(0, 500),
+      snapshot: { format: "bizstack-project-snapshot/v1", project, files: files ?? [], captured_at: new Date().toISOString() },
+      created_by: userId
+    }).select("id,project_id,version_no,message,created_at").single();
+    if (error) throw error;
+    return { snapshot_created: true, version };
+  }
+
+    throw new Error(`Unknown tool: ${toolKey}`);
 }
