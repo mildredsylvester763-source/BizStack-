@@ -9,6 +9,7 @@ import { runMoneyEntryBuild, runProductInventoryBuild } from "@/lib/ai/build-eng
 import { runCustomerBuild } from "@/lib/ai/build-engine/customer-runtime";
 import { runQuoteBuild } from "@/lib/ai/build-engine/quote-runtime";
 import { runConnectorBuild } from "@/lib/ai/build-engine/connector-runtime";
+import { runDualCurrencyBuild, runLoanReadinessBuild, runObligationBuild, runPayrollAdvanceBuild } from "@/lib/ai/build-engine/finance-ops-runtime";
 
 async function runBuild(formData: FormData) {
   "use server";
@@ -40,6 +41,14 @@ async function runBuild(formData: FormData) {
     await runConnectorBuild({ businessId: business.id, userId: user.id, prompt, mode: "auto_execute" });
   } else if (capability === "quote") {
     await runQuoteBuild({ businessId: business.id, userId: user.id, prompt, mode: "draft_only" });
+  } else if (capability === "dual_currency") {
+    await runDualCurrencyBuild({ businessId: business.id, userId: user.id, prompt, mode: "auto_execute" });
+  } else if (capability === "loan_readiness") {
+    await runLoanReadinessBuild({ businessId: business.id, userId: user.id, prompt, mode: "draft_only" });
+  } else if (capability === "obligation") {
+    await runObligationBuild({ businessId: business.id, userId: user.id, prompt, mode: "auto_execute" });
+  } else if (capability === "payroll_advance") {
+    await runPayrollAdvanceBuild({ businessId: business.id, userId: user.id, prompt, mode: "auto_execute" });
   } else {
     await runWebsiteBuild({ businessId: business.id, userId: user.id, prompt, mode: "auto_execute", publish: false });
   }
@@ -127,6 +136,38 @@ export default async function AIBuilderPage() {
       title: "Build a real quote",
       description: "Matches an existing customer, parses commercial lines, calculates totals and saves a draft quote.",
       placeholder: "Create a quote for Acme Ltd for 2 website packages at 450000 each, VAT 7.5%, valid for 14 days, discount 5%.",
+      tone: "vault"
+    },
+    {
+      capability: "dual_currency",
+      eyebrow: "Dual-currency books",
+      title: "Configure foreign-currency bookkeeping",
+      description: "Sets a real base currency plus enabled secondary currencies while preserving FX metadata.",
+      placeholder: "Enable NGN as my base currency and USD, GBP as secondary books.",
+      tone: "ink"
+    },
+    {
+      capability: "loan_readiness",
+      eyebrow: "Financing readiness",
+      title: "Build a lender-ready profile",
+      description: "Scores documented financial readiness and produces a lender-pack checklist without inventing evidence.",
+      placeholder: "Assess loan readiness for ₦5000000 over 24 months to expand inventory.",
+      tone: "vault"
+    },
+    {
+      capability: "obligation",
+      eyebrow: "Scheduled obligations",
+      title: "Schedule rent, utilities or operating costs",
+      description: "Creates a real recurring obligation with amount, currency, frequency and due date tracking.",
+      placeholder: "Schedule monthly rent of ₦300000 to Green Estate, due 2026-10-05.",
+      tone: "ink"
+    },
+    {
+      capability: "payroll_advance",
+      eyebrow: "Payroll advances",
+      title: "Create a staff salary advance",
+      description: "Matches a real workforce member and records a recoverable advance with payroll deduction terms.",
+      placeholder: "Give salary advance to John Doe of ₦150000, recover over 3 months, start 2026-10-01.",
       tone: "vault"
     }
     ,{
