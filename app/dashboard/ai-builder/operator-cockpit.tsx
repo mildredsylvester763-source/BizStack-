@@ -105,7 +105,7 @@ export default function OperatorCockpit({
     setMessages(v=>[...v,{role:"user",content:text,metadata:{apps:context.map(a=>a.slug),project_id:projectId||null}}]);
     try{
       const isBuildRequest=/\b(build|create|make|design|generate|website|web app|landing page|site|code|feature|fix|bug|edit)\b/i.test(text);
-      const r=await fetch("/api/assistant",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({input:text,conversationId,clientMessageId:crypto.randomUUID(),context:{apps:context.map(a=>a.slug),projectId:projectId||null}})});
+      const r=await fetch("/api/assistant",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({input:text,conversationId,clientMessageId:crypto.randomUUID(),context:{apps:context.map(a=>a.slug),businessId,projectId:projectId||null}})});
       const x=await r.json().catch(()=>({}));
       if(!r.ok){
         if(isBuildRequest && projectId && /model provider|AI engine|provider/i.test(String(x.error||""))){
