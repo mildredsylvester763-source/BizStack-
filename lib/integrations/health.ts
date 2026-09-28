@@ -123,7 +123,7 @@ const ENDPOINTS: Record<
     headers: { Authorization: "Basic " + Buffer.from(t + ":").toString("base64") }
   }),
   shopify: (t, c) => ({
-    url: `https://${String(c?.shop_domain || c?.shop || "").replace(/^https?:\\/\\//, "")}/admin/api/2025-10/shop.json`,
+    url: `https://${String(c?.shop_domain || c?.shop || "").replace(/^https?:\/\//, "")}/admin/api/2025-10/shop.json`,
     headers: { Authorization: `Bearer ${t}`, Accept: "application/json" }
   })
 };
