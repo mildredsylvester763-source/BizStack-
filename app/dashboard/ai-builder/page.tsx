@@ -17,6 +17,7 @@ import { runBusinessDocumentBuild } from "@/lib/ai/build-engine/business-documen
 import { runSmsWalletBuild, runAppointmentBuild, runDigitalMenuBuild, runWaiverBuild } from "@/lib/ai/build-engine/customer-experience-runtime";
 import { runThriftBuild, runBusinessCreditBuild, runSuccessorAccessBuild, runComplianceBuild } from "@/lib/ai/build-engine/continuity-runtime";
 import { runVoiceAgentBuild, runBroadcastBuild, runCarbonReportBuild, runFractionalCfoBuild } from "@/lib/ai/build-engine/intelligence-runtime";
+import { runProductPhotoBuild, runMarketplaceListingBuild, runFinanceApiBuild } from "@/lib/ai/build-engine/platform-runtime";
 
 async function runBuild(formData: FormData) {
   "use server";
@@ -88,6 +89,12 @@ async function runBuild(formData: FormData) {
     await runCarbonReportBuild({ businessId: business.id, userId: user.id, prompt, mode: "auto_execute" });
   } else if (capability === "fractional_cfo") {
     await runFractionalCfoBuild({ businessId: business.id, userId: user.id, prompt, mode: "draft_only" });
+  } else if (capability === "product_photo") {
+    await runProductPhotoBuild({ businessId: business.id, userId: user.id, prompt, mode: "draft_only" });
+  } else if (capability === "marketplace_listing") {
+    await runMarketplaceListingBuild({ businessId: business.id, userId: user.id, prompt, mode: "draft_only" });
+  } else if (capability === "finance_api") {
+    await runFinanceApiBuild({ businessId: business.id, userId: user.id, prompt, mode: "ask_first" });
   } else {
     await runWebsiteBuild({ businessId: business.id, userId: user.id, prompt, mode: "auto_execute", publish: false });
   }
@@ -312,6 +319,30 @@ export default async function AIBuilderPage() {
       description: "Builds a transparent management snapshot from real posted transactions and invoice records.",
       placeholder: "Generate my current fractional CFO snapshot and highlight cashflow risks, overdue receivables and actions.",
       tone: "vault"
+    },
+    {
+      capability: "product_photo",
+      eyebrow: "AI product photo studio",
+      title: "Create a product photography job",
+      description: "Ties a generation-ready image brief to a real catalog product without inventing product identity.",
+      placeholder: "Create a clean commercial product photo for Premium Hoodie, style: premium studio, background removal.",
+      tone: "ink"
+    },
+    {
+      capability: "marketplace_listing",
+      eyebrow: "B2B marketplace",
+      title: "Draft a business listing",
+      description: "Creates a real B2B listing that can be published into the marketplace and receive inquiries.",
+      placeholder: "Create a wholesale listing for 100 Premium Hoodies at 15000 NGN each, category apparel, Nigeria.",
+      tone: "vault"
+    },
+    {
+      capability: "finance_api",
+      eyebrow: "External finance API",
+      title: "Issue a scoped institutional API key",
+      description: "Creates a school, church, cooperative or partner client with explicit finance scopes and a one-time secret.",
+      placeholder: "Create a cooperative API client called Community Thrift with scopes customers:read,transactions:read,transactions:write,reports:read.",
+      tone: "ink"
     },
     {
       capability: "loan_readiness",
