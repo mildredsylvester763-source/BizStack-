@@ -45,6 +45,7 @@ async function getBusiness(supabase: ReturnType<typeof createClient>, userId: st
   const { data: business, error } = await supabase
     .from("businesses")
     .select("id,name,industry,currency,workspace_id,organization_id")
+    .eq("owner_id", userId)
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
