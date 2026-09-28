@@ -110,29 +110,69 @@ function chooseProvider(messages: BizStackModelMessage[], providers: ProviderCon
   }
 
   const task = classifyTask(messages);
+  const collaboration = (env("BIZSTACK_AI_COLLABORATION") || "auto").toLowerCase();
+  const hasToolEvidence = messages.some((m) => m.role === "tool");
+
+  // BizStack can deliberately use a second provider after real tool/runtime evidence
+  // exists. This makes the providers collaborators rather than isolated fallbacks.
+  if (collaboration !== "single" && hasToolEvidence && providers.length > 1) {
+    const requestedReviewer = env("BIZSTACK_AI_REVIEW_PROVIDER").toLowerCase();
+    if (requestedReviewer) {
+      const reviewer = providers.find((p) => p.name === requestedReviewer);
+      if (reviewer) return reviewer;
+    }
+
+    const primary = choosePrimaryProvider(task, providers);
+    const alternatives = providers.filter((p) => p.name !== primary.name);
+    if (alternatives.length) {
+      return alternatives.sort((a, b) => reviewScore(b, task) - reviewScore(a, task) || a.priority - b.priority)[0];
+    }
+  }
+
+  return choosePrimaryProvider(task, providers);
+}
+
+function choosePrimaryProvider(
+  task: ReturnType<typeof classifyTask>,
+  providers: ProviderConfig[]
+) {
+  return providers
+    .slice()
+    .sort((a, b) => suitabilityScore(b, task) - suitabilityScore(a, task) || a.priority - b.priority)[0];
+}
+
+function suitabilityScore(provider: ProviderConfig, task: ReturnType<typeof classifyTask>) {
+  let score = 100 - provider.priority;
 
   if (task.coding) {
-    const codex = providers.find((p) => p.name === "openai" && /codex/i.test(p.model));
-    if (codex) return codex;
-    const claude = providers.find((p) => p.name === "anthropic");
-    if (claude) return claude;
-    const openai = providers.find((p) => p.name === "openai");
-    if (openai) return openai;
+    if (provider.name === "openai") score += /codex|gpt/i.test(provider.model) ? 55 : 35;
+    if (provider.name === "anthropic") score += 50;
+    if (provider.name === "gemini") score += 20;
+    if (provider.name === "mistral") score += 15;
   }
-
-  if (task.visual || task.longContext) {
-    const gemini = providers.find((p) => p.name === "gemini");
-    if (gemini) return gemini;
-    const claude = providers.find((p) => p.name === "anthropic");
-    if (claude) return claude;
+  if (task.visual) {
+    if (provider.name === "gemini") score += 55;
+    if (provider.name === "anthropic") score += 35;
+    if (provider.name === "openai") score += 30;
   }
-
-  if (task.fast) {
-    const mistral = providers.find((p) => p.name === "mistral");
-    if (mistral) return mistral;
+  if (task.longContext) {
+    if (provider.name === "gemini") score += 45;
+    if (provider.name === "anthropic") score += 40;
+    if (provider.name === "openai") score += 30;
   }
+  if (task.fast && provider.name === "mistral") score += 45;
 
-  return providers[0];
+  return score;
+}
+
+function reviewScore(provider: ProviderConfig, task: ReturnType<typeof classifyTask>) {
+  let score = 100 - provider.priority;
+  if (task.coding && provider.name === "anthropic") score += 50;
+  if (task.coding && provider.name === "openai") score += 45;
+  if (task.visual && provider.name === "gemini") score += 50;
+  if (task.longContext && provider.name === "gemini") score += 45;
+  if (task.fast && provider.name === "mistral") score += 30;
+  return score;
 }
 
 function openAiMessages(messages: BizStackModelMessage[]) {
