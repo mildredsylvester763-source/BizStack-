@@ -101,3 +101,37 @@ export async function PUT(
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not save project file." }, { status: 400 });
   }
 }
+
+
+export async function DELETE(
+  request: Request,
+  context: { params: { projectId: string } }
+) {
+  try {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const body = await request.json().catch(() => ({}));
+    const path = normalizePath(typeof body.path === "string" ? body.path : "");
+    const { data: project, error: projectError } = await supabase
+      .from("ai_projects")
+      .select("id,business_id,status")
+      .eq("id", context.params.projectId)
+      .single();
+    if (projectError || !project || project.status === "deleted") {
+      return NextResponse.json({ error: "Project not found." }, { status: 404 });
+    }
+
+    const { data: existing } = await supabase.from("ai_project_files")
+      .select("id,path,content,content_sha,language,size_bytes,is_binary,version_no")
+      .eq("project_id", project.id).eq("path", path).maybeSingle();
+    if (!existing) return NextResponse.json({ error: "File not found." }, { status: 404 });
+
+    const { error } = await supabase.from("ai_project_files").delete().eq("id", existing.id);
+    if (error) throw error;
+    return NextResponse.json({ deleted: true, file: existing, deleted_by: user.id });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not delete project file." }, { status: 400 });
+  }
+}
