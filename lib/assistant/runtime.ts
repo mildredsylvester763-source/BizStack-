@@ -182,8 +182,7 @@ function systemPrompt(business: { name: string; industry?: string | null; curren
     "Industry: " + (business.industry || "not specified"),
     "Base currency: " + (business.currency || "not specified"),
     "Active software project: " + (projectId || "none") + ". If the user is asking about software, prefer this project unless they explicitly name another project."
-  ].join("
-");
+  ].join("\n");
 }
 
 function toolRequiresApproval(tool: ReturnType<typeof getToolDefinition>, agent: any) {
