@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase-server";
 import { calculateOutstanding, formatMoney } from "@/lib/invoices";
 
 export default async function MoneyPage() {
- const supabase=createClient(); const {data:{user}}=await supabase.auth.getUser(); if(!user) redirect("/login");
+ const supabase=await createClient(); const {data:{user}}=await supabase.auth.getUser(); if(!user) redirect("/login");
  const {data:business}=await supabase.from("businesses").select("id,name,currency").eq("owner_id",user.id).single(); if(!business) redirect("/onboarding");
  const [{data:accounts},{data:txs},{data:invoices},{data:buckets},{data:integrations}]=await Promise.all([
   supabase.from("financial_accounts").select("id,display_name,provider,status,currency,last_synced_at").eq("business_id",business.id).order("created_at"),
