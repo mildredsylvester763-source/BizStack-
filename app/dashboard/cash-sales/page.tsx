@@ -107,7 +107,7 @@ export default async function CashSalesPage() {
       </form>}
       <div className="bg-white border border-rule">
         <div className="p-5 border-b border-rule"><p className="text-xs uppercase tracking-[.16em] text-vault">Recent sales</p><h3 className="font-display text-xl mt-1">Register activity</h3></div>
-        <div className="divide-y divide-rule">{(sales||[]).map(s=><div key={s.id} className="p-4 flex flex-wrap justify-between gap-3"><div><p className="text-sm font-medium">{s.sale_number}</p><p className="text-xs text-ink/45 mt-1">{s.customer?.name||"Walk-in customer"} · {s.payment_method} · {new Date(s.sale_at).toLocaleString()}</p></div><p className="font-display">{s.currency} {Number(s.total||0).toLocaleString()}</p></div>)}{!(sales||[]).length&&<p className="p-6 text-sm text-ink/45">No sales recorded yet.</p>}</div>
+        <div className="divide-y divide-rule">{((sales||[]) as any[]).map(s=><div key={s.id} className="p-4 flex flex-wrap justify-between gap-3"><div><p className="text-sm font-medium">{s.sale_number}</p><p className="text-xs text-ink/45 mt-1">{s.customer?.name||"Walk-in customer"} · {s.payment_method} · {new Date(s.sale_at).toLocaleString()}</p></div><p className="font-display">{s.currency} {Number(s.total||0).toLocaleString()}</p></div>)}{!(sales||[]).length&&<p className="p-6 text-sm text-ink/45">No sales recorded yet.</p>}</div>
       </div>
     </section>
   </main>;
