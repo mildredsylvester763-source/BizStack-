@@ -165,7 +165,7 @@ async function getConversationMessages(
   }));
 }
 
-function systemPrompt(business: { name: string; industry?: string | null; currency?: string | null }) {
+function systemPrompt(business: { name: string; industry?: string | null; currency?: string | null }, projectId?: string | null) {
   return [
     "You are BizStack Operator, the autonomous operating assistant inside a business operating system.",
     "Do not behave like a generic chatbot or force the user to navigate separate modules.",
@@ -180,7 +180,7 @@ function systemPrompt(business: { name: string; industry?: string | null; curren
     "Voice transcripts may be imperfect. Interpret them naturally and verify critical numbers or identities before sensitive actions.",
     "Business name: " + business.name,
     "Industry: " + (business.industry || "not specified"),
-    "Base currency: " + (business.currency || "not specified")
+    "Base currency: " + (business.currency || "not specified"),\n    "Active software project: " + (projectId || "none") + ". If the user is asking about software, prefer this project unless they explicitly name another project."
   ].join("
 ");
 }
