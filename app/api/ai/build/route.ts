@@ -7,6 +7,7 @@ import { runCustomerBuild } from '@/lib/ai/build-engine/customer-runtime';
 import { runConnectorBuild } from '@/lib/ai/build-engine/connector-runtime';
 import { runQuoteBuild } from '@/lib/ai/build-engine/quote-runtime';
 import { runDualCurrencyBuild, runLoanReadinessBuild, runObligationBuild, runPayrollAdvanceBuild } from '@/lib/ai/build-engine/finance-ops-runtime';
+import { runSmsWalletBuild, runAppointmentBuild, runDigitalMenuBuild, runWaiverBuild } from '@/lib/ai/build-engine/customer-experience-runtime';
 import { runCashSaleBuild } from '@/lib/ai/build-engine/cash-sale-runtime';
 import { runSupplierPriceBuild } from '@/lib/ai/build-engine/supplier-price-runtime';
 import { runCommissionBuild } from '@/lib/ai/build-engine/commission-runtime';
@@ -23,7 +24,7 @@ export async function POST(request: Request) {
   const {data:business}=await supabase.from('businesses').select('id').eq('owner_id',user.id).single();
   if(!business) return NextResponse.json({error:'Business not found'},{status:404});
   try{
-    const capability=['invoice','product_inventory','money_transaction','customer','connector','quote','cash_sale','supplier_price','commission','business_plan','dual_currency','loan_readiness','obligation','payroll_advance'].includes(body.capability) ? body.capability : 'website';
+    const capability=['invoice','product_inventory','money_transaction','customer','connector','quote','cash_sale','supplier_price','commission','business_plan','dual_currency','loan_readiness','obligation','payroll_advance','sms_wallet','appointment','digital_menu','waiver'].includes(body.capability) ? body.capability : 'website';
     const result=capability==='invoice'
       ? await runInvoiceBuild({businessId:business.id,userId:user.id,prompt,mode})
       : capability==='product_inventory'
@@ -52,7 +53,15 @@ export async function POST(request: Request) {
                               ? await runObligationBuild({businessId:business.id,userId:user.id,prompt,mode})
                               : capability==='payroll_advance'
                                 ? await runPayrollAdvanceBuild({businessId:business.id,userId:user.id,prompt,mode})
-                                : await runWebsiteBuild({businessId:business.id,userId:user.id,prompt,websiteId:typeof body.websiteId==='string'?body.websiteId:null,mode,publish:Boolean(body.publish)});
+                                : capability==='sms_wallet'
+                                  ? await runSmsWalletBuild({businessId:business.id,userId:user.id,prompt,mode})
+                                  : capability==='appointment'
+                                    ? await runAppointmentBuild({businessId:business.id,userId:user.id,prompt,mode})
+                                    : capability==='digital_menu'
+                                      ? await runDigitalMenuBuild({businessId:business.id,userId:user.id,prompt,mode})
+                                      : capability==='waiver'
+                                        ? await runWaiverBuild({businessId:business.id,userId:user.id,prompt,mode})
+                                        : await runWebsiteBuild({businessId:business.id,userId:user.id,prompt,websiteId:typeof body.websiteId==='string'?body.websiteId:null,mode,publish:Boolean(body.publish)});
     return NextResponse.json(result);
   }catch(error){
     return NextResponse.json({error:error instanceof Error?error.message:'Build failed'},{status:400});
