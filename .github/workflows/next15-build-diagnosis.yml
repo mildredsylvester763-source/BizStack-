@@ -1,0 +1,21 @@
+name: Next 15 build diagnosis
+
+on:
+  push:
+    branches:
+      - chore/next-15-safe-migration-v2
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: npm install
+      - name: Build
+        run: npm run build
