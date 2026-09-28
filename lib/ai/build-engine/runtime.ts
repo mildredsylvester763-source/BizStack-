@@ -66,8 +66,8 @@ function structuralTests(spec: WebsiteSpec) {
   ];
 }
 
-export async function runWebsiteBuild(args: { businessId:string; userId:string; prompt:string; websiteId?:string|null; mode?:BuildMode; publish?:boolean }) {
-  const { businessId, userId, prompt, websiteId, mode='ask_first', publish=false } = args;
+export async function runWebsiteBuild(args: { businessId:string; userId:string; prompt:string; websiteId?:string|null; projectId?:string|null; mode?:BuildMode; publish?:boolean }) {
+  const { businessId, userId, prompt, websiteId, projectId, mode='ask_first', publish=false } = args;
   if (!prompt.trim()) throw new Error('Describe what you want BizStack to build.');
   const { supabase, business } = await ownerBusiness(businessId,userId);
   let existingWebsite:any = null;
@@ -92,6 +92,24 @@ export async function runWebsiteBuild(args: { businessId:string; userId:string; 
     if(!generated.spec) throw new Error(generated.error || 'The build engine could not produce a website specification.');
     const spec=generated.spec;
     const metrics=countWebsiteRequirements(spec);
+    let projectResult:any=null;
+    if(projectId){
+      const {data:project,error:projectError}=await supabase.from("ai_projects").select("id,name,status,business_id").eq("id",projectId).eq("business_id",businessId).single();
+      if(projectError||!project||project.status==="deleted") throw new Error("Target Builder project was not found.");
+      const files=compileWebsiteToProject(spec);
+      const {createHash}=await import("node:crypto");
+      for(const file of files){
+        const {data:existing}=await supabase.from("ai_project_files").select("id,version_no").eq("project_id",project.id).eq("path",file.path).maybeSingle();
+        const fileChecksum=createHash("sha256").update(file.content,"utf8").digest("hex");
+        const {error:fileError}=await supabase.from("ai_project_files").upsert({id:existing?.id,project_id:project.id,path:file.path,content:file.content,content_sha:fileChecksum,language:file.language,size_bytes:Buffer.byteLength(file.content,"utf8"),is_binary:false,version_no:Number(existing?.version_no??0)+1,updated_by:userId,updated_at:new Date().toISOString()},{onConflict:"project_id,path"});
+        if(fileError) throw fileError;
+      }
+      const {data:latestVersion}=await supabase.from("ai_project_versions").select("version_no").eq("project_id",project.id).order("version_no",{ascending:false}).limit(1).maybeSingle();
+      const {data:projectFiles}=await supabase.from("ai_project_files").select("path,content,content_sha,language,size_bytes,is_binary,version_no").eq("project_id",project.id).order("path",{ascending:true});
+      const {data:version,error:versionError}=await supabase.from("ai_project_versions").insert({project_id:project.id,version_no:Number(latestVersion?.version_no??0)+1,message:"Website Builder generated editable source",source_run_id:run.id,snapshot:{format:"bizstack-project-snapshot/v1",files:projectFiles??[],captured_at:new Date().toISOString()},created_by:userId}).select("id,version_no").single();
+      if(versionError) throw versionError;
+      projectResult={projectId:project.id,files:files.map(f=>f.path),versionId:version?.id??null};
+    }
     await supabase.from('ai_build_runs').update({provider_key:generated.providerKey,provider_status:generated.status === 'available' ? 'available' : generated.status === 'fallback' ? 'fallback':'failed',status:'testing',plan:{...plan,metrics}}).eq('id',run.id).eq('business_id',businessId);
     await supabase.from('ai_build_artifacts').insert({business_id:businessId,build_run_id:run.id,artifact_type:'website_spec',artifact_key:'website',version:1,status:'validated',content:spec,checksum:checksum(spec)});
     const tests=structuralTests(spec);
@@ -107,7 +125,7 @@ export async function runWebsiteBuild(args: { businessId:string; userId:string; 
       return {runId:run.id,status:'waiting_approval',approvalId:approval.id,result:{spec,tests,metrics}};
     }
     const finalWebsiteId=await applyWebsiteSpec(supabase,businessId,websiteId,spec,Boolean(publish));
-    const result={websiteId:finalWebsiteId,published:Boolean(publish),metrics,provider:generated.providerKey,providerStatus:generated.status,spec,tests};
+    const result={websiteId:finalWebsiteId,project:projectResult,published:Boolean(publish),metrics,provider:generated.providerKey,providerStatus:generated.status,spec,tests};
     await supabase.from('ai_build_steps').insert({business_id:businessId,build_run_id:run.id,sequence_no:5,step_key:'persist',step_type:'execution',status:'succeeded',input:{websiteId:finalWebsiteId},output:result,started_at:new Date().toISOString(),finished_at:new Date().toISOString()});
     await supabase.from('ai_build_runs').update({status:'succeeded',result,finished_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',run.id).eq('business_id',businessId);
     await supabase.from('events').insert({ business_id:businessId,event_type:'ai.build.completed',summary:'Website build completed with ' + metrics.pages + ' pages and ' + metrics.sections + ' structured sections.',evidence:{build_run_id:run.id,website_id:finalWebsiteId,provider:generated.providerKey,provider_status:generated.status,metrics},status:'info',priority:'normal',category:'ai_build' });
