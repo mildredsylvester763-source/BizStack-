@@ -130,7 +130,8 @@ async function verifyGeneratedProject(supabase: any, businessId: string, project
 }
 
 export async function runWebsiteBuild(args: { businessId:string; userId:string; prompt:string; websiteId?:string|null; projectId?:string|null; mode?:BuildMode; publish?:boolean }) {
-  const { businessId, userId, prompt, websiteId, projectId, mode='ask_first', publish=false } = args;
+  const { businessId, userId, prompt, projectId, mode='ask_first', publish=false } = args;
+  let websiteId = args.websiteId ?? null;
   if (!prompt.trim()) throw new Error('Describe what you want BizStack to build.');
   const { supabase, business } = await ownerBusiness(businessId,userId);
   let existingWebsite:any = null;
@@ -156,10 +157,11 @@ export async function runWebsiteBuild(args: { businessId:string; userId:string; 
     const spec=generated.spec;
     const metrics=countWebsiteRequirements(spec);
     let projectResult:any=null;
+    if(projectId && !websiteId){ websiteId=await applyWebsiteSpec(supabase,businessId,null,spec,false); }
     if(projectId){
       const {data:project,error:projectError}=await supabase.from("ai_projects").select("id,name,status,business_id").eq("id",projectId).eq("business_id",businessId).single();
       if(projectError||!project||project.status==="deleted") throw new Error("Target Builder project was not found.");
-      const files=compileWebsiteToProject(spec);
+      const files=compileWebsiteToProject(spec, websiteId);
       const {createHash}=await import("node:crypto");
       for(const file of files){
         const {data:existing}=await supabase.from("ai_project_files").select("id,version_no").eq("project_id",project.id).eq("path",file.path).maybeSingle();
