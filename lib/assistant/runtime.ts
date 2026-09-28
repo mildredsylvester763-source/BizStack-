@@ -143,6 +143,9 @@ function systemPrompt(business: { name: string; industry?: string | null; curren
     "Never invent business records, balances, integrations, credentials, payments, customers, products, or completed actions.",
     "When something is missing, ask only for the specific missing information needed to continue.",
     "Low-risk operational work should be executed when the necessary information is available.",
+    "Business operations are first-class work, separate from software building. When the user asks to operate invoices, customers, products, inventory, money records, communications, or other business modules, work directly against the real business data through governed tools. Do not turn a business operation into a website task.",
+    "Respect the business automation policy. A configured auto_execute policy permits the matching medium-risk operational action to run without an extra per-action approval; draft_only and ask_first remain governed. Never treat a website connection as permission to expose private business data publicly.",
+
     "For sensitive external money movement, credential exposure, public publishing, destructive changes, or other high-risk actions, request approval rather than pretending the action was performed.",
     "For software-building requests, behave like an autonomous engineering loop, not a code generator. Prefer this sequence when applicable: inspect the project and source tree -> plan -> write the smallest safe change -> run project.runtime.verify -> inspect the actual failure evidence -> list the relevant repair run -> execute the governed repair when approval permits -> verify again -> snapshot the verified state -> deploy only when explicitly requested and permitted. Do not stop merely because source files were written. Do not claim code, files, previews, terminals, deployments, repairs, or tests exist unless a tool actually created or verified them.",
     "After modifying a software project, verification is required before declaring the coding task complete whenever the project can be executed. If verification fails, diagnose from the real output rather than guessing. Preserve the existing feature set during repairs and rely on the governed repair engine's rollback behavior.",
@@ -156,12 +159,42 @@ function systemPrompt(business: { name: string; industry?: string | null; curren
   ].join("\n");
 }
 
-function toolRequiresApproval(tool: ReturnType<typeof getToolDefinition>, agent: any) {
+async function toolRequiresApproval(
+  supabase: ReturnType<typeof createClient>,
+  businessId: string,
+  tool: ReturnType<typeof getToolDefinition>,
+  agent: any
+) {
   if (!tool) return true;
   if (tool.riskLevel === "critical") return true;
   if (tool.riskLevel === "high") return true;
+
   const policy = agent?.system_config?.approval_policy ?? {};
-  return Boolean(policy?.medium_requires_approval) && tool.riskLevel === "medium";
+  const defaultRequiresApproval = Boolean(policy?.medium_requires_approval) && tool.riskLevel === "medium";
+  if (tool.riskLevel !== "medium") return defaultRequiresApproval;
+
+  const actionTypeByTool: Record<string, string> = {
+    "invoices.create_draft": "create_invoice",
+    "products.create": "create_product",
+    "integrations.sync": "sync_integration",
+    "project.runtime.run": "run_project_runtime",
+    "project.runtime.verify": "run_project_runtime",
+    "website.build": "build_website",
+    "communications.inbox": "read_communications"
+  };
+  const actionType = actionTypeByTool[tool.toolKey];
+  if (!actionType) return defaultRequiresApproval;
+
+  const { data: automation } = await supabase
+    .from("automation_settings")
+    .select("mode,limit_value")
+    .eq("business_id", businessId)
+    .eq("action_type", actionType)
+    .maybeSingle();
+
+  if (automation?.mode === "auto_execute") return false;
+  if (automation?.mode === "draft_only") return true;
+  return defaultRequiresApproval;
 }
 
 async function saveMessage(
@@ -271,7 +304,7 @@ async function executeOperatorTurn(args: {
       const definition = getToolDefinition(toolName);
       if (!definition) throw new Error("The assistant requested an unknown tool: " + toolName);
 
-      if (toolRequiresApproval(definition, agent)) {
+      if (await toolRequiresApproval(supabase, businessId, definition, agent)) {
         const parsed = (() => {
           try { return JSON.parse(toolCall.function.arguments || "{}"); } catch { return {}; }
         })();
