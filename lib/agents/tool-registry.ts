@@ -33,6 +33,8 @@ export const TOOL_REGISTRY: ToolDefinition[] = [
   { toolKey: "money.summary", name: "Money Summary", riskLevel: "low", permission: "read_money", description: "Read receivables and recent recorded financial activity.", inputSchema: emptyObject() },
   { toolKey: "wallet.summary", name: "Wallet Summary", riskLevel: "low", permission: "read_wallet", description: "Read wallet balances, statuses and recent wallet transactions.", inputSchema: emptyObject() },
   { toolKey: "integrations.list", name: "Inspect Connections", riskLevel: "low", permission: "read_integrations", description: "Inspect real integrations and their actual connection state.", inputSchema: emptyObject() },
+  { toolKey: "business.autonomy.status", name: "Business Autonomy Policy", riskLevel: "low", permission: "read_business_context", description: "Inspect the business automation permissions that determine which operational actions BizStack may execute automatically.", inputSchema: emptyObject() },
+  { toolKey: "communications.inbox", name: "Unified Communications Inbox", riskLevel: "low", permission: "read_integrations", description: "Read recent customer communications across connected channels such as WhatsApp, SMS and email without treating them as login/authentication.", inputSchema: { type: "object", properties: { channel: { type: "string" }, limit: { type: "number", minimum: 1, maximum: 100 } } } },
   { toolKey: "integrations.sync", name: "Sync Connected Resource", riskLevel: "medium", permission: "write_integrations", description: "Run a governed sync for a connected custom connector resource and persist the external records, cursor, run evidence and errors.", inputSchema: { type: "object", properties: { integration_id: { type: "string" }, resource_key: { type: "string" } }, required: ["integration_id","resource_key"] } },
   { toolKey: "website.build", name: "Build Website", riskLevel: "medium", permission: "build_websites", description: "Create or modify a real BizStack website from natural language, optionally compiling the same design into an editable software project.", inputSchema: { type: "object", properties: { prompt: { type: "string" }, website_id: { type: "string" }, project_id: { type: "string" }, publish: { type: "boolean" } }, required: ["prompt"] } },
   { toolKey: "events.create", name: "Create Business Event", riskLevel: "low", permission: "draft_actions", description: "Record an auditable internal action, recommendation or handoff.", inputSchema: { type: "object", properties: { event_type: { type: "string" }, summary: { type: "string" }, category: { type: "string" }, priority: { type: "string" }, action_type: { type: "string" } }, required: ["summary"] } },
@@ -62,6 +64,8 @@ export function buildPlan(input: string): { toolKey: string; input: Record<strin
   if (/(money|cash|revenue|expense|profit|financial|finance|balance)/.test(text)) plan.push({ toolKey: "money.summary", input: {} });
   if (/(wallet|bank balance|available funds|transfer)/.test(text)) plan.push({ toolKey: "wallet.summary", input: {} });
   if (/(connection|integration|connected|oauth|api|webhook)/.test(text)) plan.push({ toolKey: "integrations.list", input: {} });
+  if (/(autonom|permission|approval|automation|what can you do automatically)/.test(text)) plan.push({ toolKey: "business.autonomy.status", input: {} });
+  if (/(whatsapp|facebook messenger|messenger|sms|email|customer message|inbox|reply to customer)/.test(text)) plan.push({ toolKey: "communications.inbox", input: { limit: 50 } });
   if (/(build|create|make|edit|modify|code|app|application|website|project|repository|file|feature|terminal|preview)/.test(text)) plan.push({ toolKey: "projects.list", input: {} });
   if (/(record this|log this|create an action|create a task|note this|add to timeline)/.test(text)) {
     plan.push({ toolKey: "events.create", input: { event_type: "agent.requested_action", summary: input.trim(), category: "agent", priority: "normal", action_type: "agent_followup" } });
@@ -180,6 +184,27 @@ export async function executeTool(toolKey: string, input: Record<string, unknown
 
   if (toolKey === "integrations.list") {
     const { data, error } = await supabase.from("integrations").select("id,display_name,provider,category,connection_type,status,sync_mode,error_message,config,created_at,updated_at").eq("business_id", businessId).order("created_at", { ascending: false });
+    if (error) throw error;
+    return data ?? [];
+  }
+
+  if (toolKey === "business.autonomy.status") {
+    const { data: settings, error } = await supabase.from("automation_settings").select("action_type,mode,limit_value").eq("business_id", businessId).order("action_type", { ascending: true });
+    if (error) throw error;
+    return { autonomy_mode: "permissioned", policies: settings ?? [], note: "Only actions explicitly configured for auto_execute should bypass the normal approval gate; critical/high-risk actions remain governed." };
+  }
+
+  if (toolKey === "communications.inbox") {
+    const rawLimit = Number(input.limit ?? 50);
+    const limit = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : 50, 1), 100);
+    let query = supabase.from("communication_messages")
+      .select("id,customer_id,integration_id,channel,direction,status,provider_message_id,subject,body,template_name,sent_at,delivered_at,read_at,error_message,metadata,created_at,customers(name,email,phone)")
+      .eq("business_id", businessId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    const channel = String(input.channel ?? "").trim().toLowerCase();
+    if (channel) query = query.eq("channel", channel);
+    const { data, error } = await query;
     if (error) throw error;
     return data ?? [];
   }
