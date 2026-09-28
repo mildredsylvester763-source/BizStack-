@@ -68,17 +68,20 @@ async function getOrCreateAgent(
   if (existing) {
     const requiredPermissions = TOOL_REGISTRY.map((tool) => tool.permission);
     const permissions = Array.from(new Set([...(Array.isArray(existing.permissions) ? existing.permissions : []), ...requiredPermissions]));
-    const changed = permissions.length !== (Array.isArray(existing.permissions) ? existing.permissions.length : 0);
+    const currentConfig = existing.system_config && typeof existing.system_config === "object" ? existing.system_config : {};
+    const currentMax = Number((currentConfig as any)?.max_tool_steps ?? 0);
+    const system_config = currentMax >= 12 ? currentConfig : { ...currentConfig, max_tool_steps: 12 };
+    const changed = permissions.length !== (Array.isArray(existing.permissions) ? existing.permissions.length : 0) || currentMax < 12;
     if (changed) {
       const { data: refreshed } = await supabase
         .from("ai_agents")
-        .update({ permissions })
+        .update({ permissions, system_config })
         .eq("id", existing.id)
         .select("id,name,status,autonomy_mode,permissions,system_config")
         .single();
       if (refreshed) return refreshed;
     }
-    return { ...existing, permissions };
+    return { ...existing, permissions, system_config };
   }
 
   const { data: created, error } = await supabase
@@ -91,7 +94,7 @@ async function getOrCreateAgent(
       description: "Universal autonomous business operator.",
       status: "active",
       autonomy_mode: "auto_execute",
-      system_config: { approval_policy: { critical_always: true, high_default: true }, max_tool_steps: 8 },
+      system_config: { approval_policy: { critical_always: true, high_default: true }, max_tool_steps: 12 },
       permissions: TOOL_REGISTRY.map((tool) => tool.permission),
       triggers: ["chat", "voice", "manual", "event"],
       memory_config: { enabled: true, retain_runtime_memory: true }
@@ -133,7 +136,9 @@ function systemPrompt(business: { name: string; industry?: string | null; curren
     "When something is missing, ask only for the specific missing information needed to continue.",
     "Low-risk operational work should be executed when the necessary information is available.",
     "For sensitive external money movement, credential exposure, public publishing, destructive changes, or other high-risk actions, request approval rather than pretending the action was performed.",
-    "For software-building requests, use the persistent project tools to inspect existing projects, create real editable projects, create or modify real source files, run verified commands in the isolated project runtime, and snapshot versions. Do not claim code, files, previews, terminals, deployments, or tests exist unless a tool actually created or verified them. Prefer inspect -> change -> run -> inspect failure -> change again when the request requires working code.",
+    "For software-building requests, behave like an autonomous engineering loop, not a code generator. Prefer this sequence when applicable: inspect the project and source tree -> plan -> write the smallest safe change -> run project.runtime.verify -> inspect the actual failure evidence -> list the relevant repair run -> execute the governed repair when approval permits -> verify again -> snapshot the verified state -> deploy only when explicitly requested and permitted. Do not stop merely because source files were written. Do not claim code, files, previews, terminals, deployments, repairs, or tests exist unless a tool actually created or verified them.",
+    "After modifying a software project, verification is required before declaring the coding task complete whenever the project can be executed. If verification fails, diagnose from the real output rather than guessing. Preserve the existing feature set during repairs and rely on the governed repair engine's rollback behavior.",
+
     "For website requests, treat the website as a living business surface connected to CRM, catalogue, booking, payment and communications where applicable.",
     "Voice transcripts may be imperfect. Interpret them naturally and verify critical numbers or identities before sensitive actions.",
     "Business name: " + business.name,
