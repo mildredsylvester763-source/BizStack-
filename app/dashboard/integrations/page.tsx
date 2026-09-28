@@ -27,7 +27,7 @@ function helpFor(method:string){const m=method.toLowerCase();if(m.includes("oaut
 export default function IntegrationsPage(){
  const supabase=createClient();
  const [items,setItems]=useState<Integration[]>([]),[schedules,setSchedules]=useState<any[]>([]),[businessId,setBusinessId]=useState(""),[loading,setLoading]=useState(true);
- const [selected,setSelected]=useState<Catalog|null>(null),[method,setMethod]=useState(""),[label,setLabel]=useState(""),[apiKey,setApiKey]=useState(""),[baseUrl,setBaseUrl]=useState(""),[testUrl,setTestUrl]=useState(""),[webhookSecret,setWebhookSecret]=useState("");
+ const [selected,setSelected]=useState<Catalog|null>(null),[method,setMethod]=useState(""),[label,setLabel]=useState(""),[apiKey,setApiKey]=useState(""),[baseUrl,setBaseUrl]=useState(""),[testUrl,setTestUrl]=useState(""),[webhookSecret,setWebhookSecret]=useState(""),[oauthAuthorizeUrl,setOauthAuthorizeUrl]=useState(""),[oauthTokenUrl,setOauthTokenUrl]=useState(""),[oauthClientId,setOauthClientId]=useState(""),[importFile,setImportFile]=useState<File|null>(null);
  const [definitions,setDefinitions]=useState<ConnectorDefinition[]>([]),[credentialTarget,setCredentialTarget]=useState<Integration|null>(null),[credentialValue,setCredentialValue]=useState(""),[credentialSaving,setCredentialSaving]=useState(false);
  const [step,setStep]=useState<"method"|"details"|"review">("method"),[saving,setSaving]=useState(false),[message,setMessage]=useState("");
 
@@ -35,18 +35,32 @@ export default function IntegrationsPage(){
  useEffect(()=>{load();},[]);
  useEffect(()=>{if(!businessId)return;const ch=supabase.channel("bizstack-integrations").on("postgres_changes",{event:"*",schema:"public",table:"integrations",filter:"business_id=eq."+businessId},()=>load()).subscribe();return()=>{supabase.removeChannel(ch);};},[businessId]);
 
- function open(c:Catalog){setSelected(c);setMethod(c.methods[0]);setLabel(c.name);setApiKey("");setBaseUrl("");setTestUrl("");setWebhookSecret("");setMessage("");setStep("method");}
- function close(){if(saving)return;setSelected(null);setMethod("");setLabel("");setApiKey("");setBaseUrl("");setTestUrl("");setWebhookSecret("");setMessage("");setStep("method");}
+ function open(c:Catalog){setSelected(c);setMethod(c.methods[0]);setLabel(c.name);setApiKey("");setBaseUrl("");setTestUrl("");setWebhookSecret("");setOauthAuthorizeUrl("");setOauthTokenUrl("");setOauthClientId("");setImportFile(null);setMessage("");setStep("method");}
+ function close(){if(saving)return;setSelected(null);setMethod("");setLabel("");setApiKey("");setBaseUrl("");setTestUrl("");setWebhookSecret("");setOauthAuthorizeUrl("");setOauthTokenUrl("");setOauthClientId("");setImportFile(null);setMessage("");setStep("method");}
 
  async function start(){
   if(!selected||!businessId||!method)return;
   setSaving(true);setMessage("");
   const connectionType=typeFor(method);
-  const config={setup_stage:"credentials_saved",connection_method:method,base_url:baseUrl.trim()||null,test_url:testUrl.trim()||null,setup_started_at:new Date().toISOString()};
+  const config={setup_stage:"configuration_saved",connection_method:method,base_url:baseUrl.trim()||null,test_url:testUrl.trim()||null,oauth_authorize_url:oauthAuthorizeUrl.trim()||null,oauth_token_url:oauthTokenUrl.trim()||null,oauth_client_id:oauthClientId.trim()||null,setup_started_at:new Date().toISOString()};
   const {data,error}=await supabase.from("integrations").insert({business_id:businessId,provider:selected.name.toLowerCase().replace(/\\s+/g,"-"),category:selected.category,connection_type:connectionType,display_name:label.trim()||selected.name,status:"pending",sync_mode:selected.mode,capabilities:{setup_method:method,authorization_required:connectionType==="oauth",manual_sync:true,incremental_sync:true,webhooks:selected.mode!=="manual"},config}).select("id,display_name,category,connection_type,status,sync_mode,error_message").single();
   if(error){setSaving(false);setMessage(error.message);return;}
   if(data)setItems(v=>[...v,data]);
-  if(connectionType!=="oauth"&&connectionType!=="file_import"&&connectionType!=="native"){
+  if(connectionType==="oauth"){
+    const response=await fetch("/api/integrations/oauth/start",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({businessId,integrationId:data.id})});
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok){setSaving(false);setMessage(result.error||"OAuth setup failed.");return;}
+    setSaving(false);setStep("review");setMessage("OAuth connection created. Authorize the provider to finish the connection.");
+    window.location.assign(result.authorizationUrl); return;
+  }
+  if(connectionType==="file_import"){
+    if(!importFile){setSaving(false);setMessage("Choose a file to import.");return;}
+    const fd=new FormData();fd.append("businessId",businessId);fd.append("integrationId",data.id);fd.append("file",importFile);
+    const response=await fetch("/api/integrations/import",{method:"POST",body:fd});const result=await response.json().catch(()=>({}));
+    if(!response.ok){setSaving(false);setMessage(result.error||"File import failed.");return;}
+    setSaving(false);setStep("review");setMessage(`File uploaded and staged for mapping: ${result.rowCount||0} rows detected.`);await load();return;
+  }
+  if(connectionType!=="native"){
     const credential=connectionType==="webhook"?{webhookSecret}:{apiKey};
     if(connectionType==="api_key"&&!apiKey.trim()){setSaving(false);setMessage("Enter an API key before saving this connection.");return;}
     const response=await fetch("/api/integrations/connect",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({businessId,integrationId:data.id,kind:connectionType,credential})});
@@ -129,6 +143,8 @@ export default function IntegrationsPage(){
  {step==="details"&&<div><h4 className="font-medium">Connection details</h4><p className="text-sm text-ink/50 mt-1 mb-5">{helpFor(method)}</p><label className="block text-xs text-ink/50 mb-2">Connection name</label><input value={label} onChange={e=>setLabel(e.target.value)} className="w-full border border-rule px-4 py-3 text-sm outline-none focus:border-vault"/>
  {typeFor(method)==="api_key"&&<><label className="block text-xs text-ink/50 mt-5 mb-2">API key</label><input type="password" autoComplete="new-password" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="Stored encrypted; never displayed again" className="w-full border border-rule px-4 py-3 text-sm outline-none focus:border-vault"/></>}
  {typeFor(method)==="webhook"&&<><label className="block text-xs text-ink/50 mt-5 mb-2">Webhook signing secret</label><input type="password" autoComplete="new-password" value={webhookSecret} onChange={e=>setWebhookSecret(e.target.value)} className="w-full border border-rule px-4 py-3 text-sm outline-none focus:border-vault"/></>}
+ {typeFor(method)==="file_import"&&<><label className="block text-xs text-ink/50 mt-5 mb-2">Source file</label><input type="file" accept=".csv,.json,.jsonl,.txt,.xml,.xlsx,.xls,.pdf" onChange={e=>setImportFile(e.target.files?.[0]||null)} className="w-full border border-rule px-4 py-3 text-sm"/></>}
+ {typeFor(method)==="oauth"&&<><label className="block text-xs text-ink/50 mt-5 mb-2">OAuth authorization URL</label><input value={oauthAuthorizeUrl} onChange={e=>setOauthAuthorizeUrl(e.target.value)} placeholder="https://provider.example.com/oauth/authorize" className="w-full border border-rule px-4 py-3 text-sm outline-none focus:border-vault"/><label className="block text-xs text-ink/50 mt-5 mb-2">OAuth token URL</label><input value={oauthTokenUrl} onChange={e=>setOauthTokenUrl(e.target.value)} placeholder="https://provider.example.com/oauth/token" className="w-full border border-rule px-4 py-3 text-sm outline-none focus:border-vault"/><label className="block text-xs text-ink/50 mt-5 mb-2">OAuth client ID</label><input value={oauthClientId} onChange={e=>setOauthClientId(e.target.value)} placeholder="Provider client ID" className="w-full border border-rule px-4 py-3 text-sm outline-none focus:border-vault"/></>}
  {(typeFor(method)==="api_key"||typeFor(method)==="oauth")&&<><label className="block text-xs text-ink/50 mt-5 mb-2">API base URL</label><input value={baseUrl} onChange={e=>setBaseUrl(e.target.value)} placeholder="https://api.example.com" className="w-full border border-rule px-4 py-3 text-sm outline-none focus:border-vault"/><label className="block text-xs text-ink/50 mt-5 mb-2">Verification URL</label><input value={testUrl} onChange={e=>setTestUrl(e.target.value)} placeholder="https://api.example.com/health" className="w-full border border-rule px-4 py-3 text-sm outline-none focus:border-vault"/></>}
  <div className="mt-5 bg-mist border border-rule p-4 text-xs text-ink/55 leading-5">Credentials are sent directly to a server route and encrypted with BIZSTACK_ENCRYPTION_KEY. They are not saved in browser local storage, logs or ordinary integration metadata.</div><div className="flex justify-between mt-7"><button onClick={()=>setStep("method")} className="text-sm text-ink/50">Back</button><button onClick={()=>setStep("review")} className="bg-ink text-white px-5 py-2.5 text-sm">Review connection</button></div></div>}
  {step==="review"&&<div><h4 className="font-medium">Review and securely save</h4><div className="mt-4 border border-rule divide-y divide-rule text-sm"><div className="p-4 flex justify-between"><span className="text-ink/45">Connection</span><span>{label||selected.name}</span></div><div className="p-4 flex justify-between"><span className="text-ink/45">Method</span><span>{method}</span></div><div className="p-4 flex justify-between"><span className="text-ink/45">Verification</span><span>{testUrl?"Configured":"Provider verification required"}</span></div></div><p className="text-xs text-ink/45 mt-4">Saving never fabricates a successful connection. The status remains pending until the provider test or OAuth flow succeeds.</p><div className="flex justify-between mt-7"><button onClick={()=>setStep("details")} className="text-sm text-ink/50">Back</button><button onClick={start} disabled={saving} className="bg-vault text-white px-5 py-2.5 text-sm disabled:opacity-50">{saving?"Saving securely…":"Save connection"}</button></div></div>}
