@@ -134,16 +134,17 @@ export async function GET(
     if (key === "bookings") {
       const { data } = await supabase
         .from("appointments")
-        .select("id,service_id,starts_at,ends_at,status,price,deposit_required,deposit_paid,currency")
+        .select("starts_at,ends_at")
         .eq("business_id", website.business_id)
-        .in("status", ["pending", "confirmed"])
+        .in("status", ["pending", "confirmed", "checked_in"])
         .order("starts_at", { ascending: true })
         .limit(200);
 
-      const allowed = new Set(["id", "service_id", "starts_at", "ends_at", "status", "price", "deposit_required", "deposit_paid", "currency"]);
-      result.bookings = (data ?? []).map((row: Record<string, unknown>) =>
-        pick(row, requestedFields.length ? requestedFields : [...allowed], allowed)
-      );
+      const allowed = new Set(["starts_at", "ends_at", "availability"]);
+      result.bookings = (data ?? []).map((row: Record<string, unknown>) => ({
+        ...pick(row, requestedFields.length ? requestedFields : ["starts_at", "ends_at"], allowed),
+        availability: "unavailable"
+      }));
       continue;
     }
 
