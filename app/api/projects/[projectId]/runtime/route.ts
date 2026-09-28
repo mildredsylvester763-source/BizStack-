@@ -11,6 +11,8 @@ import {
   syncFiles
 } from "@/lib/sandbox/vercel";
 
+const ALLOWED_COMMANDS = new Set(["npm","npx","node","pnpm","yarn","next","tsc","eslint","git","python","python3","cat","ls","find","pwd","grep","rg","head","tail"]);
+
 function validCommand(cmd: unknown, args: unknown) {
   if (typeof cmd !== "string" || !/^[a-zA-Z0-9._+:/-]{1,80}$/.test(cmd)) {
     throw new Error("Command name is invalid.");
@@ -18,6 +20,7 @@ function validCommand(cmd: unknown, args: unknown) {
   if (!Array.isArray(args) || args.length > 20 || args.some(a => typeof a !== "string" || a.length > 500)) {
     throw new Error("Command arguments are invalid.");
   }
+  if (!ALLOWED_COMMANDS.has(cmd)) throw new Error("Command is not allowed by the Builder runtime policy.");
   return { cmd, args: args as string[] };
 }
 
