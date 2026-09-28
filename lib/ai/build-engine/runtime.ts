@@ -1,11 +1,12 @@
 import { createClient } from '@/lib/supabase-server';
 import { buildPlan, countWebsiteRequirements } from '@/lib/ai/build-engine/capabilities';
 import { generateWebsiteSpec } from '@/lib/ai/build-engine/provider';
+import { compileWebsiteToProject } from '@/lib/ai/build-engine/project-compiler';
 import type { BuildContext, BuildMode, WebsiteSpec } from '@/lib/ai/build-engine/types';
 import { runSandboxCommand, sandboxConfigured, syncFiles } from '@/lib/sandbox/vercel';
 
 async function ownerBusiness(businessId: string, userId: string) {
-  const supabase = await await createClient();
+  const supabase = await createClient();
   const { data: business, error } = await supabase.from('businesses').select('id,name,industry,currency,contact_email,contact_phone,organization_id,workspace_id').eq('id', businessId).eq('owner_id', userId).single();
   if (error || !business) throw new Error('Business context is not available.');
   return { supabase, business };
