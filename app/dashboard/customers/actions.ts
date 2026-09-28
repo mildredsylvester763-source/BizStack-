@@ -15,7 +15,7 @@ export async function createCustomer(
     return { error: "Customer name is required." };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user }
   } = await supabase.auth.getUser();
