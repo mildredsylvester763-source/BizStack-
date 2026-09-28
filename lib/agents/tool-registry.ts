@@ -37,6 +37,7 @@ export const TOOL_REGISTRY: ToolDefinition[] = [
   { toolKey: "communications.inbox", name: "Unified Communications Inbox", riskLevel: "low", permission: "read_integrations", description: "Read recent customer communications across connected channels such as WhatsApp, SMS and email without treating them as login/authentication.", inputSchema: { type: "object", properties: { channel: { type: "string" }, limit: { type: "number", minimum: 1, maximum: 100 } } } },
   { toolKey: "integrations.sync", name: "Sync Connected Resource", riskLevel: "medium", permission: "write_integrations", description: "Run a governed sync for a connected custom connector resource and persist the external records, cursor, run evidence and errors.", inputSchema: { type: "object", properties: { integration_id: { type: "string" }, resource_key: { type: "string" } }, required: ["integration_id","resource_key"] } },
   { toolKey: "website.build", name: "Build Website", riskLevel: "medium", permission: "build_websites", description: "Create or modify a real BizStack website from natural language, optionally compiling the same design into an editable software project.", inputSchema: { type: "object", properties: { prompt: { type: "string" }, website_id: { type: "string" }, project_id: { type: "string" }, publish: { type: "boolean" } }, required: ["prompt"] } },
+  { toolKey: "website.live_data.configure", name: "Website Live Business Data", riskLevel: "medium", permission: "build_websites", description: "Configure a published website to read an allowlisted, non-sensitive slice of the business in near real time, such as public products, availability and business profile data. Private invoices, balances and customer records are never exposed by this surface.", inputSchema: { type: "object", properties: { website_id: { type: "string" }, enabled: { type: "boolean" }, sources: { type: "array", items: { type: "object" } } }, required: ["website_id","sources"] } },
   { toolKey: "events.create", name: "Create Business Event", riskLevel: "low", permission: "draft_actions", description: "Record an auditable internal action, recommendation or handoff.", inputSchema: { type: "object", properties: { event_type: { type: "string" }, summary: { type: "string" }, category: { type: "string" }, priority: { type: "string" }, action_type: { type: "string" } }, required: ["summary"] } },
   { toolKey: "projects.list", name: "Project Directory", riskLevel: "low", permission: "read_projects", description: "Inspect persistent software projects and their verified deployment state.", inputSchema: emptyObject() },
   { toolKey: "projects.create", name: "Create Software Project", riskLevel: "medium", permission: "create_projects", description: "Create a real editable software project with persistent files and an initial version snapshot.", inputSchema: { type: "object", properties: { name: { type: "string" }, slug: { type: "string" }, project_type: { type: "string" }, framework: { type: "string" }, runtime: { type: "string" }, files: { type: "array" } }, required: ["name"] } },
@@ -67,6 +68,7 @@ export function buildPlan(input: string): { toolKey: string; input: Record<strin
   if (/(autonom|permission|approval|automation|what can you do automatically)/.test(text)) plan.push({ toolKey: "business.autonomy.status", input: {} });
   if (/(whatsapp|facebook messenger|messenger|sms|email|customer message|inbox|reply to customer)/.test(text)) plan.push({ toolKey: "communications.inbox", input: { limit: 50 } });
   if (/(build|create|make|edit|modify|code|app|application|website|project|repository|file|feature|terminal|preview)/.test(text)) plan.push({ toolKey: "projects.list", input: {} });
+  if (/(live|real.?time|sync|dynamic|update.*website|website.*business data|products.*website)/.test(text) && /website/.test(text)) plan.push({ toolKey: "website.live_data.configure", input: {} });
   if (/(record this|log this|create an action|create a task|note this|add to timeline)/.test(text)) {
     plan.push({ toolKey: "events.create", input: { event_type: "agent.requested_action", summary: input.trim(), category: "agent", priority: "normal", action_type: "agent_followup" } });
   }
@@ -228,6 +230,28 @@ export async function executeTool(toolKey: string, input: Record<string, unknown
       mode: "auto_execute",
       publish: input.publish === true
     });
+  }
+
+  if (toolKey === "website.live_data.configure") {
+    const websiteId = String(input.website_id ?? "").trim();
+    if (!websiteId) throw new Error("Website ID is required.");
+    const { data: website, error: websiteError } = await supabase.from("websites").select("id,settings,status").eq("id", websiteId).eq("business_id", businessId).single();
+    if (websiteError || !website) throw new Error("Website not found for this business.");
+    const allowed = new Set(["business_profile","products","inventory_availability"]);
+    const rawSources = Array.isArray(input.sources) ? input.sources : [];
+    const sources = rawSources.map((source) => {
+      const item = source && typeof source === "object" ? source as Record<string, unknown> : {};
+      const key = String(item.key ?? "").trim();
+      if (!allowed.has(key)) throw new Error("Unsupported live website data source: " + key);
+      const fields = Array.isArray(item.fields) ? item.fields.map(String) : [];
+      return { key, fields: fields.slice(0, 30), refresh: String(item.refresh ?? "near_realtime") };
+    });
+    const currentSettings = website.settings && typeof website.settings === "object" ? website.settings as Record<string, unknown> : {};
+    const nextSettings = { ...currentSettings, live_data: { enabled: input.enabled !== false, sources } };
+    const { error } = await supabase.from("websites").update({ settings: nextSettings, updated_at: new Date().toISOString() }).eq("id", websiteId).eq("business_id", businessId);
+    if (error) throw error;
+    await supabase.from("events").insert({ business_id: businessId, event_type: "website.live_data_configured", summary: "Configured allowlisted live business data for website.", evidence: { website_id: websiteId, sources }, status: "auto_handled", priority: "normal", category: "website" });
+    return { websiteId, enabled: nextSettings.live_data.enabled, sources, privacy: "Only allowlisted public business data is exposed. Private invoices, financial balances and customer records stay inside BizStack/customer portals." };
   }
 
   if (toolKey === "events.create") {
