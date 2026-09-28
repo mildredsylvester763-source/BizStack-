@@ -27,7 +27,10 @@ export async function POST(request: Request) {
   const {data:business}=await supabase.from('businesses').select('id').eq('owner_id',user.id).single();
   if(!business) return NextResponse.json({error:'Business not found'},{status:404});
   try{
-    const capability=['invoice','product_inventory','money_transaction','customer','connector','quote','cash_sale','supplier_price','commission','business_plan','dual_currency','loan_readiness','obligation','payroll_advance','sms_wallet','appointment','digital_menu','waiver','thrift_group','business_credit','successor_access','compliance','voice_agent','broadcast','carbon_report','fractional_cfo','product_photo','marketplace_listing','finance_api'].includes(body.capability) ? body.capability : 'website';
+    const capabilities=['website','invoice','product_inventory','money_transaction','customer','connector','quote','cash_sale','supplier_price','commission','business_plan','dual_currency','loan_readiness','obligation','payroll_advance','sms_wallet','appointment','digital_menu','waiver','thrift_group','business_credit','successor_access','compliance','voice_agent','broadcast','carbon_report','fractional_cfo','product_photo','marketplace_listing','finance_api'];
+    if(typeof body.capability!=='string' || !capabilities.includes(body.capability)) return NextResponse.json({error:'Unsupported build capability. Choose a supported capability explicitly.'},{status:400});
+    if(!prompt.trim()) return NextResponse.json({error:'A build prompt is required.'},{status:400});
+    const capability=body.capability;
     const result=capability==='invoice'
       ? await runInvoiceBuild({businessId:business.id,userId:user.id,prompt,mode})
       : capability==='product_inventory'

@@ -1,9 +1,74 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase-server";
+import ActivityFeed, { type ActivityEvent } from "./activity-feed";
 
-type EventRow={id:string;event_type:string;summary:string;evidence:Record<string,unknown>;status:string;created_at:string;priority:string|null;category:string|null;action_type:string|null;due_at:string|null;resolved_at:string|null};
-function label(v:string|null|undefined){return (v||"general").replace(/[._-]+/g," ").replace(/\b\w/g,c=>c.toUpperCase());}
-function dayKey(v:string){return new Date(v).toLocaleDateString(undefined,{year:"numeric",month:"long",day:"numeric"});}
-function EventRowView({event}:{event:EventRow}){return <div className="relative pl-7 pb-7 last:pb-0"><span className="absolute left-0 top-1.5 h-2.5 w-2.5 rounded-full bg-vault ring-4 ring-ledger"/><div className="bg-white border border-rule p-4"><div className="flex flex-wrap items-center gap-2 mb-2"><span className="text-xs text-vault">{label(event.category)}</span><span className="text-xs text-ink/30">·</span><span className="text-xs text-ink/40">{label(event.event_type)}</span>{event.status==="auto_handled"&&<span className="text-[11px] px-2 py-0.5 bg-mist text-vault">Handled</span>}{event.status==="needs_approval"&&<span className="text-[11px] px-2 py-0.5 bg-alert/10 text-alert">Approval</span>}</div><p className="text-sm text-ink leading-relaxed">{event.summary}</p><div className="mt-2 flex flex-wrap gap-3 text-xs text-ink/40"><span>{new Date(event.created_at).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</span>{event.action_type&&<span>Action: {label(event.action_type)}</span>}{event.priority&&event.priority!=="normal"&&<span>Priority: {label(event.priority)}</span>}{event.due_at&&<span>Due: {new Date(event.due_at).toLocaleString()}</span>}</div></div></div>;}
-export default async function ActivityPage(){const supabase=createClient();const {data:{user}}=await supabase.auth.getUser();if(!user)redirect("/login");const {data:business}=await supabase.from("businesses").select("id,name").eq("owner_id",user.id).single();if(!business)redirect("/onboarding");const {data:events}=await supabase.from("events").select("id,event_type,summary,evidence,status,created_at,priority,category,action_type,due_at,resolved_at").eq("business_id",business.id).order("created_at",{ascending:false}).limit(500);const rows=(events??[]) as EventRow[];const groups=rows.reduce<Record<string,EventRow[]>>((acc,event)=>{const key=dayKey(event.created_at);(acc[key]??=[]).push(event);return acc;},{});return <main className="min-h-screen bg-ledger"><header className="border-b border-rule bg-white"><div className="max-w-5xl mx-auto px-4 sm:px-6 py-5 flex items-center justify-between"><div><Link href="/dashboard" className="text-xs text-ink/45 hover:text-ink">← Dashboard</Link><h1 className="font-display text-2xl text-ink mt-1">Business Timeline</h1></div><Link href="/dashboard/actions" className="text-sm text-vault hover:text-vaultDeep">Action Center</Link></div></header><section className="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-12"><div className="mb-10"><p className="text-xs uppercase tracking-[0.16em] text-vault font-medium mb-2">Source timeline</p><h2 className="font-display text-3xl text-ink">Everything that happened</h2><p className="text-sm text-ink/55 mt-2 max-w-2xl">The complete event history stays here. The Action Center deliberately shows only work, exceptions and decisions that deserve attention.</p></div>{!rows.length?<div className="bg-white border border-rule p-8 text-sm text-ink/45">No business events have been recorded yet.</div>:<div className="space-y-10">{Object.entries(groups).map(([day,dayEvents])=><section key={day}><h3 className="font-display text-lg text-ink mb-4">{day}</h3><div className="border-l border-rule ml-1.5 pl-4">{dayEvents.map(event=><EventRowView key={event.id} event={event}/>)}</div></section>)}</div>}</section></main>;}
+export const dynamic = "force-dynamic";
+
+export default async function ActivityPage() {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data: business } = await supabase
+    .from("businesses")
+    .select("id,name,industry,currency")
+    .eq("owner_id", user.id)
+    .single();
+
+  if (!business) redirect("/onboarding");
+
+  const { data: events } = await supabase
+    .from("events")
+    .select("id,event_type,summary,evidence,status,created_at,priority,category,action_type,due_at,resolved_at")
+    .eq("business_id", business.id)
+    .order("created_at", { ascending: false })
+    .limit(500);
+
+  const rows = (events ?? []) as ActivityEvent[];
+  const attention = rows.filter(e => e.status === "needs_approval" || e.priority === "critical" || e.priority === "high").length;
+  const handled = rows.filter(e => e.status === "auto_handled").length;
+
+  return (
+    <main className="min-h-screen bg-[#f5f7f6] text-slate-900">
+      <header className="sticky top-0 z-30 border-b border-slate-200/90 bg-white/95 backdrop-blur">
+        <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4 min-w-0">
+            <Link href="/dashboard" className="shrink-0 text-[11px] font-medium text-slate-400 hover:text-slate-900">← Workspace</Link>
+            <span className="h-5 w-px bg-slate-200" />
+            <div className="min-w-0">
+              <p className="text-[10px] uppercase tracking-[.16em] text-slate-400">Operations / Audit</p>
+              <h1 className="truncate text-sm font-semibold text-slate-900">Activity feed</h1>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="hidden sm:block text-right">
+              <p className="text-[10px] text-slate-400">{business.name}</p>
+              <p className="text-[9px] text-slate-300">{business.industry || "Business"} · {business.currency || "Local currency"}</p>
+            </div>
+            <Link href="/dashboard/actions" className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50">Action Center{attention ? <span className="ml-2 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] text-amber-700">{attention}</span> : null}</Link>
+          </div>
+        </div>
+      </header>
+
+      <section className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-7 lg:py-9">
+        <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-6 mb-7">
+          <div>
+            <div className="flex items-center gap-2 text-[10px] uppercase tracking-[.18em] text-slate-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              Live business record
+            </div>
+            <h2 className="mt-2 text-3xl sm:text-4xl font-semibold tracking-[-.03em] text-slate-950">Everything that happened.</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">A searchable operational record of business events, automated work, approvals, exceptions and outcomes. Routine history stays here; decisions that need you stay in Action Center.</p>
+          </div>
+          <div className="flex items-center gap-2 text-[10px] text-slate-400">
+            <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5">{rows.length} recorded events</span>
+            <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5">{handled} handled automatically</span>
+          </div>
+        </div>
+
+        <ActivityFeed events={rows} />
+      </section>
+    </main>
+  );
+}
