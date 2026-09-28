@@ -1,0 +1,22 @@
+name: Next 16 compatibility check
+
+on:
+  push:
+    branches:
+      - chore/next-16-safe-migration
+  pull_request:
+    branches:
+      - chore/next-16-safe-migration
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.9.0
+          cache: npm
+      - run: npm install
+      - run: npx tsc --noEmit
+      - run: npm run build
