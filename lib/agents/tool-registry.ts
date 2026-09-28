@@ -487,7 +487,7 @@ export async function executeTool(toolKey: string, input: Record<string, unknown
     const has = (name: string) => typeof packageJson?.scripts?.[name] === "string";
     const results: Array<Record<string, unknown>> = [];
 
-    const installCommand =
+    const installCommand: [string, string[]] =
       sourceFiles.some((file) => file.path === "package-lock.json") ? ["npm", ["ci"]] :
       sourceFiles.some((file) => file.path === "pnpm-lock.yaml") ? ["pnpm", ["install", "--frozen-lockfile"]] :
       sourceFiles.some((file) => file.path === "yarn.lock") ? ["yarn", ["install", "--frozen-lockfile"]] :
