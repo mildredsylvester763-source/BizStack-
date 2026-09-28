@@ -427,7 +427,7 @@ export async function runUniversalAssistant({
   clientMessageId?: string | null;
   projectId?: string | null;
 }) : Promise<OperatorResult> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const business = await getBusiness(supabase, userId, businessId);
   const agent = await getOrCreateAgent(supabase, business.id);
 
@@ -497,7 +497,7 @@ export async function approveOperatorRun({
   userId: string;
   runId: string;
 }) : Promise<OperatorResult> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const business = await getBusiness(supabase, userId);
 
   const { data: run, error: runError } = await supabase
