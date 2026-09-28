@@ -47,16 +47,20 @@ export default async function IntelligencePage() {
   const { data: rule } = await supabase.from("cashflow_alert_rules").select("*").eq("business_id", business.id).maybeSingle();
   const since = new Date(Date.now() - 30 * 86400000).toISOString();
   const [{ data: allTx }, { data: tx }, { data: invoices }, { data: feedback }, { data: events }] = await Promise.all([
-    supabase.from("financial_transactions").select("direction,amount,status").eq("business_id", business.id).eq("status", "posted"),\n    supabase.from("financial_transactions").select("direction,amount,status").eq("business_id", business.id).gte("occurred_at", since).eq("status", "posted"),
+    supabase.from("financial_transactions").select("direction,amount,status").eq("business_id", business.id).eq("status", "posted"),
+    supabase.from("financial_transactions").select("direction,amount,status").eq("business_id", business.id).gte("occurred_at", since).eq("status", "posted"),
     supabase.from("invoices").select("total,paid_amount,due_date,status").eq("business_id", business.id).in("status", ["sent","overdue"]).not("due_date", "is", null),
     supabase.from("customer_feedback").select("id,message,sentiment,channel,rating,created_at").eq("business_id", business.id).order("created_at", { ascending: false }).limit(200),
     supabase.from("whatsapp_order_events").select("id,message_text,status,parsed_items,created_at").eq("business_id", business.id).order("created_at", { ascending: false }).limit(10)
   ]);
-  const inflows = (tx || []).filter(x => x.direction === "inflow").reduce((s, x) => s + Number(x.amount || 0), 0);
-  const outflows = (tx || []).filter(x => x.direction === "outflow").reduce((s, x) => s + Number(x.amount || 0), 0);
+  const recentInflows = (tx || []).filter(x => x.direction === "inflow").reduce((s, x) => s + Number(x.amount || 0), 0);
+  const recentOutflows = (tx || []).filter(x => x.direction === "outflow").reduce((s, x) => s + Number(x.amount || 0), 0);
+  const lifetimeInflows = (allTx || []).filter(x => x.direction === "inflow").reduce((s, x) => s + Number(x.amount || 0), 0);
+  const lifetimeOutflows = (allTx || []).filter(x => x.direction === "outflow").reduce((s, x) => s + Number(x.amount || 0), 0);
+  const currentBalance = lifetimeInflows - lifetimeOutflows;
   const collections = (invoices || []).reduce((s, x) => s + Math.max(0, Number(x.total || 0) - Number(x.paid_amount || 0)), 0);
   const snapshot = buildCashflowSnapshot({
-    currentBalance, recentInflows: recentInflows, recentOutflows: recentOutflows,
+    currentBalance, recentInflows, recentOutflows,
     expectedInvoiceCollections: collections, expectedObligations: (recentOutflows / 30) * (rule?.horizon_days ?? 14),
     horizonDays: rule?.horizon_days ?? 14, minimumBuffer: Number(rule?.minimum_buffer ?? 0)
   });
