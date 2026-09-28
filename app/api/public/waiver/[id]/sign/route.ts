@@ -7,7 +7,8 @@ export const runtime="nodejs";
 
 export async function POST(req:NextRequest,{params}:{params:{id:string}}){
  const admin=createAdminClient();
- const body=await req.json().catch(()=>({}));
+ const contentType=req.headers.get("content-type")||"";
+ const body=contentType.includes("application/json")?await req.json().catch(()=>({})):Object.fromEntries((await req.formData()).entries());
  if(!body.signerName||!body.signatureValue)return NextResponse.json({error:"Signer name and signature are required."},{status:400});
  const {data:waiver,error:we}=await admin.from("waivers").select("id,business_id,title,body,version,status,required").eq("id",params.id).eq("status","published").single();
  if(we||!waiver)return NextResponse.json({error:"Waiver not found or not published."},{status:404});
