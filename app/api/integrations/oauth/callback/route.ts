@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import { encryptSecret } from "@/lib/security/secrets";
+import { getOAuthProvider } from "@/lib/integrations/oauth-registry";
 export const runtime="nodejs";
 
 const providerEnv:Record<string,string>={github:"GITHUB", "google-drive":"GOOGLE", gmail:"GOOGLE", "google-calendar":"GOOGLE", slack:"SLACK", notion:"NOTION"};
@@ -23,21 +24,24 @@ export async function GET(req:NextRequest){
  if(!code)return NextResponse.json({error:"Missing OAuth authorization code"},{status:400});
  const {data:i}=await supabase.from("integrations").select("provider,config").eq("id",s.integration_id).single();
  const cfg=(i?.config||{}) as Record<string,any>,provider=String(i?.provider||s.provider||"");
+ const registry=getOAuthProvider(String(cfg.app_key||provider));
  if(typeof cfg.oauth_token_url!=="string")return NextResponse.json({error:"OAuth token endpoint is not configured for this provider."},{status:409});
- const prefix=providerEnv[provider],clientId=prefix?process.env[prefix+"_CLIENT_ID"]:null,clientSecret=prefix?process.env[prefix+"_CLIENT_SECRET"]:null;
+ const clientId=String(cfg.oauth_client_id||registry?.client||"").endsWith("_CLIENT_ID") ? process.env[String(cfg.oauth_client_id||registry?.client)] : (cfg.oauth_client_id||null);
+ const clientSecret=registry?.client ? process.env[registry.client.replace(/_CLIENT_ID$/,"_CLIENT_SECRET")] : null;
  const body=new URLSearchParams({grant_type:"authorization_code",code,redirect_uri:s.redirect_uri});
  if(cfg.oauth_client_id||clientId)body.set("client_id",cfg.oauth_client_id||clientId as string);
  if(cfg.oauth_client_secret||clientSecret)body.set("client_secret",cfg.oauth_client_secret||clientSecret as string);
  const tokenHeaders:Record<string,string>={"Content-Type":"application/x-www-form-urlencoded","Accept":"application/json"};
- if(provider==="notion" && clientId && clientSecret){
+ if((cfg.oauth_token_auth==="basic" || registry?.tokenAuth==="basic") && clientId && clientSecret){
    tokenHeaders.Authorization="Basic "+Buffer.from(clientId+":"+clientSecret).toString("base64");
+   body.delete("client_id"); body.delete("client_secret");
  }
  const response=await fetch(cfg.oauth_token_url,{method:"POST",headers:tokenHeaders,body});
  const token=await response.json().catch(()=>({}));
  if(!response.ok||!token.access_token)return NextResponse.json({error:token?.error_description||token?.error||"OAuth token exchange failed"},{status:502});
  let identity:any={};
  try{
-   const identityUrl=provider==="github"?"https://api.github.com/user":provider==="slack"?"https://slack.com/api/auth.test":provider==="notion"?"https://api.notion.com/v1/users/me":"https://www.googleapis.com/oauth2/v2/userinfo";
+   const identityUrl=cfg.oauth_identity_url || registry?.identity || (provider==="github"?"https://api.github.com/user":"https://www.googleapis.com/oauth2/v2/userinfo");
    const ir=await fetch(identityUrl,{headers:{Authorization:"Bearer "+token.access_token,Accept:"application/json"}});
    if(ir.ok)identity=await ir.json();
  }catch{}
