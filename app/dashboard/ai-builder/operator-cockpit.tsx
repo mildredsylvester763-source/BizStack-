@@ -36,7 +36,9 @@ export default function OperatorCockpit({
   const [apps,setApps]=useState<App[]>(FALLBACK),[appOpen,setAppOpen]=useState(false),[query,setQuery]=useState("");
   const [context,setContext]=useState<App[]>([]),[tab,setTab]=useState("chat"),[selectedEvent,setSelectedEvent]=useState<Event|null>(null),[approval,setApproval]=useState<any>(null),[picker,setPicker]=useState(false);
   const [projects,setProjects]=useState<Project[]>([]),[projectId,setProjectId]=useState(""),[files,setFiles]=useState<ProjectFile[]>([]),[selectedPath,setSelectedPath]=useState(""),[editor,setEditor]=useState(""),[fileDirty,setFileDirty]=useState(false),[saving,setSaving]=useState(false),[versioning,setVersioning]=useState(false);
-  const [terminalCommand,setTerminalCommand]=useState("npm run build"),[terminalOutput,setTerminalOutput]=useState(""),[terminalBusy,setTerminalBusy]=useState(false),[terminalPreview,setTerminalPreview]=useState("");\n  const [previewUrl,setPreviewUrl]=useState("");
+  const [terminalCommand,setTerminalCommand]=useState("npm run build"),[terminalOutput,setTerminalOutput]=useState(""),[terminalBusy,setTerminalBusy]=useState(false),[terminalPreview,setTerminalPreview]=useState("");
+  const [previewUrl,setPreviewUrl]=useState("");
+  const [aiProviders,setAiProviders]=useState<{provider:string;model:string;priority:number}[]>([]);
   const [projectOpen,setProjectOpen]=useState(false),[newProject,setNewProject]=useState({name:"",slug:"",framework:"Next.js",runtime:"Node.js"}),[projectCreating,setProjectCreating]=useState(false);
 
   const project=useMemo(()=>projects.find(p=>p.id===projectId)||null,[projects,projectId]);
@@ -44,6 +46,8 @@ export default function OperatorCockpit({
   const shownApps=useMemo(()=>apps.filter(a=>(a.name+" "+a.category+" "+a.description).toLowerCase().includes(query.toLowerCase())),[apps,query]);
 
   useEffect(()=>{end.current?.scrollIntoView({behavior:"smooth"})},[messages,busy]);
+  useEffect(()=>{(async()=>{try{const r=await fetch("/api/ai/providers",{cache:"no-store"});const x=await r.json();if(r.ok)setAiProviders(x.providers||[]);}catch{}})()},[]);
+
 
   async function loadProjects(preferredId?:string){
     const r=await fetch("/api/projects?businessId="+encodeURIComponent(businessId),{cache:"no-store"});
@@ -202,7 +206,7 @@ export default function OperatorCockpit({
 
   return <div className="min-h-screen bg-[#0b0d11] text-white">
     <div className="h-12 px-4 border-b border-white/[.07] flex items-center gap-3">
-      <div className="font-semibold text-[11px] tracking-tight">BizStack Operator</div><div className="text-[9px] text-white/25 truncate">{businessName}</div>
+      <div className="font-semibold text-[11px] tracking-tight">BizStack Operator</div><div className="text-[9px] text-white/25 truncate">{businessName}</div><div className="hidden md:flex items-center gap-1.5 ml-3">{aiProviders.map(p=><span key={p.provider} className="px-2 py-1 rounded bg-emerald-300/[.06] border border-emerald-300/[.08] text-[7px] text-emerald-200/70">{p.provider} · {p.model}</span>)}{!aiProviders.length&&<span className="px-2 py-1 rounded bg-amber-300/[.06] border border-amber-300/[.08] text-[7px] text-amber-200/70">AI provider not configured</span>}</div>
       <div className="ml-auto flex items-center gap-2"><button onClick={()=>setProjectOpen(true)} className="px-3 py-1.5 rounded-lg bg-white/[.06] text-[9px] text-white/60">+ Project</button><button onClick={()=>setAppOpen(true)} className="px-3 py-1.5 rounded-lg bg-indigo-400/10 border border-indigo-300/10 text-[9px] text-indigo-200">Apps</button></div>
     </div>
     <div className="px-3 py-2 border-b border-white/[.06] bg-[#0d0f13] flex items-center gap-2 overflow-x-auto">
