@@ -350,6 +350,7 @@ export async function executeTool(toolKey: string, input: Record<string, unknown
     const sourceFiles = (files ?? []).filter((row) => !row.is_binary && typeof row.content === "string").map((row) => ({ path: String(row.path), content: String(row.content) }));
     const sandbox = await syncFiles(projectId, sourceFiles);
     const result = await runSandboxCommand(projectId, cmd, args, "/workspace", false);
+    await supabase.from("ai_project_events").insert({ project_id: projectId, event_type: "agent.runtime", sequence_no: Date.now(), payload: { command: [cmd, ...args].join(" "), exit_code: result.exitCode, stdout: result.stdout.slice(0, 20000), stderr: result.stderr.slice(0, 20000), sandbox_name: sandbox.name } });
     return { project: { id: project.id, name: project.name }, sandbox: sandbox.name, command: [cmd, ...args].join(" "), exit_code: result.exitCode, stdout: result.stdout.slice(0, 50000), stderr: result.stderr.slice(0, 50000) };
   }
 
