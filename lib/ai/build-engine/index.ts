@@ -23,3 +23,6 @@ export * from '@/lib/ai/build-engine/commission-local';
 export * from '@/lib/ai/build-engine/commission-runtime';
 export * from '@/lib/ai/build-engine/business-document-local';
 export * from '@/lib/ai/build-engine/business-document-runtime';
+
+export * from '@/lib/ai/build-engine/finance-ops-local';
+export * from '@/lib/ai/build-engine/finance-ops-runtime';
