@@ -17,6 +17,7 @@ type ActionBody = {
   items?: unknown;
   tableLabel?: unknown;
   idempotencyKey?: unknown;
+  companyName?: unknown;
 };
 
 function text(value: unknown, max: number) {
@@ -464,6 +465,25 @@ export async function POST(
 
       const response = { action: "quote_request", quote: quoteRecord };
       await completeActionRequest(supabase, requestId!, "succeeded", response);
+      return NextResponse.json(response);
+    }
+
+    if (action === "lead_capture" || action === "support_request") {
+      const name=text(body.name,120), email=text(body.email,254).toLowerCase(), phone=text(body.phone,40), companyName=text(body.companyName,160), notes=text(body.notes,3000);
+      if(!name || (!email && !phone)) return NextResponse.json({error:"Name and email or phone are required."},{status:400});
+      const customer=await findOrCreateCustomer(supabase,website.business_id,name,email,phone);
+      if(companyName) await supabase.from("customers").update({company_name:companyName,updated_at:new Date().toISOString()}).eq("id",customer.id).eq("business_id",website.business_id);
+      const {data:event,error:eventError}=await supabase.from("events").insert({
+        business_id:website.business_id,
+        event_type:action==="lead_capture"?"website.lead_captured":"website.support_requested",
+        summary:action==="lead_capture"?"New website lead from "+name:"New website support request from "+name,
+        evidence:{website_id:websiteId,customer_id:customer.id,email:email||null,phone:phone||null,company_name:companyName||null,notes:notes||null,source:"website"},
+        status:"open",priority:action==="support_request"?"high":"normal",category:action==="support_request"?"support":"lead",
+        action_type:action==="support_request"?"follow_up_support_request":"follow_up_website_lead"
+      }).select("id,event_type,status,created_at").single();
+      if(eventError||!event) throw new Error("Could not record the website request.");
+      const response={action,customer:{id:customer.id},event};
+      await completeActionRequest(supabase,requestId!,"succeeded",response);
       return NextResponse.json(response);
     }
 
