@@ -297,10 +297,6 @@ export async function POST(
     }
 
     if (action === "order_request") {
-      if (!(await getActionBinding(supabase, websiteId, website.business_id, "order_request"))) {
-        return NextResponse.json({ error: "Orders are not enabled for this website." }, { status: 403 });
-      }
-
       const name = text(body.name, 120);
       const email = text(body.email, 254).toLowerCase();
       const phone = text(body.phone, 40);
@@ -309,15 +305,47 @@ export async function POST(
       const items = Array.isArray(body.items) ? body.items.slice(0, 50) : [];
       if (!name || !items.length) return NextResponse.json({ error: "Name and at least one order item are required." }, { status: 400 });
 
-      const safeItems = items.map((item: any) => ({
-        product_id: text(item?.productId, 80) || null,
-        name: text(item?.name, 200),
+      const requestedItems = items.map((item: any) => ({
+        productId: text(item?.productId, 80),
         quantity: Math.max(1, Math.min(99, Number(item?.quantity) || 1)),
-        unit_price: Math.max(0, Number(item?.unitPrice) || 0),
         options: item?.options && typeof item.options === "object" ? item.options : {}
-      })).filter((item) => item.name);
+      })).filter((item) => item.productId);
 
-      if (!safeItems.length) return NextResponse.json({ error: "Order items are invalid." }, { status: 400 });
+      if (!requestedItems.length || requestedItems.length !== items.length) {
+        return NextResponse.json({ error: "Each order item must reference a valid BizStack product." }, { status: 400 });
+      }
+
+      const productIds = [...new Set(requestedItems.map((item) => item.productId))];
+      const { data: products, error: productError } = await supabase
+        .from("products")
+        .select("id,name,unit_price,currency,stock_quantity,is_active")
+        .eq("business_id", website.business_id)
+        .in("id", productIds)
+        .eq("is_active", true);
+
+      if (productError) throw productError;
+
+      const productMap = new Map((products ?? []).map((product: any) => [String(product.id), product]));
+      if (productMap.size !== productIds.length) {
+        return NextResponse.json({ error: "One or more selected products are unavailable." }, { status: 400 });
+      }
+
+      const safeItems = requestedItems.map((item) => {
+        const product = productMap.get(item.productId);
+        if (!product) throw new Error("Selected product is unavailable.");
+        const stock = Number(product.stock_quantity ?? 0);
+        if (stock < item.quantity) {
+          throw new Error(product.name + " does not have enough available stock for this request.");
+        }
+        return {
+          product_id: product.id,
+          name: product.name,
+          quantity: item.quantity,
+          unit_price: Number(product.unit_price ?? 0),
+          currency: String(product.currency ?? "").toUpperCase() || null,
+          options: item.options
+        };
+      });
 
       const customer = await findOrCreateCustomer(supabase, website.business_id, name, email, phone);
       const { data: business } = await supabase.from("businesses").select("currency").eq("id", website.business_id).single();
@@ -337,7 +365,7 @@ export async function POST(
           table_label: tableLabel || null,
           items: safeItems,
           notes: notes || null,
-          metadata: { source: "website", website_id: websiteId }
+          metadata: { source: "website", website_id: websiteId, pricing_source: "business_products" }
         })
         .select("id,order_number,status,payment_status,total,currency,created_at")
         .single();
