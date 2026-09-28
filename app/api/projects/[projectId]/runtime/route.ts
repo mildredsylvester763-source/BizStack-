@@ -24,13 +24,17 @@ function validCommand(cmd: unknown, args: unknown) {
   return { cmd, args: args as string[] };
 }
 
-async function loadProject(supabase: ReturnType<typeof createClient>, projectId: string) {
+async function loadProject(supabase: ReturnType<typeof createClient>, projectId: string, userId: string) {
   const { data, error } = await supabase
     .from("ai_projects")
     .select("id,name,slug,status,business_id,framework,runtime")
     .eq("id", projectId)
     .single();
   if (error || !data || data.status === "deleted") throw new Error("Project not found.");
+  if (data.business_id) {
+    const { data: membership } = await supabase.rpc("user_can_business", { p_business_id: data.business_id, p_user_id: userId, p_permission: "read_projects" });
+    if (!membership) throw new Error("You do not have access to this project.");
+  }
   return data;
 }
 
@@ -62,7 +66,7 @@ export async function POST(
       }, { status: 503 });
     }
 
-    const project = await loadProject(supabase, context.params.projectId);
+    const project = await loadProject(supabase, context.params.projectId, user.id);
     const body = await request.json().catch(() => ({}));
     const action = typeof body.action === "string" ? body.action : "sync";
 
