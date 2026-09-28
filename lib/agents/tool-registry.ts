@@ -2,7 +2,8 @@ import { createHash } from "node:crypto";
 import { createClient } from "@/lib/supabase-server";
 import { runWebsiteBuild } from "@/lib/ai/build-engine/runtime";
 import { runInvoiceBuild } from "@/lib/ai/build-engine/invoice-runtime";
-import { runProductInventoryBuild } from "@/lib/ai/build-engine/operations-runtime";\nimport { runSandboxCommand, sandboxConfigured, syncFiles } from "@/lib/sandbox/vercel";
+import { runProductInventoryBuild } from "@/lib/ai/build-engine/operations-runtime";
+import { runSandboxCommand, sandboxConfigured, syncFiles } from "@/lib/sandbox/vercel";
 
 export type ToolDefinition = {
   toolKey: string;
@@ -36,7 +37,9 @@ export const TOOL_REGISTRY: ToolDefinition[] = [
   { toolKey: "projects.create", name: "Create Software Project", riskLevel: "medium", permission: "create_projects", description: "Create a real editable software project with persistent files and an initial version snapshot.", inputSchema: { type: "object", properties: { name: { type: "string" }, slug: { type: "string" }, project_type: { type: "string" }, framework: { type: "string" }, runtime: { type: "string" }, files: { type: "array" } }, required: ["name"] } },
   { toolKey: "project.files.list", name: "Project Source Files", riskLevel: "low", permission: "read_project_files", description: "Read the real persistent source tree for a software project.", inputSchema: { type: "object", properties: { project_id: { type: "string" } }, required: ["project_id"] } },
   { toolKey: "project.files.write", name: "Write Project File", riskLevel: "medium", permission: "write_project_files", description: "Create or modify a real source file in a persistent software project.", inputSchema: { type: "object", properties: { project_id: { type: "string" }, path: { type: "string" }, content: { type: "string" }, language: { type: "string" } }, required: ["project_id","path","content"] } },
-  { toolKey: "project.version.create", name: "Snapshot Project Version", riskLevel: "low", permission: "snapshot_projects", description: "Create an immutable project version snapshot before or after source changes.", inputSchema: { type: "object", properties: { project_id: { type: "string" }, message: { type: "string" } }, required: ["project_id"] } },\n  { toolKey: "project.runtime.run", name: "Project Runtime", riskLevel: "medium", permission: "run_project_runtime", description: "Synchronize a real project into an isolated sandbox and run an allowed build, lint, test, or inspection command.", inputSchema: { type: "object", properties: { project_id: { type: "string" }, cmd: { type: "string" }, args: { type: "array", items: { type: "string" } } }, required: ["project_id","cmd"] } },
+  { toolKey: "project.version.create", name: "Snapshot Project Version", riskLevel: "low", permission: "snapshot_projects", description: "Create an immutable project version snapshot before or after source changes.", inputSchema: { type: "object", properties: { project_id: { type: "string" }, message: { type: "string" } }, required: ["project_id"] } },
+  { toolKey: "project.runtime.run", name: "Project Runtime", riskLevel: "medium", permission: "run_project_runtime", description: "Synchronize a real project into an isolated sandbox and run an allowed build, lint, test, or inspection command.", inputSchema: { type: "object", properties: { project_id: { type: "string" }, cmd: { type: "string" }, args: { type: "array", items: { type: "string" } } }, required: ["project_id","cmd"] } },
+  { toolKey: "project.versions.diff", name: "Project Version Diff", riskLevel: "low", permission: "read_project_history", description: "Compare two persisted project snapshots and return added, removed and changed files.", inputSchema: { type: "object", properties: { project_id: { type: "string" }, from_version: { type: "number" }, to_version: { type: "number" } }, required: ["project_id"] } },
 ];
 
 export function getToolDefinition(toolKey: string) {
@@ -308,6 +311,30 @@ export async function executeTool(toolKey: string, input: Record<string, unknown
     }, { onConflict: "project_id,path" }).select("id,path,content_sha,language,size_bytes,version_no,updated_at").single();
     if (error) throw error;
     return { saved: true, file: data };
+  }
+
+  if (toolKey === "project.versions.diff") {
+    const projectId = String(input.project_id ?? "").trim();
+    if (!projectId) throw new Error("project_id is required.");
+    const { data: project, error: projectError } = await supabase.from("ai_projects").select("id,name,status").eq("id", projectId).eq("business_id", businessId).single();
+    if (projectError || !project || project.status === "deleted") throw new Error("Project not found.");
+    const fromNo = Number(input.from_version ?? 0);
+    const toNo = Number(input.to_version ?? 0);
+    const { data: versions, error } = await supabase.from("ai_project_versions").select("version_no,snapshot").eq("project_id", projectId).order("version_no", { ascending: true });
+    if (error) throw error;
+    const list = versions ?? [];
+    const from = fromNo ? list.find((v) => Number(v.version_no) === fromNo) : list.at(-2);
+    const to = toNo ? list.find((v) => Number(v.version_no) === toNo) : list.at(-1);
+    if (!to) throw new Error("Target project version was not found.");
+    const map = (snapshot: any) => new Map((Array.isArray(snapshot?.files) ? snapshot.files : []).map((f: any) => [String(f.path), String(f.content ?? "")]));
+    const before = map(from?.snapshot);
+    const after = map(to.snapshot);
+    const paths = Array.from(new Set([...before.keys(), ...after.keys()])).sort();
+    const changes = paths.map((path) => {
+      const a = before.get(path); const b = after.get(path);
+      return { path, status: a === undefined ? "added" : b === undefined ? "removed" : a === b ? "unchanged" : "changed", before: a ?? null, after: b ?? null };
+    }).filter((x) => x.status !== "unchanged");
+    return { project, from_version: from?.version_no ?? null, to_version: to.version_no, changed_files: changes.length, changes };
   }
 
   if (toolKey === "project.runtime.run") {
