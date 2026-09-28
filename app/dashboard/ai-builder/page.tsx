@@ -59,6 +59,7 @@ export default async function AIBuilderPage() {
       </div>
 
       <AssistantClient
+        businessId={business.id}
         businessName={business.name}
         initialConversationId={conversation?.id ?? null}
         initialMessages={(messages ?? []).filter((m:any)=>m.role==="user"||m.role==="assistant").map((m:any)=>({id:m.id,role:m.role,content:m.content,metadata:m.metadata}))}
