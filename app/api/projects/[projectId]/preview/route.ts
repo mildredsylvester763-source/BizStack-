@@ -7,8 +7,10 @@ export async function POST(_request: Request, { params }: { params: { projectId:
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const { data: project, error } = await supabase.from("ai_projects").select("id,status").eq("id", params.projectId).single();
+    const { data: project, error } = await supabase.from("ai_projects").select("id,status,business_id").eq("id", params.projectId).single();
     if (error || !project || project.status === "deleted") return NextResponse.json({ error: "Project not found." }, { status: 404 });
+    const { data: canPreview } = await supabase.rpc("user_can_business", { p_business_id: project.business_id, p_user_id: user.id, p_permission: "run_project_runtime" });
+    if (!canPreview) return NextResponse.json({ error: "You do not have permission to preview this project." }, { status: 403 });
 
     const { data: version } = await supabase.from("ai_project_versions").select("id,version_no").eq("project_id", project.id).order("version_no", { ascending: false }).limit(1).maybeSingle();
     const { data: session, error: sessionError } = await supabase.from("ai_preview_sessions").insert({
