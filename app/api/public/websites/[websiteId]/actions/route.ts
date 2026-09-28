@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createHash } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase-admin";
 
 export const runtime = "nodejs";
@@ -14,6 +15,7 @@ type ActionBody = {
   notes?: unknown;
   items?: unknown;
   tableLabel?: unknown;
+  idempotencyKey?: unknown;
 };
 
 function text(value: unknown, max: number) {
@@ -31,17 +33,109 @@ async function getPublishedWebsite(supabase: any, websiteId: string) {
   return data;
 }
 
-async function hasCustomerBinding(supabase: any, websiteId: string, businessId: string, sourceKey: string) {
+async function getActionBinding(supabase: any, websiteId: string, businessId: string, actionKey: string) {
   const { data } = await supabase
-    .from("website_business_bindings")
-    .select("id")
+    .from("website_action_bindings")
+    .select("id,enabled,auth_mode,rate_limit_per_minute,require_idempotency,config")
     .eq("website_id", websiteId)
     .eq("business_id", businessId)
-    .eq("source_key", sourceKey)
-    .eq("enabled", true)
-    .in("exposure", ["customer", "public"])
+    .eq("action_key", actionKey)
     .maybeSingle();
-  return Boolean(data);
+  if (!data?.enabled) return null;
+  return data;
+}
+
+function sourceIp(request: Request) {
+  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  return (forwarded || request.headers.get("x-real-ip") || "unknown").slice(0, 128);
+}
+
+function requestHash(body: unknown) {
+  return createHash("sha256").update(JSON.stringify(body ?? {})).digest("hex");
+}
+
+async function beginActionRequest(
+  supabase: any,
+  websiteId: string,
+  businessId: string,
+  actionKey: string,
+  binding: any,
+  idempotencyKey: string,
+  fingerprint: string,
+  ip: string
+) {
+  const windowStart = new Date(Date.now() - 60_000).toISOString();
+  const { count } = await supabase
+    .from("website_action_requests")
+    .select("id", { count: "exact", head: true })
+    .eq("website_id", websiteId)
+    .eq("action_key", actionKey)
+    .eq("source_ip", ip)
+    .gte("created_at", windowStart);
+
+  if ((count ?? 0) >= Number(binding.rate_limit_per_minute ?? 30)) {
+    throw new Error("Website action rate limit exceeded. Please try again shortly.");
+  }
+
+  if (binding.require_idempotency && !idempotencyKey) {
+    throw new Error("This website action requires an Idempotency-Key.");
+  }
+
+  if (idempotencyKey) {
+    const { data: prior } = await supabase
+      .from("website_action_requests")
+      .select("id,status,response,error_message")
+      .eq("website_id", websiteId)
+      .eq("action_key", actionKey)
+      .eq("idempotency_key", idempotencyKey)
+      .maybeSingle();
+
+    if (prior) {
+      if (prior.status === "succeeded" && prior.response) return { priorResponse: prior.response, requestId: prior.id };
+      if (prior.status === "processing") throw new Error("An identical website action is already being processed.");
+      if (prior.status === "failed") throw new Error(prior.error_message || "An identical website action already failed.");
+    }
+  }
+
+  const { data: requestRow, error } = await supabase
+    .from("website_action_requests")
+    .insert({
+      business_id: businessId,
+      website_id: websiteId,
+      action_key: actionKey,
+      idempotency_key: idempotencyKey || null,
+      request_fingerprint: fingerprint,
+      source_ip: ip,
+      status: "processing"
+    })
+    .select("id")
+    .single();
+
+  if (error || !requestRow) {
+    if (idempotencyKey) {
+      const { data: prior } = await supabase
+        .from("website_action_requests")
+        .select("id,status,response,error_message")
+        .eq("website_id", websiteId)
+        .eq("action_key", actionKey)
+        .eq("idempotency_key", idempotencyKey)
+        .maybeSingle();
+      if (prior?.status === "succeeded" && prior.response) return { priorResponse: prior.response, requestId: prior.id };
+      if (prior?.status === "processing") throw new Error("An identical website action is already being processed.");
+    }
+    throw new Error("Could not start website action safely.");
+  }
+
+  return { priorResponse: null, requestId: requestRow.id };
+}
+
+async function completeActionRequest(supabase: any, requestId: string, status: "succeeded" | "failed", response: unknown, errorMessage?: string) {
+  await supabase.from("website_action_requests").update({
+    status,
+    response: response ?? null,
+    error_message: errorMessage ?? null,
+    completed_at: new Date().toISOString()
+  }).eq("id", requestId);
 }
 
 async function findOrCreateCustomer(supabase: any, businessId: string, name: string, email: string, phone: string) {
@@ -86,17 +180,38 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ websiteId: string }> }
 ) {
+  let supabase: any = null;
+  let requestId: string | null = null;
   try {
     const { websiteId } = await params;
-    const supabase = createAdminClient();
+    supabase = createAdminClient();
     const website = await getPublishedWebsite(supabase, websiteId);
     const body = (await request.json().catch(() => ({}))) as ActionBody;
 
     const action = text(body.action, 40);
     if (!action) return NextResponse.json({ error: "action is required." }, { status: 400 });
 
+    const binding = await getActionBinding(supabase, websiteId, website.business_id, action);
+    if (!binding) return NextResponse.json({ error: "This website action is not enabled." }, { status: 403 });
+
+    const headerKey = text(request.headers.get("idempotency-key"), 200);
+    const idempotencyKey = headerKey || text(body.idempotencyKey, 200);
+    const fingerprint = requestHash({ ...body, idempotencyKey: undefined });
+    const started = await beginActionRequest(
+      supabase,
+      websiteId,
+      website.business_id,
+      action,
+      binding,
+      idempotencyKey,
+      fingerprint,
+      sourceIp(request)
+    );
+    requestId = started.requestId;
+    if (started.priorResponse) return NextResponse.json(started.priorResponse);
+
     if (action === "booking_request") {
-      if (!(await hasCustomerBinding(supabase, websiteId, website.business_id, "bookings"))) {
+      if (!(await getActionBinding(supabase, websiteId, website.business_id, "booking_request"))) {
         return NextResponse.json({ error: "Booking is not enabled for this website." }, { status: 403 });
       }
 
@@ -161,11 +276,13 @@ export async function POST(
         .single();
 
       if (error || !appointment) throw new Error("Could not create the booking request.");
-      return NextResponse.json({ action: "booking_request", appointment });
+      const response = { action: "booking_request", appointment };
+      await completeActionRequest(supabase, requestId!, "succeeded", response);
+      return NextResponse.json(response);
     }
 
     if (action === "order_request") {
-      if (!(await hasCustomerBinding(supabase, websiteId, website.business_id, "orders"))) {
+      if (!(await getActionBinding(supabase, websiteId, website.business_id, "order_request"))) {
         return NextResponse.json({ error: "Orders are not enabled for this website." }, { status: 403 });
       }
 
@@ -211,11 +328,15 @@ export async function POST(
         .single();
 
       if (error || !order) throw new Error("Could not create the order request.");
-      return NextResponse.json({ action: "order_request", order });
+      const response = { action: "order_request", order };
+      await completeActionRequest(supabase, requestId!, "succeeded", response);
+      return NextResponse.json(response);
     }
 
     return NextResponse.json({ error: "Unsupported website action." }, { status: 400 });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Website action failed." }, { status: 400 });
+    const message = error instanceof Error ? error.message : "Website action failed.";
+    if (supabase && requestId) await completeActionRequest(supabase, requestId, "failed", null, message);
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }
