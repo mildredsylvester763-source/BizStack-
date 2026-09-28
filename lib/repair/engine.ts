@@ -57,7 +57,10 @@ function candidatePaths(logs: string, available: Set<string>) {
   return Array.from(matches);
 }
 
-function packageBuildCommand(files: Array<{ path: string; content: string | null }>) {
+function packageBuildCommand(files: Array<{ path: string; content: string | null }>): {
+  install: [string, string[]];
+  build: [string, string[]];
+} | null {
   const pkg = files.find((file) => file.path === "package.json" && typeof file.content === "string");
   if (!pkg?.content) return null;
   try {
