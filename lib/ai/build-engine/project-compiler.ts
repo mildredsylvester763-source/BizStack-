@@ -44,7 +44,7 @@ export function compileWebsiteToProject(spec: WebsiteSpec, websiteId?: string | 
           scripts: { dev: "next dev", build: "next build", start: "next start" },
           dependencies: { next: "16.3.6", react: "19.2.6", "react-dom": "19.2.6" },
           devDependencies: {
-            "@types/node": "^20.14.0",
+            "@types/node": "^22.0.0",
             "@types/react": "^19.0.0",
             "@types/react-dom": "^19.0.0",
             typescript: "^5.5.3"
@@ -61,7 +61,7 @@ export function compileWebsiteToProject(spec: WebsiteSpec, websiteId?: string | 
       content: JSON.stringify(
         {
           compilerOptions: {
-            target: "es5",
+            target: "es2020",
             lib: ["dom", "dom.iterable", "esnext"],
             allowJs: false,
             skipLibCheck: true,
@@ -94,7 +94,7 @@ export function compileWebsiteToProject(spec: WebsiteSpec, websiteId?: string | 
       content: "const nextConfig={reactStrictMode:true};\nexport default nextConfig;\n"
     },
     { path: "app/globals.css", language: "css", content: globals(spec) },
-    { path: "components/site-page.tsx", language: "tsx", content: sitePageComponent() },
+    { path: "components/site-page.tsx", language: "tsx", content: sitePageComponent(websiteId ?? null) },
     {
       path: "app/layout.tsx",
       language: "tsx",
