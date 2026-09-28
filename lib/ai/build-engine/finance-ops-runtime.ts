@@ -32,7 +32,7 @@ async function finish(supabase:any,businessId:string,runId:string,providerKey:st
 }
 
 export async function runDualCurrencyBuild({businessId,userId,prompt,mode="auto_execute"}:{businessId:string;userId:string;prompt:string;mode?:BuildMode}){
- const supabase=createClient();
+ const supabase=await createClient();
  const {data:business,error}=await supabase.from("businesses").select("id,name,currency,workspace_id").eq("id",businessId).eq("owner_id",userId).single();
  if(error||!business)throw new Error("Business context is not available.");
  const draft=parseDualCurrencyRequest(prompt,business.currency||"USD");
@@ -54,7 +54,7 @@ export async function runDualCurrencyBuild({businessId,userId,prompt,mode="auto_
 }
 
 export async function runLoanReadinessBuild({businessId,userId,prompt,mode="draft_only"}:{businessId:string;userId:string;prompt:string;mode?:BuildMode}){
- const supabase=createClient();
+ const supabase=await createClient();
  const {data:business,error}=await supabase.from("businesses").select("id,name,currency,industry,workspace_id").eq("id",businessId).eq("owner_id",userId).single();
  if(error||!business)throw new Error("Business context is not available.");
  const draft=parseLoanReadinessRequest(prompt,business.currency||"USD");
@@ -80,7 +80,7 @@ export async function runLoanReadinessBuild({businessId,userId,prompt,mode="draf
 }
 
 export async function runObligationBuild({businessId,userId,prompt,mode="auto_execute"}:{businessId:string;userId:string;prompt:string;mode?:BuildMode}){
- const supabase=createClient();
+ const supabase=await createClient();
  const {data:business,error}=await supabase.from("businesses").select("id,name,currency,workspace_id").eq("id",businessId).eq("owner_id",userId).single();
  if(error||!business)throw new Error("Business context is not available.");
  const draft=parseObligationRequest(prompt,business.currency||"USD");
@@ -97,7 +97,7 @@ export async function runObligationBuild({businessId,userId,prompt,mode="auto_ex
 }
 
 export async function runPayrollAdvanceBuild({businessId,userId,prompt,mode="auto_execute"}:{businessId:string;userId:string;prompt:string;mode?:BuildMode}){
- const supabase=createClient();
+ const supabase=await createClient();
  const {data:business,error}=await supabase.from("businesses").select("id,name,currency,workspace_id").eq("id",businessId).eq("owner_id",userId).single();
  if(error||!business)throw new Error("Business context is not available.");
  const draft=parsePayrollAdvanceRequest(prompt,business.currency||"USD");
