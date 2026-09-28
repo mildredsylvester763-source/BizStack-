@@ -326,12 +326,12 @@ export async function POST(
 
       if (productError) throw productError;
 
-      const productMap = new Map((products ?? []).map((product: any) => [String(product.id), product]));
+      const productMap = new Map<string, any>((products ?? []).map((product: any) => [String(product.id), product]));
       if (productMap.size !== productIds.length) {
         return NextResponse.json({ error: "One or more selected products are unavailable." }, { status: 400 });
       }
 
-      const safeItems = requestedItems.map((item) => {
+      const safeItems: any[] = requestedItems.map((item) => {
         const product = productMap.get(item.productId);
         if (!product) throw new Error("Selected product is unavailable.");
         const stock = Number(product.stock_quantity ?? 0);
