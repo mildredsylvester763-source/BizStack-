@@ -5,6 +5,7 @@ import { runInvoiceBuild } from "@/lib/ai/build-engine/invoice-runtime";
 import { runProductInventoryBuild } from "@/lib/ai/build-engine/operations-runtime";
 import { runSandboxCommand, sandboxConfigured, syncFiles } from "@/lib/sandbox/vercel";
 import { syncConnectorResource } from "@/lib/connectors/sync-runtime";
+import { executeRepair } from "@/lib/repair/engine";
 
 export type ToolDefinition = {
   toolKey: string;
@@ -41,6 +42,10 @@ export const TOOL_REGISTRY: ToolDefinition[] = [
   { toolKey: "project.files.write", name: "Write Project File", riskLevel: "medium", permission: "write_project_files", description: "Create or modify a real source file in a persistent software project.", inputSchema: { type: "object", properties: { project_id: { type: "string" }, path: { type: "string" }, content: { type: "string" }, language: { type: "string" } }, required: ["project_id","path","content"] } },
   { toolKey: "project.version.create", name: "Snapshot Project Version", riskLevel: "low", permission: "snapshot_projects", description: "Create an immutable project version snapshot before or after source changes.", inputSchema: { type: "object", properties: { project_id: { type: "string" }, message: { type: "string" } }, required: ["project_id"] } },
   { toolKey: "project.runtime.run", name: "Project Runtime", riskLevel: "medium", permission: "run_project_runtime", description: "Synchronize a real project into an isolated sandbox and run an allowed build, lint, test, or inspection command.", inputSchema: { type: "object", properties: { project_id: { type: "string" }, cmd: { type: "string" }, args: { type: "array", items: { type: "string" } } }, required: ["project_id","cmd"] } },
+  { toolKey: "projects.deployments.list", name: "Project Deployments", riskLevel: "low", permission: "read_deployments", description: "Inspect recent deployment records, provider state, URLs, commits, and recorded failure evidence for a software project.", inputSchema: { type: "object", properties: { project_id: { type: "string" }, limit: { type: "number", minimum: 1, maximum: 20 } }, required: ["project_id"] } },
+  { toolKey: "project.repairs.list", name: "Project Repair History", riskLevel: "low", permission: "read_project_history", description: "Inspect repair runs, diagnoses, applied changes, verification results, rollback state, and repair readiness for a software project.", inputSchema: { type: "object", properties: { project_id: { type: "string" }, limit: { type: "number", minimum: 1, maximum: 20 } }, required: ["project_id"] } },
+  { toolKey: "project.runtime.verify", name: "Project Verification", riskLevel: "medium", permission: "run_project_runtime", description: "Synchronize the current project into the isolated sandbox and verify it with install, build, lint, and test commands when those scripts exist.", inputSchema: { type: "object", properties: { project_id: { type: "string" }, include_tests: { type: "boolean" } }, required: ["project_id"] } },
+  { toolKey: "project.repair.execute", name: "Execute Project Repair", riskLevel: "high", permission: "write_project_files", description: "Execute an existing planned AI repair run for a project. The repair engine snapshots first, applies minimal patches, verifies the result in the sandbox, and rolls back failed repairs.", inputSchema: { type: "object", properties: { repair_id: { type: "string" }, project_id: { type: "string" } }, required: ["repair_id","project_id"] } },
   { toolKey: "project.versions.diff", name: "Project Version Diff", riskLevel: "low", permission: "read_project_history", description: "Compare two persisted project snapshots and return added, removed and changed files.", inputSchema: { type: "object", properties: { project_id: { type: "string" }, from_version: { type: "number" }, to_version: { type: "number" } }, required: ["project_id"] } },
 ];
 
@@ -321,6 +326,154 @@ export async function executeTool(toolKey: string, input: Record<string, unknown
     }, { onConflict: "project_id,path" }).select("id,path,content_sha,language,size_bytes,version_no,updated_at").single();
     if (error) throw error;
     return { saved: true, file: data };
+  }
+
+  if (toolKey === "projects.deployments.list") {
+    const projectId = String(input.project_id ?? "").trim();
+    if (!projectId) throw new Error("project_id is required.");
+    const rawLimit = Number(input.limit ?? 10);
+    const limit = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : 10, 1), 20);
+    const { data: project, error: projectError } = await supabase.from("ai_projects")
+      .select("id,name,slug,status")
+      .eq("id", projectId)
+      .eq("business_id", businessId)
+      .single();
+    if (projectError || !project || project.status === "deleted") throw new Error("Project not found.");
+    const { data, error } = await supabase.from("ai_deployments")
+      .select("id,project_id,version_id,provider,environment,status,provider_deployment_id,deployment_url,git_ref,git_commit_sha,error_summary,build_logs,requested_by,started_at,finished_at,created_at,updated_at")
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return { project, deployments: data ?? [] };
+  }
+
+  if (toolKey === "project.repairs.list") {
+    const projectId = String(input.project_id ?? "").trim();
+    if (!projectId) throw new Error("project_id is required.");
+    const rawLimit = Number(input.limit ?? 10);
+    const limit = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : 10, 1), 20);
+    const { data: project, error: projectError } = await supabase.from("ai_projects")
+      .select("id,name,slug,status")
+      .eq("id", projectId)
+      .eq("business_id", businessId)
+      .single();
+    if (projectError || !project || project.status === "deleted") throw new Error("Project not found.");
+    const { data, error } = await supabase.from("ai_repair_runs")
+      .select("id,project_id,deployment_id,source_run_id,status,failure_class,diagnosis,repair_plan,applied_changes,verification,attempt_no,created_by,created_at,updated_at")
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return { project, repairs: data ?? [] };
+  }
+
+  if (toolKey === "project.runtime.verify") {
+    const projectId = String(input.project_id ?? "").trim();
+    if (!projectId) throw new Error("project_id is required.");
+    if (!sandboxConfigured()) throw new Error("Project runtime is not configured.");
+
+    const { data: project, error: projectError } = await supabase.from("ai_projects")
+      .select("id,name,status,framework,runtime")
+      .eq("id", projectId)
+      .eq("business_id", businessId)
+      .single();
+    if (projectError || !project || project.status === "deleted") throw new Error("Project not found.");
+
+    const { data: files, error: filesError } = await supabase.from("ai_project_files")
+      .select("path,content,is_binary")
+      .eq("project_id", projectId)
+      .order("path", { ascending: true });
+    if (filesError) throw filesError;
+
+    const sourceFiles = (files ?? [])
+      .filter((row: any) => !row.is_binary && typeof row.content === "string")
+      .map((row: any) => ({ path: String(row.path), content: String(row.content) }));
+    const sandbox = await syncFiles(projectId, sourceFiles);
+
+    const packageFile = sourceFiles.find((file) => file.path === "package.json");
+    let packageJson: any = null;
+    if (packageFile) {
+      try { packageJson = JSON.parse(packageFile.content); } catch { throw new Error("package.json is not valid JSON."); }
+    }
+    if (!packageJson?.scripts?.build) throw new Error("Project does not expose a package build script.");
+
+    const has = (name: string) => typeof packageJson?.scripts?.[name] === "string";
+    const results: Array<Record<string, unknown>> = [];
+
+    const installCommand =
+      sourceFiles.some((file) => file.path === "package-lock.json") ? ["npm", ["ci"]] :
+      sourceFiles.some((file) => file.path === "pnpm-lock.yaml") ? ["pnpm", ["install", "--frozen-lockfile"]] :
+      sourceFiles.some((file) => file.path === "yarn.lock") ? ["yarn", ["install", "--frozen-lockfile"]] :
+      ["npm", ["install", "--no-audit", "--no-fund"]];
+
+    const runCheck = async (name: string, cmd: string, args: string[]) => {
+      const result = await runSandboxCommand(projectId, cmd, args, "/workspace", false);
+      const row = { name, command: [cmd, ...args].join(" "), exit_code: result.exitCode, stdout: result.stdout.slice(-20000), stderr: result.stderr.slice(-20000) };
+      results.push(row);
+      return result.exitCode === 0;
+    };
+
+    const installed = await runCheck("install", installCommand[0], installCommand[1]);
+    if (!installed) {
+      await supabase.from("ai_project_events").insert({
+        project_id: projectId,
+        event_type: "verification.failed",
+        sequence_no: Date.now() % 2147483647,
+        payload: { sandbox: sandbox.name, results }
+      });
+      return { ok: false, project, sandbox: sandbox.name, results, failed_step: "install" };
+    }
+
+    const built = await runCheck("build", "npm", ["run", "build"]);
+    if (!built) {
+      await supabase.from("ai_project_events").insert({
+        project_id: projectId,
+        event_type: "verification.failed",
+        sequence_no: Date.now() % 2147483647,
+        payload: { sandbox: sandbox.name, results }
+      });
+      return { ok: false, project, sandbox: sandbox.name, results, failed_step: "build" };
+    }
+
+    if (has("lint")) await runCheck("lint", "npm", ["run", "lint"]);
+    const includeTests = input.include_tests !== false;
+    if (includeTests && has("test")) await runCheck("test", "npm", ["test"]);
+
+    const ok = results.every((row: any) => Number(row.exit_code) === 0);
+    await supabase.from("ai_project_events").insert({
+      project_id: projectId,
+      event_type: ok ? "verification.succeeded" : "verification.failed",
+      sequence_no: Date.now() % 2147483647,
+      payload: { sandbox: sandbox.name, results }
+    });
+    return { ok, project, sandbox: sandbox.name, results };
+  }
+
+  if (toolKey === "project.repair.execute") {
+    const repairId = String(input.repair_id ?? "").trim();
+    const projectId = String(input.project_id ?? "").trim();
+    if (!repairId || !projectId) throw new Error("repair_id and project_id are required.");
+
+    const { data: repair, error: repairError } = await supabase
+      .from("ai_repair_runs")
+      .select("id,project_id,status")
+      .eq("id", repairId)
+      .eq("project_id", projectId)
+      .single();
+    if (repairError || !repair) throw new Error("Repair run not found.");
+    if (!["queued","planned","awaiting_approval"].includes(String(repair.status))) {
+      throw new Error("Repair run is not ready for execution.");
+    }
+
+    const result = await executeRepair(repairId, userId);
+    await supabase.from("ai_project_events").insert({
+      project_id: projectId,
+      event_type: result.ok ? "repair.verified" : "repair.failed",
+      sequence_no: Date.now() % 2147483647,
+      payload: { repair_id: repairId, result }
+    });
+    return result;
   }
 
   if (toolKey === "project.versions.diff") {
