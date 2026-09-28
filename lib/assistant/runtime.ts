@@ -23,7 +23,7 @@ type OperatorResult = {
   runId?: string;
   status: "succeeded" | "waiting_approval" | "failed";
   message: string;
-  approval?: { id: string; action: string; reason: string };
+  approval?: { id: string; runId: string; action: string; reason: string };
   toolResults?: Array<{ tool: string; output: unknown }>;
 };
 
