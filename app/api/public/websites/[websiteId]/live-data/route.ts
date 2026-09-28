@@ -106,6 +106,88 @@ export async function GET(
     }
   }
 
+
+    if (key === "services") {
+      const { data } = await supabase
+        .from("appointment_services")
+        .select("id,name,description,duration_minutes,price,currency,active")
+        .eq("business_id", website.business_id)
+        .eq("active", true)
+        .order("name", { ascending: true })
+        .limit(200);
+
+      const allowed = new Set(["id","name","description","duration_minutes","price","currency","active"]);
+      result.services = (data ?? []).map((row) =>
+        pick(row, requestedFields.length ? requestedFields : [...allowed], allowed)
+      );
+      continue;
+    }
+
+    if (key === "locations") {
+      const { data } = await supabase
+        .from("business_locations")
+        .select("id,name,code,address,city,state_region,country,postal_code,phone,email,timezone,is_primary,is_active")
+        .eq("business_id", website.business_id)
+        .eq("is_active", true)
+        .order("is_primary", { ascending: false })
+        .order("name", { ascending: true })
+        .limit(100);
+
+      const allowed = new Set(["id","name","code","address","city","state_region","country","postal_code","phone","email","timezone","is_primary","is_active"]);
+      result.locations = (data ?? []).map((row) =>
+        pick(row, requestedFields.length ? requestedFields : [...allowed], allowed)
+      );
+      continue;
+    }
+
+    if (key === "bookings") {
+      const { data } = await supabase
+        .from("appointments")
+        .select("id,service_id,starts_at,ends_at,status,price,deposit_required,deposit_paid,currency")
+        .eq("business_id", website.business_id)
+        .in("status", ["pending","confirmed"])
+        .order("starts_at", { ascending: true })
+        .limit(200);
+
+      const allowed = new Set(["id","service_id","starts_at","ends_at","status","price","deposit_required","deposit_paid","currency"]);
+      result.bookings = (data ?? []).map((row) =>
+        pick(row, requestedFields.length ? requestedFields : [...allowed], allowed)
+      );
+      continue;
+    }
+
+    if (key === "public_reviews") {
+      const { data } = await supabase
+        .from("customer_feedback")
+        .select("id,channel,rating,message,sentiment,created_at")
+        .eq("business_id", website.business_id)
+        .not("rating", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(200);
+
+      const allowed = new Set(["id","channel","rating","message","sentiment","created_at"]);
+      result.public_reviews = (data ?? []).map((row) =>
+        pick(row, requestedFields.length ? requestedFields : [...allowed], allowed)
+      );
+      continue;
+    }
+
+    if (key === "opening_hours") {
+      const { data } = await supabase
+        .from("business_settings")
+        .select("module_settings")
+        .eq("business_id", website.business_id)
+        .maybeSingle();
+
+      const settings = data?.module_settings;
+      const hours =
+        settings && typeof settings === "object" && !Array.isArray(settings)
+          ? (settings as Record<string, unknown>).opening_hours ?? null
+          : null;
+      result.opening_hours = hours;
+      continue;
+    }
+
   return NextResponse.json(
     { websiteId: website.id, updatedAt: new Date().toISOString(), data: result },
     {
