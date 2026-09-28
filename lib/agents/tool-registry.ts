@@ -66,6 +66,7 @@ export function buildPlan(input: string): { toolKey: string; input: Record<strin
   if (/(money|cash|revenue|expense|profit|financial|finance|balance)/.test(text)) plan.push({ toolKey: "money.summary", input: {} });
   if (/(wallet|bank balance|available funds|transfer)/.test(text)) plan.push({ toolKey: "wallet.summary", input: {} });
   if (/(connection|integration|connected|oauth|api|webhook)/.test(text)) plan.push({ toolKey: "integrations.list", input: {} });
+  if (/(test|verify|health check|check.*connection|connection.*check).*(connection|integration|oauth|api|webhook)/.test(text)) plan.push({ toolKey: "integrations.test", input: {} });
   if (/(autonom|permission|approval|automation|what can you do automatically)/.test(text)) plan.push({ toolKey: "business.autonomy.status", input: {} });
   if (/(whatsapp|facebook messenger|messenger|sms|email|customer message|inbox|reply to customer)/.test(text)) plan.push({ toolKey: "communications.inbox", input: { limit: 50 } });
   if (/(build|create|make|edit|modify|code|app|application|website|project|repository|file|feature|terminal|preview)/.test(text)) plan.push({ toolKey: "projects.list", input: {} });
