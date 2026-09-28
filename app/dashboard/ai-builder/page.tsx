@@ -14,6 +14,7 @@ import { runCashSaleBuild } from "@/lib/ai/build-engine/cash-sale-runtime";
 import { runSupplierPriceBuild } from "@/lib/ai/build-engine/supplier-price-runtime";
 import { runCommissionBuild } from "@/lib/ai/build-engine/commission-runtime";
 import { runBusinessDocumentBuild } from "@/lib/ai/build-engine/business-document-runtime";
+import { runSmsWalletBuild, runAppointmentBuild, runDigitalMenuBuild, runWaiverBuild } from "@/lib/ai/build-engine/customer-experience-runtime";
 
 async function runBuild(formData: FormData) {
   "use server";
@@ -61,6 +62,14 @@ async function runBuild(formData: FormData) {
     await runCommissionBuild({ businessId: business.id, userId: user.id, prompt, mode: "auto_execute" });
   } else if (capability === "business_plan") {
     await runBusinessDocumentBuild({ businessId: business.id, userId: user.id, prompt, mode: "draft_only" });
+  } else if (capability === "sms_wallet") {
+    await runSmsWalletBuild({ businessId: business.id, userId: user.id, prompt, mode: "ask_first" });
+  } else if (capability === "appointment") {
+    await runAppointmentBuild({ businessId: business.id, userId: user.id, prompt, mode: "auto_execute" });
+  } else if (capability === "digital_menu") {
+    await runDigitalMenuBuild({ businessId: business.id, userId: user.id, prompt, mode: "auto_execute" });
+  } else if (capability === "waiver") {
+    await runWaiverBuild({ businessId: business.id, userId: user.id, prompt, mode: "draft_only" });
   } else {
     await runWebsiteBuild({ businessId: business.id, userId: user.id, prompt, mode: "auto_execute", publish: false });
   }
@@ -188,6 +197,38 @@ export default async function AIBuilderPage() {
       title: "Draft a business plan or grant pack",
       description: "Builds structured sections from the business graph with explicit assumptions and evidence boundaries.",
       placeholder: "Create a grant application draft for a ₦5000000 expansion project focused on jobs, digital operations and revenue growth.",
+      tone: "vault"
+    },
+    {
+      capability: "sms_wallet",
+      eyebrow: "SMS credit wallet",
+      title: "Initialize SMS credits",
+      description: "Creates the real business SMS wallet and low-balance threshold without pretending external payment credits were purchased.",
+      placeholder: "Set up my SMS wallet in NGN with a low-balance alert at 100 credits.",
+      tone: "ink"
+    },
+    {
+      capability: "appointment",
+      eyebrow: "Bookings + deposits",
+      title: "Book a real appointment",
+      description: "Matches the customer, creates the service when needed, checks time collisions and records a deposit requirement.",
+      placeholder: "Book an appointment for John Doe for Hair Consultation at 2026-10-05T14:30 for 60 minutes, price 25000, deposit 30%.",
+      tone: "vault"
+    },
+    {
+      capability: "digital_menu",
+      eyebrow: "QR menu + kitchen flow",
+      title: "Create a digital menu",
+      description: "Creates a real QR-ready menu, menu items and optional kitchen-flow configuration.",
+      placeholder: "Create menu Evening Menu, currency NGN, items: Jollof Rice at 5000, Grilled Chicken at 8000, Fresh Juice at 3000.",
+      tone: "ink"
+    },
+    {
+      capability: "waiver",
+      eyebrow: "Digital waiver",
+      title: "Draft a customer waiver",
+      description: "Creates a versioned waiver ready for typed, drawn or external signature capture.",
+      placeholder: "Create a waiver called Photography Consent. Title: Event photography consent. Body: Customers consent to photography and defined usage terms.",
       tone: "vault"
     },
     {
