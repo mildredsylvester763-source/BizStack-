@@ -129,7 +129,7 @@ async function verifyGeneratedProject(supabase: any, businessId: string, project
 }
 
 export async function runWebsiteBuild(args: { businessId:string; userId:string; prompt:string; websiteId?:string|null; projectId?:string|null; mode?:BuildMode; publish?:boolean }) {
-  const { businessId, userId, prompt, websiteId, projectId, mode='ask_first', publish=false } = args;
+  const { businessId, userId, prompt, projectId, mode='ask_first', publish=false } = args;\n  let websiteId = args.websiteId ?? null;
   if (!prompt.trim()) throw new Error('Describe what you want BizStack to build.');
   const { supabase, business } = await ownerBusiness(businessId,userId);
   let existingWebsite:any = null;
