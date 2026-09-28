@@ -41,15 +41,23 @@ async function askModel(messages: ModelMessage[]) {
   return runBizStackModel(messages, toProviderTools());
 }
 
-async function getBusiness(supabase: ReturnType<typeof createClient>, userId: string) {
-  const { data: business, error } = await supabase
+async function getBusiness(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  requestedBusinessId?: string | null
+) {
+  let query = supabase
     .from("businesses")
     .select("id,name,industry,currency,workspace_id,organization_id")
-    .eq("owner_id", userId)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+    .eq("owner_id", userId);
 
+  if (requestedBusinessId) {
+    query = query.eq("id", requestedBusinessId);
+  } else {
+    query = query.order("created_at", { ascending: true }).limit(1);
+  }
+
+  const { data: business, error } = await query.maybeSingle();
   if (error || !business) throw new Error("Business context is not available.");
   return business;
 }
@@ -373,19 +381,21 @@ async function executeOperatorTurn(args: {
 
 export async function runUniversalAssistant({
   userId,
+  businessId,
   conversationId,
   input,
   clientMessageId,
   projectId
 }: {
   userId: string;
+  businessId?: string | null;
   conversationId?: string | null;
   input: string;
   clientMessageId?: string | null;
   projectId?: string | null;
 }) : Promise<OperatorResult> {
   const supabase = createClient();
-  const business = await getBusiness(supabase, userId);
+  const business = await getBusiness(supabase, userId, businessId);
   const agent = await getOrCreateAgent(supabase, business.id);
 
   let conversationIdValue = conversationId || null;
