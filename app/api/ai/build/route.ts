@@ -24,7 +24,8 @@ export async function POST(request: Request) {
   const body=await request.json().catch(()=>({}));
   const prompt=typeof body.prompt==='string' ? body.prompt : '';
   const mode=['draft_only','ask_first','auto_execute'].includes(body.mode) ? body.mode as BuildMode : 'ask_first';
-  const {data:business}=await supabase.from('businesses').select('id').eq('owner_id',user.id).single();
+  const {data:business,error:businessError}=await supabase.from('businesses').select('id').order('created_at',{ascending:true}).limit(1).maybeSingle();
+  if(businessError) return NextResponse.json({error:businessError.message},{status:500});
   if(!business) return NextResponse.json({error:'Business not found'},{status:404});
   try{
     const capabilities=['website','invoice','product_inventory','money_transaction','customer','connector','quote','cash_sale','supplier_price','commission','business_plan','dual_currency','loan_readiness','obligation','payroll_advance','sms_wallet','appointment','digital_menu','waiver','thrift_group','business_credit','successor_access','compliance','voice_agent','broadcast','carbon_report','fractional_cfo','product_photo','marketplace_listing','finance_api'];
