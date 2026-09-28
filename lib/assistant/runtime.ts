@@ -465,6 +465,7 @@ export async function approveOperatorRun({
   const toolName = String(pending?.tool_key ?? approval.proposed_payload?.tool_key ?? "");
   const toolCallId = String(pending?.id ?? "approved_" + approval.id);
   const input = (pending?.input ?? approval.proposed_payload?.input ?? {}) as Record<string, unknown>;
+  const projectId = typeof run.input?.project_id === "string" ? run.input.project_id : null;
   const definition = getToolDefinition(toolName);
   if (!definition) throw new Error("Approved tool no longer exists.");
 
