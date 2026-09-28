@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase-server';
 import { buildPlan, countWebsiteRequirements } from '@/lib/ai/build-engine/capabilities';
 import { generateWebsiteSpec } from '@/lib/ai/build-engine/provider';
 import type { BuildContext, BuildMode, WebsiteSpec } from '@/lib/ai/build-engine/types';
+import { runSandboxCommand, sandboxConfigured, syncFiles } from '@/lib/sandbox/vercel';
 
 async function ownerBusiness(businessId: string, userId: string) {
   const supabase = createClient();
@@ -66,6 +67,67 @@ function structuralTests(spec: WebsiteSpec) {
   ];
 }
 
+async function verifyGeneratedProject(supabase: any, businessId: string, projectId: string, buildRunId: string, userId: string) {
+  if (!sandboxConfigured()) {
+    await supabase.from('ai_build_tests').insert({
+      business_id: businessId,
+      build_run_id: buildRunId,
+      test_key: 'project_runtime_build',
+      test_type: 'runtime',
+      status: 'skipped',
+      assertion: { expected: 'generated project build verification' },
+      actual: { reason: 'Vercel Sandbox is not configured.' },
+      completed_at: new Date().toISOString()
+    });
+    return { status: 'skipped', reason: 'Vercel Sandbox is not configured.' };
+  }
+
+  const { data: files, error: filesError } = await supabase.from('ai_project_files')
+    .select('path,content,is_binary')
+    .eq('project_id', projectId)
+    .order('path', { ascending: true });
+  if (filesError) throw filesError;
+
+  const sourceFiles = (files ?? [])
+    .filter((file: any) => !file.is_binary && typeof file.content === 'string')
+    .map((file: any) => ({ path: String(file.path), content: String(file.content) }));
+
+  const sandbox = await syncFiles(projectId, sourceFiles);
+  const run = async (key: string, cmd: string, args: string[]) => {
+    const result = await runSandboxCommand(projectId, cmd, args, '/workspace', false);
+    const passed = result.exitCode === 0;
+    await supabase.from('ai_build_tests').insert({
+      business_id: businessId,
+      build_run_id: buildRunId,
+      test_key: key,
+      test_type: 'runtime',
+      status: passed ? 'passed' : 'failed',
+      assertion: { command: [cmd, ...args].join(' ') },
+      actual: { exit_code: result.exitCode, stdout: result.stdout.slice(-20000), stderr: result.stderr.slice(-20000), sandbox: sandbox.name },
+      error_message: passed ? null : result.stderr.slice(-4000),
+      completed_at: new Date().toISOString()
+    });
+    return result;
+  };
+
+  const install = await run('project_dependency_install', 'npm', ['install', '--no-audit', '--no-fund']);
+  if (install.exitCode !== 0) return { status: 'failed', sandbox: sandbox.name, failed_step: 'project_dependency_install' };
+
+  const build = await run('project_runtime_build', 'npm', ['run', 'build']);
+  if (build.exitCode !== 0) {
+    throw new Error('Generated Builder project failed its production build verification. Repair the project before treating the build as complete.');
+  }
+
+  await supabase.from('ai_project_events').insert({
+    project_id: projectId,
+    event_type: 'website_builder.verified',
+    sequence_no: Date.now() % 2147483647,
+    payload: { build_run_id: buildRunId, user_id: userId, sandbox: sandbox.name, verification: 'production_build' }
+  });
+
+  return { status: 'verified', sandbox: sandbox.name };
+}
+
 export async function runWebsiteBuild(args: { businessId:string; userId:string; prompt:string; websiteId?:string|null; projectId?:string|null; mode?:BuildMode; publish?:boolean }) {
   const { businessId, userId, prompt, websiteId, projectId, mode='ask_first', publish=false } = args;
   if (!prompt.trim()) throw new Error('Describe what you want BizStack to build.');
@@ -109,6 +171,7 @@ export async function runWebsiteBuild(args: { businessId:string; userId:string; 
       const {data:version,error:versionError}=await supabase.from("ai_project_versions").insert({project_id:project.id,version_no:Number(latestVersion?.version_no??0)+1,message:"Website Builder generated editable source",source_run_id:run.id,snapshot:{format:"bizstack-project-snapshot/v1",files:projectFiles??[],captured_at:new Date().toISOString()},created_by:userId}).select("id,version_no").single();
       if(versionError) throw versionError;
       projectResult={projectId:project.id,files:files.map(f=>f.path),versionId:version?.id??null};
+      projectResult.verification = await verifyGeneratedProject(supabase,businessId,project.id,run.id,userId);
     }
     await supabase.from('ai_build_runs').update({provider_key:generated.providerKey,provider_status:generated.status === 'available' ? 'available' : generated.status === 'fallback' ? 'fallback':'failed',status:'testing',plan:{...plan,metrics}}).eq('id',run.id).eq('business_id',businessId);
     await supabase.from('ai_build_artifacts').insert({business_id:businessId,build_run_id:run.id,artifact_type:'website_spec',artifact_key:'website',version:1,status:'validated',content:spec,checksum:checksum(spec)});
