@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { createClient } from "@/lib/supabase-server";
 import { runWebsiteBuild } from "@/lib/ai/build-engine/runtime";
 import { runInvoiceBuild } from "@/lib/ai/build-engine/invoice-runtime";
-import { runProductInventoryBuild } from "@/lib/ai/build-engine/operations-runtime";
+import { runProductInventoryBuild } from "@/lib/ai/build-engine/operations-runtime";\nimport { runSandboxCommand, sandboxConfigured, syncFiles } from "@/lib/sandbox/vercel";
 
 export type ToolDefinition = {
   toolKey: string;
@@ -36,7 +36,7 @@ export const TOOL_REGISTRY: ToolDefinition[] = [
   { toolKey: "projects.create", name: "Create Software Project", riskLevel: "medium", permission: "create_projects", description: "Create a real editable software project with persistent files and an initial version snapshot.", inputSchema: { type: "object", properties: { name: { type: "string" }, slug: { type: "string" }, project_type: { type: "string" }, framework: { type: "string" }, runtime: { type: "string" }, files: { type: "array" } }, required: ["name"] } },
   { toolKey: "project.files.list", name: "Project Source Files", riskLevel: "low", permission: "read_project_files", description: "Read the real persistent source tree for a software project.", inputSchema: { type: "object", properties: { project_id: { type: "string" } }, required: ["project_id"] } },
   { toolKey: "project.files.write", name: "Write Project File", riskLevel: "medium", permission: "write_project_files", description: "Create or modify a real source file in a persistent software project.", inputSchema: { type: "object", properties: { project_id: { type: "string" }, path: { type: "string" }, content: { type: "string" }, language: { type: "string" } }, required: ["project_id","path","content"] } },
-  { toolKey: "project.version.create", name: "Snapshot Project Version", riskLevel: "low", permission: "snapshot_projects", description: "Create an immutable project version snapshot before or after source changes.", inputSchema: { type: "object", properties: { project_id: { type: "string" }, message: { type: "string" } }, required: ["project_id"] } },
+  { toolKey: "project.version.create", name: "Snapshot Project Version", riskLevel: "low", permission: "snapshot_projects", description: "Create an immutable project version snapshot before or after source changes.", inputSchema: { type: "object", properties: { project_id: { type: "string" }, message: { type: "string" } }, required: ["project_id"] } },\n  { toolKey: "project.runtime.run", name: "Project Runtime", riskLevel: "medium", permission: "run_project_runtime", description: "Synchronize a real project into an isolated sandbox and run an allowed build, lint, test, or inspection command.", inputSchema: { type: "object", properties: { project_id: { type: "string" }, cmd: { type: "string" }, args: { type: "array", items: { type: "string" } } }, required: ["project_id","cmd"] } },
 ];
 
 export function getToolDefinition(toolKey: string) {
@@ -308,6 +308,22 @@ export async function executeTool(toolKey: string, input: Record<string, unknown
     }, { onConflict: "project_id,path" }).select("id,path,content_sha,language,size_bytes,version_no,updated_at").single();
     if (error) throw error;
     return { saved: true, file: data };
+  }
+
+  if (toolKey === "project.runtime.run") {
+    const projectId = String(input.project_id ?? "").trim();
+    const cmd = String(input.cmd ?? "").trim();
+    const args = Array.isArray(input.args) ? input.args.map(String) : [];
+    if (!projectId || !cmd) throw new Error("project_id and cmd are required.");
+    if (!sandboxConfigured()) throw new Error("Project runtime is not configured.");
+    const { data: project, error: projectError } = await supabase.from("ai_projects").select("id,name,status").eq("id", projectId).eq("business_id", businessId).single();
+    if (projectError || !project || project.status === "deleted") throw new Error("Project not found.");
+    const { data: files, error: filesError } = await supabase.from("ai_project_files").select("path,content,is_binary").eq("project_id", projectId).order("path");
+    if (filesError) throw filesError;
+    const sourceFiles = (files ?? []).filter((row) => !row.is_binary && typeof row.content === "string").map((row) => ({ path: String(row.path), content: String(row.content) }));
+    const sandbox = await syncFiles(projectId, sourceFiles);
+    const result = await runSandboxCommand(projectId, cmd, args, "/workspace", false);
+    return { project: { id: project.id, name: project.name }, sandbox: sandbox.name, command: [cmd, ...args].join(" "), exit_code: result.exitCode, stdout: result.stdout.slice(0, 50000), stderr: result.stderr.slice(0, 50000) };
   }
 
   if (toolKey === "project.version.create") {
