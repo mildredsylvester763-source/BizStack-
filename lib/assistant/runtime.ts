@@ -107,7 +107,21 @@ async function getOrCreateAgent(
     .eq("slug", "bizstack-operator")
     .maybeSingle();
 
-  if (existing) return existing;
+  if (existing) {
+    const requiredPermissions = TOOL_REGISTRY.map((tool) => tool.permission);
+    const permissions = Array.from(new Set([...(Array.isArray(existing.permissions) ? existing.permissions : []), ...requiredPermissions]));
+    const changed = permissions.length !== (Array.isArray(existing.permissions) ? existing.permissions.length : 0);
+    if (changed) {
+      const { data: refreshed } = await supabase
+        .from("ai_agents")
+        .update({ permissions })
+        .eq("id", existing.id)
+        .select("id,name,status,autonomy_mode,permissions,system_config")
+        .single();
+      if (refreshed) return refreshed;
+    }
+    return { ...existing, permissions };
+  }
 
   const { data: created, error } = await supabase
     .from("ai_agents")
