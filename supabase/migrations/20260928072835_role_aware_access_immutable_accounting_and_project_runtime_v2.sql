@@ -417,7 +417,7 @@ create policy ai_project_versions_manager_insert on public.ai_project_versions f
 with check (exists(select 1 from public.ai_projects p where p.id=ai_project_versions.project_id and private.user_can_business(p.business_id,ARRAY['owner','admin','manager'])));
 
 create policy ai_terminal_sessions_manager_all on public.ai_terminal_sessions for all to authenticated
-using (exists(select 1 from public.ai_projects p where p.id=ai_terminal_sessions.project_id and private.user_can_business(p.business_id,ARRAY['owner','admin','manager'])))
+using (exists(select 1 from public.ai_projects p where p.id=ai_preview_sessions.project_id and private.user_can_business(p.business_id,ARRAY['owner','admin','manager'])))
 with check (exists(select 1 from public.ai_projects p where p.id=ai_terminal_sessions.project_id and private.user_can_business(p.business_id,ARRAY['owner','admin','manager'])));
 
 create policy ai_preview_sessions_manager_all on public.ai_preview_sessions for all to authenticated
