@@ -109,7 +109,7 @@ export default function OperatorCockpit({
       const x=await r.json().catch(()=>({}));
       if(!r.ok){
         if(isBuildRequest && projectId && /model provider|AI engine|provider/i.test(String(x.error||""))){
-          const fallback=await fetch("/api/ai/build",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({capability:"website",prompt:text,projectId,mode:"auto_execute",publish:false})});
+          const fallback=await fetch("/api/ai/build",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({capability:"website",prompt:text,businessId,projectId,mode:"auto_execute",publish:false})});
           const fx=await fallback.json().catch(()=>({}));
           if(!fallback.ok) throw new Error(fx.error||x.error||"Builder request failed.");
           const generated=fx?.result?.project?.files||[];
