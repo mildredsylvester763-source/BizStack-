@@ -256,7 +256,7 @@ export async function executeTool(toolKey: string, input: Record<string, unknown
       .single();
     if (websiteError || !website) throw new Error("Website not found for this business.");
 
-    const allowedActions = new Set(["booking_request", "order_request"]);
+    const allowedActions = new Set(["booking_request", "order_request", "quote_request"]);
     const rawActions = Array.isArray(input.actions) ? input.actions : [];
     const actions = rawActions.map((raw) => {
       const item = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};

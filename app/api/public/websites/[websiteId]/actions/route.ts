@@ -376,6 +376,97 @@ export async function POST(
       return NextResponse.json(response);
     }
 
+    if (action === "quote_request") {
+      const name = text(body.name, 120);
+      const email = text(body.email, 254).toLowerCase();
+      const phone = text(body.phone, 40);
+      const notes = text(body.notes, 2000);
+      const items = Array.isArray(body.items) ? body.items.slice(0, 50) : [];
+      if (!name || !items.length) return NextResponse.json({ error: "Name and at least one quote item are required." }, { status: 400 });
+
+      const requestedItems = items.map((item: any) => ({
+        productId: text(item?.productId, 80),
+        quantity: Math.max(1, Math.min(9999, Number(item?.quantity) || 1))
+      })).filter((item) => item.productId);
+
+      if (!requestedItems.length || requestedItems.length !== items.length) {
+        return NextResponse.json({ error: "Each quote item must reference a valid BizStack product." }, { status: 400 });
+      }
+
+      const productIds = [...new Set(requestedItems.map((item) => item.productId))];
+      const { data: products, error: productError } = await supabase
+        .from("products")
+        .select("id,name,unit,unit_price")
+        .eq("business_id", website.business_id)
+        .in("id", productIds)
+        .eq("is_active", true);
+      if (productError) throw productError;
+
+      const productMap = new Map((products ?? []).map((product: any) => [String(product.id), product]));
+      if (productMap.size !== productIds.length) {
+        return NextResponse.json({ error: "One or more requested products are unavailable." }, { status: 400 });
+      }
+
+      const safeItems = requestedItems.map((item) => {
+        const product = productMap.get(item.productId);
+        if (!product) throw new Error("Requested product is unavailable.");
+        const unitPrice = Number(product.unit_price ?? 0);
+        return {
+          product_id: product.id,
+          description: product.name,
+          quantity: item.quantity,
+          unit: product.unit || "unit",
+          unit_price: unitPrice,
+          line_total: item.quantity * unitPrice
+        };
+      });
+
+      const customer = await findOrCreateCustomer(supabase, website.business_id, name, email, phone);
+      const { data: business } = await supabase.from("businesses").select("currency").eq("id", website.business_id).single();
+      const subtotal = safeItems.reduce((sum, item) => sum + item.line_total, 0);
+      const quoteNumber = "WEB-Q-" + Date.now().toString(36).toUpperCase();
+
+      const { data: quoteRecord, error: quoteError } = await supabase
+        .from("quotes")
+        .insert({
+          business_id: website.business_id,
+          customer_id: customer.id,
+          quote_number: quoteNumber,
+          status: "draft",
+          issue_date: new Date().toISOString().slice(0, 10),
+          currency: String(business?.currency ?? "USD"),
+          reference: "Website quote request",
+          subtotal,
+          discount_type: "fixed",
+          discount_value: 0,
+          discount_amount: 0,
+          tax_rate: 0,
+          tax_name: null,
+          tax_amount: 0,
+          total: subtotal,
+          notes: notes || null,
+          terms: null,
+          created_by: null
+        })
+        .select("id,quote_number,status,currency,subtotal,total,created_at")
+        .single();
+
+      if (quoteError || !quoteRecord) throw new Error("Could not create the quote request.");
+
+      const { error: itemsError } = await supabase.from("quote_items").insert(
+        safeItems.map((item) => ({ ...item, quote_id: quoteRecord.id }))
+      );
+
+      if (itemsError) {
+        await supabase.from("quotes").delete().eq("id", quoteRecord.id).eq("business_id", website.business_id);
+        throw new Error("Could not save the quote items.");
+      }
+
+      const response = { action: "quote_request", quote: quoteRecord };
+      await completeActionRequest(supabase, requestId!, "succeeded", response);
+      return NextResponse.json(response);
+    }
+
     return NextResponse.json({ error: "Unsupported website action." }, { status: 400 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Website action failed.";
