@@ -221,7 +221,7 @@ async function restoreSnapshot(
 }
 
 export async function executeRepair(repairId: string, userId: string) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: repair, error: repairError } = await supabase
     .from("ai_repair_runs")
