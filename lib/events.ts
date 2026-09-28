@@ -13,7 +13,7 @@ export async function logEvent(
   evidence: Record<string, unknown>,
   status: EventStatus
 ): Promise<void> {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { error } = await supabase.from("events").insert({
     business_id: businessId,
