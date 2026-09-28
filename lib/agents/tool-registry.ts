@@ -35,6 +35,7 @@ export const TOOL_REGISTRY: ToolDefinition[] = [
   { toolKey: "integrations.list", name: "Inspect Connections", riskLevel: "low", permission: "read_integrations", description: "Inspect real integrations and their actual connection state.", inputSchema: emptyObject() },
   { toolKey: "business.autonomy.status", name: "Business Autonomy Policy", riskLevel: "low", permission: "read_business_context", description: "Inspect the business automation permissions that determine which operational actions BizStack may execute automatically.", inputSchema: emptyObject() },
   { toolKey: "communications.inbox", name: "Unified Communications Inbox", riskLevel: "low", permission: "read_integrations", description: "Read recent customer communications across connected channels such as WhatsApp, SMS and email without treating them as login/authentication.", inputSchema: { type: "object", properties: { channel: { type: "string" }, limit: { type: "number", minimum: 1, maximum: 100 } } } },
+  { toolKey: "integrations.test", name: "Test Integration", riskLevel: "medium", permission: "write_integrations", description: "Verify a connected integration against its real provider API, update connection health, and record an auditable health-check event.", inputSchema: { type: "object", properties: { integration_id: { type: "string" } }, required: ["integration_id"] } },
   { toolKey: "integrations.sync", name: "Sync Connected Resource", riskLevel: "medium", permission: "write_integrations", description: "Run a governed sync for a connected custom connector resource and persist the external records, cursor, run evidence and errors.", inputSchema: { type: "object", properties: { integration_id: { type: "string" }, resource_key: { type: "string" } }, required: ["integration_id","resource_key"] } },
   { toolKey: "website.build", name: "Build Website", riskLevel: "medium", permission: "build_websites", description: "Create or modify a real BizStack website from natural language, optionally compiling the same design into an editable software project.", inputSchema: { type: "object", properties: { prompt: { type: "string" }, website_id: { type: "string" }, project_id: { type: "string" }, publish: { type: "boolean" } }, required: ["prompt"] } },
   { toolKey: "website.live_data.configure", name: "Website Live Business Data", riskLevel: "medium", permission: "build_websites", description: "Configure a published website to read an allowlisted, non-sensitive slice of the business in near real time, such as public products, availability and business profile data. Private invoices, balances and customer records are never exposed by this surface.", inputSchema: { type: "object", properties: { website_id: { type: "string" }, enabled: { type: "boolean" }, sources: { type: "array", items: { type: "object" } } }, required: ["website_id","sources"] } },
@@ -209,6 +210,15 @@ export async function executeTool(toolKey: string, input: Record<string, unknown
     const { data, error } = await query;
     if (error) throw error;
     return data ?? [];
+  }
+
+  if (toolKey === "integrations.test") {
+    const integrationId = String(input.integration_id ?? "").trim();
+    if (!integrationId) throw new Error("integration_id is required.");
+    const { data: integration, error } = await supabase.from("integrations").select("id,business_id,provider,status,config").eq("id",integrationId).eq("business_id",businessId).single();
+    if (error || !integration) throw new Error("Integration not found.");
+    const { verifyIntegrationHealth } = await import("@/lib/integrations/health");
+    return await verifyIntegrationHealth(supabase, integration, businessId);
   }
 
   if (toolKey === "integrations.sync") {
