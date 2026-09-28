@@ -7,7 +7,7 @@ import { executeBroadcastCampaign } from "@/lib/broadcasts/runtime";
 
 async function decide(formData:FormData){
  "use server";
- const supabase=createClient();
+ const supabase=await createClient();
  const {data:{user}}=await supabase.auth.getUser();if(!user)redirect("/login");
  const {data:business}=await supabase.from("businesses").select("id").eq("owner_id",user.id).single();if(!business)redirect("/onboarding");
  const id=String(formData.get("id")||"");const action=String(formData.get("action")||"");
@@ -21,7 +21,7 @@ async function decide(formData:FormData){
 }
 
 export default async function BroadcastsPage(){
- const supabase=createClient();
+ const supabase=await createClient();
  const {data:{user}}=await supabase.auth.getUser();if(!user)redirect("/login");
  const {data:business}=await supabase.from("businesses").select("id,name").eq("owner_id",user.id).single();if(!business)redirect("/onboarding");
  const {data:campaigns}=await supabase.from("broadcast_campaigns").select("id,name,channel,message_template,status,opt_out_policy,scheduled_at,sent_count,blocked_count,failed_count,created_at").eq("business_id",business.id).order("created_at",{ascending:false});
