@@ -246,12 +246,30 @@ export async function executeTool(toolKey: string, input: Record<string, unknown
       const fields = Array.isArray(item.fields) ? item.fields.map(String) : [];
       return { key, fields: fields.slice(0, 30), refresh: String(item.refresh ?? "near_realtime") };
     });
-    const currentSettings = website.settings && typeof website.settings === "object" ? website.settings as Record<string, unknown> : {};
-    const nextSettings = { ...currentSettings, live_data: { enabled: input.enabled !== false, sources } };
-    const { error } = await supabase.from("websites").update({ settings: nextSettings, updated_at: new Date().toISOString() }).eq("id", websiteId).eq("business_id", businessId);
-    if (error) throw error;
-    await supabase.from("events").insert({ business_id: businessId, event_type: "website.live_data_configured", summary: "Configured allowlisted live business data for website.", evidence: { website_id: websiteId, sources }, status: "auto_handled", priority: "normal", category: "website" });
-    return { websiteId, enabled: nextSettings.live_data.enabled, sources, privacy: "Only allowlisted public business data is exposed. Private invoices, financial balances and customer records stay inside BizStack/customer portals." };
+    const enabled = input.enabled !== false;
+    for (const source of sources) {
+      const { error: bindingError } = await supabase.from("website_business_bindings").upsert({
+        business_id: businessId,
+        website_id: websiteId,
+        source_key: source.key,
+        enabled,
+        exposure: "public",
+        fields: source.fields,
+        sync_mode: source.refresh === "cached" ? "cached" : "near_realtime",
+        updated_at: new Date().toISOString()
+      }, { onConflict: "website_id,source_key" });
+      if (bindingError) throw bindingError;
+    }
+    const selectedKeys = sources.map((source) => source.key);
+    if (selectedKeys.length) {
+      await supabase.from("website_business_bindings")
+        .update({ enabled: false, updated_at: new Date().toISOString() })
+        .eq("website_id", websiteId)
+        .eq("business_id", businessId)
+        .not("source_key", "in", "(" + selectedKeys.join(",") + ")");
+    }
+    await supabase.from("events").insert({ business_id: businessId, event_type: "website.live_data_configured", summary: "Configured governed live business data for website.", evidence: { website_id: websiteId, sources }, status: "auto_handled", priority: "normal", category: "website" });
+    return { websiteId, enabled, sources, privacy: "Only allowlisted public business data is exposed. Private invoices, financial balances and customer records stay inside BizStack/customer portals." };
   }
 
   if (toolKey === "events.create") {
