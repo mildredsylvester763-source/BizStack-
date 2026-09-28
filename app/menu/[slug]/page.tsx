@@ -1,0 +1,11 @@
+// @ts-nocheck
+import Link from "next/link";
+import { createClient } from "@/lib/supabase-server";
+
+export default async function PublicMenuPage({params}:{params:{slug:string}}){
+ const supabase=createClient();
+ const {data:menu}=await supabase.from("digital_menus").select("id,name,currency,qr_token,kitchen_flow_enabled,status").eq("slug",params.slug).eq("status","published").single();
+ if(!menu)return <main className="min-h-screen bg-ledger grid place-items-center p-6"><div className="text-center"><h1 className="font-display text-3xl">Menu not available</h1><p className="text-sm text-ink/50 mt-2">This menu is not published.</p></div></main>;
+ const {data:items}=await supabase.from("menu_items").select("id,name,description,price,category,preparation_minutes,sort_order,available").eq("menu_id",menu.id).eq("available",true).order("sort_order");
+ return <main className="min-h-screen bg-ledger"><header className="border-b border-rule bg-white"><div className="max-w-3xl mx-auto px-5 py-6"><p className="text-[10px] uppercase tracking-[.18em] text-vault">Digital menu</p><h1 className="font-display text-4xl mt-2">{menu.name}</h1><p className="text-sm text-ink/45 mt-2">Order directly into the kitchen queue.</p></div></header><section className="max-w-3xl mx-auto px-5 py-8"><div className="space-y-4">{(items??[]).map(i=><div key={i.id} className="bg-white border border-rule p-5"><div className="flex justify-between gap-4"><div><h2 className="font-medium">{i.name}</h2>{i.description&&<p className="text-sm text-ink/55 mt-1">{i.description}</p>}<p className="text-xs text-ink/40 mt-2">{i.preparation_minutes?i.preparation_minutes+" min prep":""}</p></div><p className="font-display text-xl">{menu.currency} {Number(i.price).toLocaleString()}</p></div></div>)}</div><div className="mt-8 bg-white border border-rule p-5"><h2 className="font-display text-xl">Ordering API</h2><p className="text-sm text-ink/55 mt-2">Customer-facing clients can POST selected menu item IDs and quantities to <code>/api/public/menu/{params.slug}/order</code>. Prices are resolved server-side from the published menu.</p><p className="text-xs text-ink/40 mt-3">Menu token: {menu.qr_token}</p></div></section></main>;
+}
