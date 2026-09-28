@@ -15,6 +15,7 @@ import { runSupplierPriceBuild } from "@/lib/ai/build-engine/supplier-price-runt
 import { runCommissionBuild } from "@/lib/ai/build-engine/commission-runtime";
 import { runBusinessDocumentBuild } from "@/lib/ai/build-engine/business-document-runtime";
 import { runSmsWalletBuild, runAppointmentBuild, runDigitalMenuBuild, runWaiverBuild } from "@/lib/ai/build-engine/customer-experience-runtime";
+import { runThriftBuild, runBusinessCreditBuild, runSuccessorAccessBuild, runComplianceBuild } from "@/lib/ai/build-engine/continuity-runtime";
 
 async function runBuild(formData: FormData) {
   "use server";
@@ -70,6 +71,14 @@ async function runBuild(formData: FormData) {
     await runDigitalMenuBuild({ businessId: business.id, userId: user.id, prompt, mode: "auto_execute" });
   } else if (capability === "waiver") {
     await runWaiverBuild({ businessId: business.id, userId: user.id, prompt, mode: "draft_only" });
+  } else if (capability === "thrift_group") {
+    await runThriftBuild({ businessId: business.id, userId: user.id, prompt, mode: "auto_execute" });
+  } else if (capability === "business_credit") {
+    await runBusinessCreditBuild({ businessId: business.id, userId: user.id, prompt, mode: "draft_only" });
+  } else if (capability === "successor_access") {
+    await runSuccessorAccessBuild({ businessId: business.id, userId: user.id, prompt, mode: "ask_first" });
+  } else if (capability === "compliance") {
+    await runComplianceBuild({ businessId: business.id, userId: user.id, prompt, mode: "auto_execute" });
   } else {
     await runWebsiteBuild({ businessId: business.id, userId: user.id, prompt, mode: "auto_execute", publish: false });
   }
@@ -229,6 +238,38 @@ export default async function AIBuilderPage() {
       title: "Draft a customer waiver",
       description: "Creates a versioned waiver ready for typed, drawn or external signature capture.",
       placeholder: "Create a waiver called Photography Consent. Title: Event photography consent. Body: Customers consent to photography and defined usage terms.",
+      tone: "vault"
+    },
+    {
+      capability: "thrift_group",
+      eyebrow: "Ajo / Esusu / thrift",
+      title: "Create a savings group",
+      description: "Creates the real group rules and contribution boundary without claiming member payments.",
+      placeholder: "Create Ajo Group Alpha, contribution 50000 NGN monthly, rotating payout, next 2026-10-01.",
+      tone: "ink"
+    },
+    {
+      capability: "business_credit",
+      eyebrow: "Business credit",
+      title: "Build a documented credit profile",
+      description: "Calculates a transparent internal credit profile from recorded invoices and posted cashflow evidence.",
+      placeholder: "Calculate my business credit profile and show what evidence I still need to strengthen it.",
+      tone: "vault"
+    },
+    {
+      capability: "successor_access",
+      eyebrow: "Emergency continuity",
+      title: "Draft successor access",
+      description: "Creates a delayed, explicit emergency-access grant without generating immediate privileged credentials.",
+      placeholder: "Create successor access for jane@example.com with 48 hour activation delay and permissions view_business, financial_reports, customer_records.",
+      tone: "ink"
+    },
+    {
+      capability: "compliance",
+      eyebrow: "Compliance calendar",
+      title: "Add a compliance obligation",
+      description: "Creates a due-date, jurisdiction, priority and evidence-tracking record.",
+      placeholder: "Create compliance item Annual Tax Filing, authority FIRS, jurisdiction Nigeria, due 2026-12-31, priority high.",
       tone: "vault"
     },
     {
