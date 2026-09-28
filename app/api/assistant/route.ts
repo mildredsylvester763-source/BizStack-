@@ -11,7 +11,8 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const input = typeof body?.input === "string" ? body.input.trim() : "";
     const conversationId = typeof body?.conversationId === "string" ? body.conversationId : null;
-    const clientMessageId = typeof body?.clientMessageId === "string" ? body.clientMessageId : null;\n    const projectId = typeof body?.context?.projectId === "string" ? body.context.projectId : null;
+    const clientMessageId = typeof body?.clientMessageId === "string" ? body.clientMessageId : null;
+    const projectId = typeof body?.context?.projectId === "string" ? body.context.projectId : null;
 
     if (!input) return NextResponse.json({ error: "Tell BizStack what you want handled." }, { status: 400 });
     if (input.length > 12000) return NextResponse.json({ error: "That request is too long for one operator turn." }, { status: 400 });
@@ -20,7 +21,8 @@ export async function POST(request: Request) {
       userId: user.id,
       conversationId,
       input,
-      clientMessageId
+      clientMessageId,
+      projectId
     });
 
     return NextResponse.json(result);
