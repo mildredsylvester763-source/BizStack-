@@ -178,7 +178,14 @@ export async function executeTool(toolKey: string, input: Record<string, unknown
     if (error) throw error;
     return data ?? [];
   }
-\n  if (toolKey === "integrations.sync") {\n    const integrationId = String(input.integration_id ?? "").trim();\n    const resourceKey = String(input.resource_key ?? "").trim();\n    if (!integrationId || !resourceKey) throw new Error("integration_id and resource_key are required.");\n    return await syncConnectorResource({ supabase, businessId, integrationId, resourceKey });\n  }\n
+
+  if (toolKey === "integrations.sync") {
+    const integrationId = String(input.integration_id ?? "").trim();
+    const resourceKey = String(input.resource_key ?? "").trim();
+    if (!integrationId || !resourceKey) throw new Error("integration_id and resource_key are required.");
+    return await syncConnectorResource({ supabase, businessId, integrationId, resourceKey });
+  }
+
   if (toolKey === "website.build") {
     const prompt = String(input.prompt ?? "").trim();
     if (!prompt) throw new Error("Website instructions are required.");
