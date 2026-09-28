@@ -1,4 +1,3 @@
-// @ts-nocheck
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -6,7 +5,7 @@ import { createClient } from "@/lib/supabase-server";
 
 async function createSupplier(formData: FormData) {
   "use server";
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const { data: business } = await supabase.from("businesses").select("id,currency").eq("owner_id", user.id).single();
@@ -28,7 +27,7 @@ async function createSupplier(formData: FormData) {
 
 async function recordPrice(formData: FormData) {
   "use server";
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const { data: business } = await supabase.from("businesses").select("id").eq("owner_id", user.id).single();
@@ -54,7 +53,7 @@ async function recordPrice(formData: FormData) {
 
 async function acknowledgeAlert(formData: FormData) {
   "use server";
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const { data: business } = await supabase.from("businesses").select("id").eq("owner_id", user.id).single();
@@ -64,7 +63,7 @@ async function acknowledgeAlert(formData: FormData) {
 }
 
 export default async function SuppliersPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const { data: business } = await supabase.from("businesses").select("id,name,currency").eq("owner_id", user.id).single();
