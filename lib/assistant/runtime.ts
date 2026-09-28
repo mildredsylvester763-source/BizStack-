@@ -177,7 +177,8 @@ async function createRun(
   agentId: string,
   conversationId: string,
   input: string,
-  userId: string
+  userId: string,
+  projectId?: string | null
 ) {
   const { data, error } = await supabase
     .from("ai_agent_runs")
@@ -187,7 +188,7 @@ async function createRun(
       conversation_id: conversationId,
       trigger_type: "chat",
       status: "running",
-      input: { text: input, user_id: userId },
+      input: { text: input, user_id: userId, project_id: projectId || null },
       plan: [],
       tool_calls: []
     })
@@ -244,7 +245,8 @@ async function executeOperatorTurn(args: {
 
     for (const toolCall of message.tool_calls) {
       const toolName = toolCall.function?.name;
-      const definition = getToolDefinition(toolName);
+      const projectId = typeof run.input?.project_id === "string" ? run.input.project_id : null;
+  const definition = getToolDefinition(toolName);
       if (!definition) throw new Error("The assistant requested an unknown tool: " + toolName);
 
       if (toolRequiresApproval(definition, agent)) {
@@ -402,7 +404,7 @@ export async function runUniversalAssistant({
     ...history
   ];
 
-  const runId = await createRun(supabase, business.id, agent.id, conversationIdValue, input, userId);
+  const runId = await createRun(supabase, business.id, agent.id, conversationIdValue, input, userId, projectId);
 
   try {
     return await executeOperatorTurn({
@@ -438,7 +440,7 @@ export async function approveOperatorRun({
 
   const { data: run, error: runError } = await supabase
     .from("ai_agent_runs")
-    .select("id,agent_id,conversation_id,status,plan")
+    .select("id,agent_id,conversation_id,status,plan,input")
     .eq("id", runId)
     .eq("business_id", business.id)
     .single();
@@ -475,7 +477,8 @@ export async function approveOperatorRun({
   const output = await executeTool(toolName, input, {
     supabase,
     businessId: business.id,
-    userId
+    userId,
+    projectId
   });
 
   await saveMessage(supabase, run.conversation_id, business.id, {
@@ -497,7 +500,7 @@ export async function approveOperatorRun({
     agent,
     runId: run.id,
     messages: [
-      { role: "system", content: systemPrompt(business) },
+      { role: "system", content: systemPrompt(business, projectId) },
       ...history
     ]
   });
