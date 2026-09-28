@@ -13,7 +13,7 @@ async function vercel(path:string, init:RequestInit={}) {
 }
 
 export async function POST(req:NextRequest,context:{params: Promise<{projectId:string}>}){
-  const supabase=createClient();
+  const supabase=await createClient();
   const {data:{user}}=await supabase.auth.getUser();
   if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
   const { data: projectAccess } = await supabase.from("ai_projects").select("id,business_id,status").eq("id",(await context.params).projectId).maybeSingle();
@@ -56,7 +56,7 @@ export async function POST(req:NextRequest,context:{params: Promise<{projectId:s
 }
 
 export async function GET(_req:NextRequest,context:{params: Promise<{projectId:string}>}){
-  const supabase=createClient();
+  const supabase=await createClient();
   const {data:{user}}=await supabase.auth.getUser();
   if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
   const { data: project } = await supabase.from("ai_projects")
