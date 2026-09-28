@@ -180,7 +180,8 @@ function systemPrompt(business: { name: string; industry?: string | null; curren
     "Voice transcripts may be imperfect. Interpret them naturally and verify critical numbers or identities before sensitive actions.",
     "Business name: " + business.name,
     "Industry: " + (business.industry || "not specified"),
-    "Base currency: " + (business.currency || "not specified"),\n    "Active software project: " + (projectId || "none") + ". If the user is asking about software, prefer this project unless they explicitly name another project."
+    "Base currency: " + (business.currency || "not specified"),
+    "Active software project: " + (projectId || "none") + ". If the user is asking about software, prefer this project unless they explicitly name another project."
   ].join("
 ");
 }
