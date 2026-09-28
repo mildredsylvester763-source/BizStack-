@@ -252,7 +252,6 @@ async function executeOperatorTurn(args: {
   projectId?: string | null;
 }) : Promise<OperatorResult> {
   const { supabase, businessId, userId, conversationId, agent, runId, projectId = null } = args;
-  const projectId = (args as any).projectId ?? null;
   let messages = args.messages;
   const results: Array<{ tool: string; output: unknown }> = [];
   const maxSteps = Math.min(Number(agent?.system_config?.max_tool_steps ?? 8), 12);
