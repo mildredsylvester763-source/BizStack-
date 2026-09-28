@@ -1,38 +1,96 @@
-import type { BuildContext, BuildProviderResult, WebsiteSpec } from '@/lib/ai/build-engine/types';
-import { normalizeLocalWebsiteSpec } from '@/lib/ai/build-engine/website-local';
+import type { BuildContext, BuildProviderResult, WebsiteSpec } from "@/lib/ai/build-engine/types";
+import { normalizeLocalWebsiteSpec } from "@/lib/ai/build-engine/website-local";
+import { getConfiguredAiProviders, runBizStackModel, type BizStackModelMessage } from "@/lib/ai/providers/router";
 
 function extractJson(value: unknown): unknown {
-  if (typeof value === 'object' && value !== null) return value;
-  if (typeof value !== 'string') return null;
-  const fenced = value.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1] ?? value;
-  try { return JSON.parse(fenced); } catch { return null; }
+  if (typeof value === "object" && value !== null) return value;
+  if (typeof value !== "string") return null;
+  const fenced = value.match(/\`\`\`(?:json)?\s*([\s\S]*?)\`\`\`/i)?.[1] ?? value;
+  try { return JSON.parse(fenced); } catch {
+    const first = value.indexOf("{");
+    const last = value.lastIndexOf("}");
+    if (first >= 0 && last > first) {
+      try { return JSON.parse(value.slice(first, last + 1)); } catch {}
+    }
+    return null;
+  }
 }
 
-function configured() { return Boolean(process.env.BIZSTACK_AI_API_URL && process.env.BIZSTACK_AI_API_KEY); }
+function systemPrompt() {
+  return [
+    "You are the BizStack structured website compiler.",
+    "Return ONLY one valid JSON object matching the requested WebsiteSpec shape.",
+    "Do not use markdown fences and do not add commentary.",
+    "Never invent credentials, domains, payment confirmations, connected accounts, legal claims, or real-world availability.",
+    "Use the supplied business and existing website context.",
+    "Keep colors valid CSS values and keep page slugs URL-safe.",
+    "Every page must have a slug, title, pageType, seo object, and sections array.",
+    "WebsiteSpec shape:",
+    JSON.stringify({
+      name: "string",
+      subdomain: "string",
+      theme: { style: "modern", primary: "#111827", accent: "#d97706", surface: "#f8fafc", typography: "clean" },
+      navigation: ["Home"],
+      features: ["string"],
+      pages: [{ slug: "home", title: "Home", pageType: "home", seo: { title: "string", description: "string" }, sections: [{ id: "hero", type: "hero", heading: "string", body: "string", items: [], button: "string", url: "#contact" }] }],
+      forms: [{ key: "contact", name: "Contact", fields: ["name", "email", "message"], destination: "crm" }],
+      integrations: [{ key: "example", provider: "example", required: false, status: "credential_required" }],
+      seo: { siteTitle: "string", description: "string", keywords: ["string"] }
+    })
+  ].join("\n");
+}
 
 export async function generateWebsiteSpec(prompt: string, context: BuildContext): Promise<BuildProviderResult> {
-  if (!configured()) return { providerKey: 'local-interpreter', status: 'fallback', spec: normalizeLocalWebsiteSpec(prompt, context), model: 'deterministic-local' };
-  try {
-    const response = await fetch(process.env.BIZSTACK_AI_API_URL as string, {
-      method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + process.env.BIZSTACK_AI_API_KEY },
-      body: JSON.stringify({
-        model: process.env.BIZSTACK_AI_MODEL || 'default', temperature: 0.2, response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: 'You are BizStack structured website compiler. Return only valid JSON matching WebsiteSpec. Never invent credentials, domains, prices, integrations, or legal claims.' },
-          { role: 'user', content: JSON.stringify({ prompt, context }) }
-        ]
-      }),
-      cache: 'no-store'
-    });
-    if (!response.ok) {
-      const error = await response.text();
-      return { providerKey: 'configured-provider', status: 'failed', error: 'AI provider returned HTTP ' + response.status + ': ' + error.slice(0,500), spec: normalizeLocalWebsiteSpec(prompt, context) };
+  if (!getConfiguredAiProviders().length && !(process.env.BIZSTACK_AI_API_URL && process.env.BIZSTACK_AI_API_KEY)) {
+    return {
+      providerKey: "local-interpreter",
+      status: "fallback",
+      spec: normalizeLocalWebsiteSpec(prompt, context),
+      model: "deterministic-local"
+    };
+  }
+
+  const messages: BizStackModelMessage[] = [
+    { role: "system", content: systemPrompt() },
+    {
+      role: "user",
+      content: JSON.stringify({
+        prompt,
+        context: {
+          business: context.business,
+          website_id: context.websiteId ?? null,
+          existing_website: context.existingWebsite ?? null
+        }
+      })
     }
-    const json = await response.json();
-    const candidate = extractJson(json?.output_text ?? json?.choices?.[0]?.message?.content ?? json?.output ?? json) as WebsiteSpec | null;
-    if (!candidate?.pages?.length) return { providerKey: 'configured-provider', status: 'failed', error: 'AI provider returned no usable website specification.', spec: normalizeLocalWebsiteSpec(prompt, context) };
-    return { providerKey: 'configured-provider', status: 'available', spec: candidate, raw: json, model: process.env.BIZSTACK_AI_MODEL || 'default' };
+  ];
+
+  try {
+    const result = await runBizStackModel(messages, []);
+    const candidate = extractJson(result.message?.content) as WebsiteSpec | null;
+    if (!candidate?.pages?.length) {
+      return {
+        providerKey: result.provider,
+        status: "failed",
+        error: "BizStack AI returned no usable website specification.",
+        spec: normalizeLocalWebsiteSpec(prompt, context),
+        model: result.model,
+        raw: result.message
+      };
+    }
+    return {
+      providerKey: result.provider,
+      status: "available",
+      spec: candidate,
+      raw: result.message,
+      model: result.model
+    };
   } catch (error) {
-    return { providerKey: 'configured-provider', status: 'failed', error: error instanceof Error ? error.message : 'AI provider request failed.', spec: normalizeLocalWebsiteSpec(prompt, context) };
+    return {
+      providerKey: "bizstack-ai",
+      status: "failed",
+      error: error instanceof Error ? error.message : "BizStack AI website compilation failed.",
+      spec: normalizeLocalWebsiteSpec(prompt, context)
+    };
   }
 }
