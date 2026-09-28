@@ -35,3 +35,6 @@ export * from '@/lib/ai/build-engine/continuity-runtime';
 
 export * from '@/lib/ai/build-engine/intelligence-local';
 export * from '@/lib/ai/build-engine/intelligence-runtime';
+
+export * from '@/lib/ai/build-engine/platform-local';
+export * from '@/lib/ai/build-engine/platform-runtime';
