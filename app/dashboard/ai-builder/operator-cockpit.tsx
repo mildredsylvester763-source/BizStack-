@@ -100,23 +100,25 @@ export default function OperatorCockpit({
     setInput("");setBusy(true);setPicker(false);
     setMessages(v=>[...v,{role:"user",content:text,metadata:{apps:context.map(a=>a.slug),project_id:projectId||null}}]);
     try{
-      const isBuildRequest=/\b(build|create|make|design|generate|website|web app|landing page|site)\b/i.test(text);
-      if(isBuildRequest && projectId){
-        const r=await fetch("/api/ai/build",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({capability:"website",prompt:text,projectId,mode:"auto_execute",publish:false})});
-        const x=await r.json().catch(()=>({}));
-        if(!r.ok)throw new Error(x.error||"Website Builder request failed.");
-        const files=x?.result?.project?.files||[];
-        setMessages(v=>[...v,{role:"assistant",content:"I built the request into the active project. "+files.length+" editable source files were generated and versioned."}]);
-        await loadProjects(projectId).catch(()=>null);
-        await loadFiles(projectId).catch(()=>null);
-      }else{
-        const r=await fetch("/api/assistant",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({input:text,conversationId,clientMessageId:crypto.randomUUID(),context:{apps:context.map(a=>a.slug),projectId:projectId||null}})});
-        const x=await r.json().catch(()=>({}));
-        if(!r.ok)throw new Error(x.error||"Operator request failed.");
+      const isBuildRequest=/\b(build|create|make|design|generate|website|web app|landing page|site|code|feature|fix|bug|edit)\b/i.test(text);
+      const r=await fetch("/api/assistant",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({input:text,conversationId,clientMessageId:crypto.randomUUID(),context:{apps:context.map(a=>a.slug),projectId:projectId||null}})});
+      const x=await r.json().catch(()=>({}));
+      if(!r.ok){
+        if(isBuildRequest && projectId && /model provider|AI engine|provider/i.test(String(x.error||""))){
+          const fallback=await fetch("/api/ai/build",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({capability:"website",prompt:text,projectId,mode:"auto_execute",publish:false})});
+          const fx=await fallback.json().catch(()=>({}));
+          if(!fallback.ok) throw new Error(fx.error||x.error||"Builder request failed.");
+          const generated=fx?.result?.project?.files||[];
+          setMessages(v=>[...v,{role:"assistant",content:"The local Builder compiler handled the request and versioned "+generated.length+" editable source files. Connect the model provider to unlock the full inspect → edit → run → repair loop."}]);
+          await loadProjects(projectId).catch(()=>null);
+          await loadFiles(projectId).catch(()=>null);
+        } else throw new Error(x.error||"Operator request failed.");
+      } else {
         if(x.conversationId)setConversationId(x.conversationId);
         if(x.approval)setApproval(x.approval);
         setMessages(v=>[...v,{role:"assistant",content:x.message||"Done."}]);
         await loadProjects(projectId||undefined).catch(()=>null);
+        await loadFiles(projectId||"").catch(()=>null);
       }
     }catch(e){setMessages(v=>[...v,{role:"assistant",content:e instanceof Error?e.message:"The Operator could not complete that request."}])}
     finally{setBusy(false)}
