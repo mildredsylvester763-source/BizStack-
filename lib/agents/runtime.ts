@@ -14,7 +14,7 @@ function permissionAllows(agent: { permissions?: unknown }, permission: string) 
 }
 
 async function persistMemory(
-  supabase: ReturnType<typeof createClient>,
+  supabase: Awaited<ReturnType<typeof createClient>>,
   businessId: string,
   agentId: string,
   key: string,
