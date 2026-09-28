@@ -30,5 +30,5 @@ export function parseComplianceRequest(prompt:string):ComplianceDraft{
  const priority=(/critical|urgent/i.test(prompt)?"critical":/high/i.test(prompt)?"high":/low/i.test(prompt)?"low":"normal") as ComplianceDraft["priority"];
  const category=prompt.match(/category\s*[:\-]\s*([^,;]+)/i)?.[1]?.trim()||"general";
  const ownerEmail=prompt.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0]?.toLowerCase()||null;
- return {name,authority,jurisdiction,dueDate,recurrence,priority,ownerEmail};
+ return {name,authority,category,jurisdiction,dueDate,recurrence,priority,ownerEmail};
 }
