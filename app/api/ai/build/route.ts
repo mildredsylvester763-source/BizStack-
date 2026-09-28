@@ -23,7 +23,7 @@ export async function POST(request: Request) {
   const {data:business}=await supabase.from('businesses').select('id').eq('owner_id',user.id).single();
   if(!business) return NextResponse.json({error:'Business not found'},{status:404});
   try{
-    const capability=['invoice','product_inventory','money_transaction','customer','connector','quote','cash_sale','supplier_price','commission','business_plan'].includes(body.capability) ? body.capability : 'website';
+    const capability=['invoice','product_inventory','money_transaction','customer','connector','quote','cash_sale','supplier_price','commission','business_plan','dual_currency','loan_readiness','obligation','payroll_advance'].includes(body.capability) ? body.capability : 'website';
     const result=capability==='invoice'
       ? await runInvoiceBuild({businessId:business.id,userId:user.id,prompt,mode})
       : capability==='product_inventory'
@@ -44,7 +44,15 @@ export async function POST(request: Request) {
                       ? await runCommissionBuild({businessId:business.id,userId:user.id,prompt,mode})
                       : capability==='business_plan'
                         ? await runBusinessDocumentBuild({businessId:business.id,userId:user.id,prompt,mode})
-                        : await runWebsiteBuild({businessId:business.id,userId:user.id,prompt,websiteId:typeof body.websiteId==='string'?body.websiteId:null,mode,publish:Boolean(body.publish)});
+                        : capability==='dual_currency'
+                          ? await runDualCurrencyBuild({businessId:business.id,userId:user.id,prompt,mode})
+                          : capability==='loan_readiness'
+                            ? await runLoanReadinessBuild({businessId:business.id,userId:user.id,prompt,mode})
+                            : capability==='obligation'
+                              ? await runObligationBuild({businessId:business.id,userId:user.id,prompt,mode})
+                              : capability==='payroll_advance'
+                                ? await runPayrollAdvanceBuild({businessId:business.id,userId:user.id,prompt,mode})
+                                : await runWebsiteBuild({businessId:business.id,userId:user.id,prompt,websiteId:typeof body.websiteId==='string'?body.websiteId:null,mode,publish:Boolean(body.publish)});
     return NextResponse.json(result);
   }catch(error){
     return NextResponse.json({error:error instanceof Error?error.message:'Build failed'},{status:400});
