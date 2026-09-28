@@ -29,6 +29,8 @@ type InvoiceActionRow = {
   status: string;
   currency: string;
   customer_id: string | null;
+  total: number;
+  paid_amount: number;
 };
 
 type CustomerActionRow = {
@@ -66,7 +68,7 @@ async function loadInvoiceForAction(
 ) {
   const { data: invoice, error: invoiceError } = await supabase
     .from("invoices")
-    .select("id, invoice_number, status, currency, customer_id")
+    .select("id, invoice_number, status, currency, customer_id, total, paid_amount")
     .eq("id", invoiceId)
     .eq("business_id", businessId)
     .single();
@@ -265,11 +267,11 @@ export async function markInvoicePaid(invoiceId: string) {
     return;
   }
 
-  const remaining = Math.max(0, Number((Number(invoice.status === "paid" ? 0 : 0))));
-  const currentTotal = calculateInvoiceTotal(items);
+  const currentTotal = Number(invoice.total || calculateInvoiceTotal(items));
+  const remaining = Math.max(0, currentTotal - Number(invoice.paid_amount || 0));
   const { error } = await supabase.rpc("record_invoice_payment", {
     p_invoice_id: invoiceId,
-    p_amount: Math.max(0, currentTotal),
+    p_amount: remaining,
     p_method: "manual",
     p_reference: "Marked paid from invoice action",
     p_payment_date: new Date().toISOString()
