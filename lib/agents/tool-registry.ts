@@ -4,6 +4,7 @@ import { runWebsiteBuild } from "@/lib/ai/build-engine/runtime";
 import { runInvoiceBuild } from "@/lib/ai/build-engine/invoice-runtime";
 import { runProductInventoryBuild } from "@/lib/ai/build-engine/operations-runtime";
 import { runSandboxCommand, sandboxConfigured, syncFiles } from "@/lib/sandbox/vercel";
+import { syncConnectorResource } from "@/lib/connectors/sync-runtime";
 
 export type ToolDefinition = {
   toolKey: string;
@@ -31,6 +32,7 @@ export const TOOL_REGISTRY: ToolDefinition[] = [
   { toolKey: "money.summary", name: "Money Summary", riskLevel: "low", permission: "read_money", description: "Read receivables and recent recorded financial activity.", inputSchema: emptyObject() },
   { toolKey: "wallet.summary", name: "Wallet Summary", riskLevel: "low", permission: "read_wallet", description: "Read wallet balances, statuses and recent wallet transactions.", inputSchema: emptyObject() },
   { toolKey: "integrations.list", name: "Inspect Connections", riskLevel: "low", permission: "read_integrations", description: "Inspect real integrations and their actual connection state.", inputSchema: emptyObject() },
+  { toolKey: "integrations.sync", name: "Sync Connected Resource", riskLevel: "medium", permission: "write_integrations", description: "Run a governed sync for a connected custom connector resource and persist the external records, cursor, run evidence and errors.", inputSchema: { type: "object", properties: { integration_id: { type: "string" }, resource_key: { type: "string" } }, required: ["integration_id","resource_key"] } },
   { toolKey: "website.build", name: "Build Website", riskLevel: "medium", permission: "build_websites", description: "Create or modify a real BizStack website from a natural-language request.", inputSchema: { type: "object", properties: { prompt: { type: "string" }, website_id: { type: "string" } }, required: ["prompt"] } },
   { toolKey: "events.create", name: "Create Business Event", riskLevel: "low", permission: "draft_actions", description: "Record an auditable internal action, recommendation or handoff.", inputSchema: { type: "object", properties: { event_type: { type: "string" }, summary: { type: "string" }, category: { type: "string" }, priority: { type: "string" }, action_type: { type: "string" } }, required: ["summary"] } },
   { toolKey: "projects.list", name: "Project Directory", riskLevel: "low", permission: "read_projects", description: "Inspect persistent software projects and their verified deployment state.", inputSchema: emptyObject() },
@@ -66,6 +68,7 @@ export type RuntimeContext = {
   supabase: ReturnType<typeof createClient>;
   businessId: string;
   userId: string;
+  projectId?: string | null;
 };
 
 export async function executeTool(toolKey: string, input: Record<string, unknown>, context: RuntimeContext): Promise<Record<string, unknown> | Record<string, unknown>[]> {
@@ -175,7 +178,7 @@ export async function executeTool(toolKey: string, input: Record<string, unknown
     if (error) throw error;
     return data ?? [];
   }
-
+\n  if (toolKey === "integrations.sync") {\n    const integrationId = String(input.integration_id ?? "").trim();\n    const resourceKey = String(input.resource_key ?? "").trim();\n    if (!integrationId || !resourceKey) throw new Error("integration_id and resource_key are required.");\n    return await syncConnectorResource({ supabase, businessId, integrationId, resourceKey });\n  }\n
   if (toolKey === "website.build") {
     const prompt = String(input.prompt ?? "").trim();
     if (!prompt) throw new Error("Website instructions are required.");
