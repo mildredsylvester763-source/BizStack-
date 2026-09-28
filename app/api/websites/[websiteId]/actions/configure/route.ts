@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 
-const ALLOWED_ACTIONS = new Set(["booking_request", "order_request"]);
+const ALLOWED_ACTIONS = new Set(["booking_request", "order_request", "quote_request", "lead_capture", "support_request"]);
 
 export async function POST(
   request: Request,
