@@ -10,6 +10,10 @@ import { runCustomerBuild } from "@/lib/ai/build-engine/customer-runtime";
 import { runQuoteBuild } from "@/lib/ai/build-engine/quote-runtime";
 import { runConnectorBuild } from "@/lib/ai/build-engine/connector-runtime";
 import { runDualCurrencyBuild, runLoanReadinessBuild, runObligationBuild, runPayrollAdvanceBuild } from "@/lib/ai/build-engine/finance-ops-runtime";
+import { runCashSaleBuild } from "@/lib/ai/build-engine/cash-sale-runtime";
+import { runSupplierPriceBuild } from "@/lib/ai/build-engine/supplier-price-runtime";
+import { runCommissionBuild } from "@/lib/ai/build-engine/commission-runtime";
+import { runBusinessDocumentBuild } from "@/lib/ai/build-engine/business-document-runtime";
 
 async function runBuild(formData: FormData) {
   "use server";
@@ -49,6 +53,14 @@ async function runBuild(formData: FormData) {
     await runObligationBuild({ businessId: business.id, userId: user.id, prompt, mode: "auto_execute" });
   } else if (capability === "payroll_advance") {
     await runPayrollAdvanceBuild({ businessId: business.id, userId: user.id, prompt, mode: "auto_execute" });
+  } else if (capability === "cash_sale") {
+    await runCashSaleBuild({ businessId: business.id, userId: user.id, prompt, mode: "auto_execute" });
+  } else if (capability === "supplier_price") {
+    await runSupplierPriceBuild({ businessId: business.id, userId: user.id, prompt, mode: "auto_execute" });
+  } else if (capability === "commission") {
+    await runCommissionBuild({ businessId: business.id, userId: user.id, prompt, mode: "auto_execute" });
+  } else if (capability === "business_plan") {
+    await runBusinessDocumentBuild({ businessId: business.id, userId: user.id, prompt, mode: "draft_only" });
   } else {
     await runWebsiteBuild({ businessId: business.id, userId: user.id, prompt, mode: "auto_execute", publish: false });
   }
@@ -145,6 +157,38 @@ export default async function AIBuilderPage() {
       description: "Sets a real base currency plus enabled secondary currencies while preserving FX metadata.",
       placeholder: "Enable NGN as my base currency and USD, GBP as secondary books.",
       tone: "ink"
+    },
+    {
+      capability: "cash_sale",
+      eyebrow: "Cash register",
+      title: "Record a market-style cash sale",
+      description: "Checks the real open register, resolves products, checks stock, records the sale and updates inventory.",
+      placeholder: "Cash sale 2 Premium Hoodie at 25000, cash received 60000.",
+      tone: "ink"
+    },
+    {
+      capability: "supplier_price",
+      eyebrow: "Supplier intelligence",
+      title: "Record a supplier price change",
+      description: "Updates the real supplier-product cost history and produces a thresholded alert.",
+      placeholder: "Supplier Acme Wholesale raised Premium Hoodie cost to 16500 NGN.",
+      tone: "vault"
+    },
+    {
+      capability: "commission",
+      eyebrow: "Agent commissions",
+      title: "Calculate an invoice commission",
+      description: "Links a real invoice and sales agent to a payable commission ledger.",
+      placeholder: "Calculate 7.5% commission for John Agent on invoice INV-0003.",
+      tone: "ink"
+    },
+    {
+      capability: "business_plan",
+      eyebrow: "Business documents",
+      title: "Draft a business plan or grant pack",
+      description: "Builds structured sections from the business graph with explicit assumptions and evidence boundaries.",
+      placeholder: "Create a grant application draft for a ₦5000000 expansion project focused on jobs, digital operations and revenue growth.",
+      tone: "vault"
     },
     {
       capability: "loan_readiness",
