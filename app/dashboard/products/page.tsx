@@ -10,7 +10,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 
 async function addProduct(formData: FormData) {
   "use server";
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user }
@@ -41,7 +41,7 @@ async function addProduct(formData: FormData) {
 }
 
 export default async function ProductsPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user }
