@@ -246,8 +246,8 @@ async function executeOperatorTurn(args: {
 
     for (const toolCall of message.tool_calls) {
       const toolName = toolCall.function?.name;
-      const projectId = typeof run.input?.project_id === "string" ? run.input.project_id : null;
-  const definition = getToolDefinition(toolName);
+      const activeProjectId = projectId || (typeof runId === "string" ? null : null);
+      const definition = getToolDefinition(toolName);
       if (!definition) throw new Error("The assistant requested an unknown tool: " + toolName);
 
       if (toolRequiresApproval(definition, agent)) {
