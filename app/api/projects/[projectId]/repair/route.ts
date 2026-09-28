@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
+import { executeRepair } from "@/lib/repair/engine";
 
 export const runtime="nodejs";
 
@@ -19,6 +20,22 @@ export async function POST(req:NextRequest,context:{params:{projectId:string}}){
   const body=await req.json().catch(()=>({}));
   const deploymentId=typeof body.deploymentId==="string"?body.deploymentId:"";
   if(!deploymentId)return NextResponse.json({error:"deploymentId is required."},{status:400});
+  const execute = body.execute === true;
+  if (execute) {
+    const { data: existingRepair, error: existingRepairError } = await supabase.from("ai_repair_runs")
+      .select("id,status")
+      .eq("deployment_id", deploymentId)
+      .eq("project_id", context.params.projectId)
+      .in("status", ["queued","planned","awaiting_approval"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (existingRepairError) throw existingRepairError;
+    if (!existingRepair) return NextResponse.json({ error: "No executable repair run exists for this deployment." }, { status: 409 });
+    const result = await executeRepair(existingRepair.id, user.id);
+    return NextResponse.json({ ok: true, mode: "execute", repair: result });
+  }
+
   const {data:deployment,error:de}=await supabase.from("ai_deployments").select("*").eq("id",deploymentId).eq("project_id",context.params.projectId).single();
   if(de||!deployment)return NextResponse.json({error:"Deployment record not found."},{status:404});
   const {data:project}=await supabase.from("ai_projects").select("id,business_id").eq("id",context.params.projectId).single();
