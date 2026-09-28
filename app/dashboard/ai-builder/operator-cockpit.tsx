@@ -36,7 +36,7 @@ export default function OperatorCockpit({
   const [apps,setApps]=useState<App[]>(FALLBACK),[appOpen,setAppOpen]=useState(false),[query,setQuery]=useState("");
   const [context,setContext]=useState<App[]>([]),[tab,setTab]=useState("chat"),[selectedEvent,setSelectedEvent]=useState<Event|null>(null),[approval,setApproval]=useState<any>(null),[picker,setPicker]=useState(false);
   const [projects,setProjects]=useState<Project[]>([]),[projectId,setProjectId]=useState(""),[files,setFiles]=useState<ProjectFile[]>([]),[selectedPath,setSelectedPath]=useState(""),[editor,setEditor]=useState(""),[fileDirty,setFileDirty]=useState(false),[saving,setSaving]=useState(false),[versioning,setVersioning]=useState(false);
-  const [terminalCommand,setTerminalCommand]=useState("npm run build"),[terminalOutput,setTerminalOutput]=useState(""),[terminalBusy,setTerminalBusy]=useState(false),[terminalPreview,setTerminalPreview]=useState("");
+  const [terminalCommand,setTerminalCommand]=useState("npm run build"),[terminalOutput,setTerminalOutput]=useState(""),[terminalBusy,setTerminalBusy]=useState(false),[terminalPreview,setTerminalPreview]=useState("");\n  const [previewUrl,setPreviewUrl]=useState("");
   const [projectOpen,setProjectOpen]=useState(false),[newProject,setNewProject]=useState({name:"",slug:"",framework:"Next.js",runtime:"Node.js"}),[projectCreating,setProjectCreating]=useState(false);
 
   const project=useMemo(()=>projects.find(p=>p.id===projectId)||null,[projects,projectId]);
