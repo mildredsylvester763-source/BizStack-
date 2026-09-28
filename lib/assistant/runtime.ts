@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase-server";
+import { runBizStackModel, type BizStackModelMessage, type BizStackTool } from "@/lib/ai/providers/router";
 import { executeTool, getToolDefinition, TOOL_REGISTRY, type RuntimeContext } from "@/lib/agents/tool-registry";
 
 type Message = {
@@ -14,9 +15,7 @@ type ToolCall = {
   function: { name: string; arguments: string };
 };
 
-type ModelMessage = Message & {
-  tool_calls?: ToolCall[];
-};
+type ModelMessage = BizStackModelMessage;
 
 type OperatorResult = {
   conversationId: string;
@@ -27,61 +26,19 @@ type OperatorResult = {
   toolResults?: Array<{ tool: string; output: unknown }>;
 };
 
-function providerConfigured() {
-  return Boolean(process.env.BIZSTACK_AI_API_URL && process.env.BIZSTACK_AI_API_KEY);
-}
-
-function normalizeResponse(body: any): { message?: ModelMessage } {
-  const raw = body?.choices?.[0]?.message ?? body?.output?.[0]?.content ?? body?.message ?? body;
-  if (!raw || typeof raw !== "object") return {};
-  if (Array.isArray(raw.content)) {
-    const text = raw.content
-      .filter((part: any) => typeof part?.text === "string")
-      .map((part: any) => part.text)
-      .join("");
-    return { message: { ...raw, content: text } };
-  }
-  return { message: raw as ModelMessage };
-}
-
-async function askModel(messages: ModelMessage[]) {
-  if (!providerConfigured()) {
-    throw new Error(
-      "The BizStack AI engine is not connected to a model provider yet. Configure BIZSTACK_AI_API_URL and BIZSTACK_AI_API_KEY on the server."
-    );
-  }
-
-  const tools = TOOL_REGISTRY.map((tool) => ({
-    type: "function",
+function toProviderTools(): BizStackTool[] {
+  return TOOL_REGISTRY.map((tool) => ({
+    type: "function" as const,
     function: {
       name: tool.toolKey,
       description: tool.description,
-      parameters: tool.inputSchema
+      parameters: tool.inputSchema as Record<string, unknown>
     }
   }));
+}
 
-  const response = await fetch(process.env.BIZSTACK_AI_API_URL as string, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: "Bearer " + process.env.BIZSTACK_AI_API_KEY
-    },
-    body: JSON.stringify({
-      model: process.env.BIZSTACK_AI_MODEL || "default",
-      temperature: 0.15,
-      messages,
-      tools,
-      tool_choice: "auto"
-    }),
-    cache: "no-store"
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error("AI provider returned HTTP " + response.status + ": " + error.slice(0, 500));
-  }
-
-  return normalizeResponse(await response.json());
+async function askModel(messages: ModelMessage[]) {
+  return runBizStackModel(messages, toProviderTools());
 }
 
 async function getBusiness(supabase: ReturnType<typeof createClient>, userId: string) {
@@ -441,7 +398,7 @@ export async function runUniversalAssistant({
 
   const history = await getConversationMessages(supabase, conversationIdValue);
   const messages: ModelMessage[] = [
-    { role: "system", content: systemPrompt(business) },
+    { role: "system", content: systemPrompt(business, projectId) },
     ...history
   ];
 
