@@ -158,7 +158,7 @@ export async function runWebsiteBuild(args: { businessId:string; userId:string; 
     if(projectId){
       const {data:project,error:projectError}=await supabase.from("ai_projects").select("id,name,status,business_id").eq("id",projectId).eq("business_id",businessId).single();
       if(projectError||!project||project.status==="deleted") throw new Error("Target Builder project was not found.");
-      const files=compileWebsiteToProject(spec);
+      const files=compileWebsiteToProject(spec, websiteId);
       const {createHash}=await import("node:crypto");
       for(const file of files){
         const {data:existing}=await supabase.from("ai_project_files").select("id,version_no").eq("project_id",project.id).eq("path",file.path).maybeSingle();
