@@ -1,4 +1,3 @@
-// @ts-nocheck
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -6,7 +5,7 @@ import { createClient } from "@/lib/supabase-server";
 
 async function changeStatus(formData:FormData){
   "use server";
-  const supabase=createClient();
+  const supabase=await createClient();
   const {data:{user}}=await supabase.auth.getUser();if(!user)redirect("/login");
   const {data:business}=await supabase.from("businesses").select("id").eq("owner_id",user.id).single();if(!business)redirect("/onboarding");
   const id=String(formData.get("id")||""),status=String(formData.get("status")||"draft");
@@ -18,7 +17,7 @@ async function changeStatus(formData:FormData){
 
 async function buildDocument(formData:FormData){
   "use server";
-  const supabase=createClient();
+  const supabase=await createClient();
   const {data:{user}}=await supabase.auth.getUser();if(!user)redirect("/login");
   const {data:business}=await supabase.from("businesses").select("id").eq("owner_id",user.id).single();if(!business)redirect("/onboarding");
   const prompt=String(formData.get("prompt")||"").trim();if(!prompt)throw new Error("Describe the document you need.");
@@ -29,7 +28,7 @@ async function buildDocument(formData:FormData){
 }
 
 export default async function DocumentsPage(){
- const supabase=createClient();
+ const supabase=await createClient();
  const {data:{user}}=await supabase.auth.getUser();if(!user)redirect("/login");
  const {data:business}=await supabase.from("businesses").select("id,name").eq("owner_id",user.id).single();if(!business)redirect("/onboarding");
  const {data:documents}=await supabase.from("ai_business_documents").select("id,document_type,title,status,version,audience,funder_name,content,assumptions,validation,created_at,updated_at").eq("business_id",business.id).order("updated_at",{ascending:false});
