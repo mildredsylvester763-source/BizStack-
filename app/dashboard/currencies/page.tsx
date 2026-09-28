@@ -1,4 +1,3 @@
-// @ts-nocheck
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -6,7 +5,7 @@ import { createClient } from "@/lib/supabase-server";
 
 async function saveRate(formData: FormData) {
   "use server";
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const { data: business } = await supabase.from("businesses").select("id").eq("owner_id", user.id).single();
@@ -30,7 +29,7 @@ async function saveRate(formData: FormData) {
 }
 
 export default async function CurrenciesPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const { data: business } = await supabase.from("businesses").select("id,name,currency").eq("owner_id", user.id).single();
