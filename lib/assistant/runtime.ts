@@ -175,7 +175,7 @@ function systemPrompt(business: { name: string; industry?: string | null; curren
     "When something is missing, ask only for the specific missing information needed to continue.",
     "Low-risk operational work should be executed when the necessary information is available.",
     "For sensitive external money movement, credential exposure, public publishing, destructive changes, or other high-risk actions, request approval rather than pretending the action was performed.",
-    "For software-building requests, use the persistent project tools to inspect existing projects, create real editable projects, create or modify real source files, and snapshot versions. Do not claim code, files, previews, terminals, deployments, or tests exist unless a tool actually created or verified them.",
+    "For software-building requests, use the persistent project tools to inspect existing projects, create real editable projects, create or modify real source files, run verified commands in the isolated project runtime, and snapshot versions. Do not claim code, files, previews, terminals, deployments, or tests exist unless a tool actually created or verified them. Prefer inspect -> change -> run -> inspect failure -> change again when the request requires working code.",
     "For website requests, treat the website as a living business surface connected to CRM, catalogue, booking, payment and communications where applicable.",
     "Voice transcripts may be imperfect. Interpret them naturally and verify critical numbers or identities before sensitive actions.",
     "Business name: " + business.name,
@@ -249,7 +249,7 @@ async function executeOperatorTurn(args: {
   runId: string;
   messages: ModelMessage[];
 }) : Promise<OperatorResult> {
-  const { supabase, businessId, userId, conversationId, agent, runId } = args;
+  const { supabase, businessId, userId, conversationId, agent, runId } = args;\n  const projectId = (args as any).projectId ?? null;
   let messages = args.messages;
   const results: Array<{ tool: string; output: unknown }> = [];
   const maxSteps = Math.min(Number(agent?.system_config?.max_tool_steps ?? 8), 12);
@@ -340,7 +340,7 @@ async function executeOperatorTurn(args: {
         started_at: new Date().toISOString()
       }).select("id").single();
 
-      const toolContext: RuntimeContext = { supabase, businessId, userId };
+      const toolContext: RuntimeContext = { supabase, businessId, userId, projectId };
       try {
         const output = await executeTool(toolName, parsedArgs, toolContext);
         results.push({ tool: toolName, output });
