@@ -36,6 +36,7 @@ export default function OperatorCockpit({
   const [apps,setApps]=useState<App[]>(FALLBACK),[appOpen,setAppOpen]=useState(false),[query,setQuery]=useState("");
   const [context,setContext]=useState<App[]>([]),[tab,setTab]=useState("chat"),[selectedEvent,setSelectedEvent]=useState<Event|null>(null),[approval,setApproval]=useState<any>(null),[picker,setPicker]=useState(false);
   const [projects,setProjects]=useState<Project[]>([]),[projectId,setProjectId]=useState(""),[files,setFiles]=useState<ProjectFile[]>([]),[selectedPath,setSelectedPath]=useState(""),[editor,setEditor]=useState(""),[fileDirty,setFileDirty]=useState(false),[saving,setSaving]=useState(false),[versioning,setVersioning]=useState(false);
+  const [terminalCommand,setTerminalCommand]=useState("npm run build"),[terminalOutput,setTerminalOutput]=useState(""),[terminalBusy,setTerminalBusy]=useState(false),[terminalPreview,setTerminalPreview]=useState("");
   const [projectOpen,setProjectOpen]=useState(false),[newProject,setNewProject]=useState({name:"",slug:"",framework:"Next.js",runtime:"Node.js"}),[projectCreating,setProjectCreating]=useState(false);
 
   const project=useMemo(()=>projects.find(p=>p.id===projectId)||null,[projects,projectId]);
@@ -149,6 +150,31 @@ export default function OperatorCockpit({
     finally{setProjectCreating(false)}
   }
 
+  function parseCommand(line:string){
+    const parts=line.trim().split(/\s+/).filter(Boolean);
+    return {cmd:parts.shift()||"",args:parts};
+  }
+
+  async function runTerminal(){
+    if(!project||terminalBusy)return;
+    const parsed=parseCommand(terminalCommand);
+    if(!parsed.cmd)return;
+    setTerminalBusy(true);setTerminalOutput("");
+    try{
+      const sync=await fetch("/api/projects/"+encodeURIComponent(project.id)+"/runtime",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"sync"})});
+      const sx=await sync.json().catch(()=>({}));
+      if(!sync.ok)throw new Error(sx.error||"Sandbox sync failed.");
+      const r=await fetch("/api/projects/"+encodeURIComponent(project.id)+"/runtime",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"run",cmd:parsed.cmd,args:parsed.args})});
+      const x=await r.json().catch(()=>({}));
+      if(!r.ok)throw new Error(x.error||"Sandbox command failed.");
+      const out=[x.session?.output,x.session?.error_output].filter(Boolean).join("\n");
+      setTerminalOutput(out||("Exit code: "+String(x.session?.exit_code??0)));
+      setTerminalPreview(x.sandbox?.preview_url||"");
+      setMessages(v=>[...v,{role:"assistant",content:"Sandbox command completed: "+parsed.cmd}]);
+    }catch(e){setTerminalOutput(e instanceof Error?e.message:"Sandbox command failed.")}
+    finally{setTerminalBusy(false)}
+  }
+
   async function connect(app:App){
     if(app.slug==="custom-connector"){location.href="/dashboard/integrations?custom=1";return}
     const r=await fetch("/api/apps/connect",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({app:app.slug})});
@@ -174,7 +200,7 @@ export default function OperatorCockpit({
 
     <div className="grid xl:grid-cols-[390px_minmax(0,1fr)_270px] min-h-[calc(100vh-96px)]">
       <section className="bg-[#101217] border-r border-white/[.07] flex flex-col min-h-0">
-        <nav className="h-10 px-3 border-b border-white/[.06] flex items-center gap-1">{["chat","code","preview","run"].map(x=><button key={x} onClick={()=>setTab(x)} className={tab===x?"px-2.5 py-1.5 rounded bg-white/[.08] text-[9px]":"px-2.5 py-1.5 text-white/30 text-[9px]"}>{x}</button>)}</nav>
+        <nav className="h-10 px-3 border-b border-white/[.06] flex items-center gap-1">{["chat","code","preview","terminal","run"].map(x=><button key={x} onClick={()=>setTab(x)} className={tab===x?"px-2.5 py-1.5 rounded bg-white/[.08] text-[9px]":"px-2.5 py-1.5 text-white/30 text-[9px]"}>{x}</button>)}</nav>
         <div className="flex-1 overflow-y-auto">
           {tab==="chat"&&<div className="p-4 space-y-5">
             {!messages.length&&<div className="pt-8"><div className="text-[8px] uppercase tracking-[.2em] text-white/20">Autonomous workspace</div><h2 className="text-3xl mt-2 tracking-tight">What should I handle?</h2><p className="text-[11px] text-white/35 leading-5 mt-3">Tell the Operator the outcome. It can now work against real project records and source files.</p><div className="grid grid-cols-2 gap-2 mt-5">{quickActions.map(x=><button key={x} onClick={()=>setInput(x)} className="text-left p-3 rounded-xl border border-white/[.07] text-[9px] text-white/45 hover:bg-white/[.04]">{x}</button>)}</div></div>}
@@ -187,6 +213,11 @@ export default function OperatorCockpit({
             <div className="flex-1 flex flex-col min-w-0"><div className="h-10 px-3 border-b border-white/[.06] flex items-center gap-2"><span className="text-[9px] text-white/40 truncate">{selectedPath||"Select a file"}</span>{selectedFile&&<span className="text-[8px] text-white/15 ml-auto">v{selectedFile.version_no} · {selectedFile.content_sha?.slice(0,10)||"no checksum"}</span>}{fileDirty&&<span className="text-[8px] text-amber-200">unsaved</span>}<button onClick={()=>void snapshot()} disabled={!project||versioning||saving} className="ml-auto px-2.5 py-1.5 rounded-lg bg-indigo-400/10 text-[8px] text-indigo-200 disabled:opacity-20">Snapshot</button><button onClick={()=>void saveFile()} disabled={!project||!selectedPath||!fileDirty||saving} className="px-2.5 py-1.5 rounded-lg bg-white text-black text-[8px] disabled:opacity-20">{saving?"Saving…":"Save"}</button></div><textarea value={editor} onChange={e=>{setEditor(e.target.value);setFileDirty(true)}} spellCheck={false} disabled={!selectedFile} placeholder={project?"Select a source file":"Select a project"} className="flex-1 min-h-[570px] resize-none bg-[#0b0d11] px-4 py-4 font-mono text-[11px] leading-5 text-white/75 outline-none"/></div>
           </div>}
           {tab==="preview"&&<div className="p-4 space-y-3"><div className="text-[9px] uppercase tracking-[.18em] text-white/20">Executable project surface</div>{project?<div className="rounded-2xl border border-white/[.07] p-4 bg-white/[.02]"><div className="flex items-start justify-between gap-4"><div><h3 className="text-sm">{project.name}</h3><p className="text-[9px] text-white/25 mt-1">{project.framework||"Framework not declared"} · {project.runtime||"Runtime not declared"}</p></div><span className="text-[8px] text-emerald-300">{project.status}</span></div><div className="grid sm:grid-cols-2 gap-2 mt-4"><div className="rounded-xl bg-white/[.03] p-3"><div className="text-[8px] text-white/20 uppercase">Preview</div><p className="text-[9px] mt-2 text-white/40">{project.preview_url||"No verified preview deployment yet."}</p>{project.preview_url&&<a className="text-[8px] text-indigo-200 mt-2 inline-block" href={project.preview_url} target="_blank" rel="noreferrer">Open preview →</a>}</div><div className="rounded-xl bg-white/[.03] p-3"><div className="text-[8px] text-white/20 uppercase">Production</div><p className="text-[9px] mt-2 text-white/40">{project.production_url||"No production deployment recorded."}</p>{project.production_url&&<a className="text-[8px] text-indigo-200 mt-2 inline-block" href={project.production_url} target="_blank" rel="noreferrer">Open production →</a>}</div></div></div>:<div className="rounded-2xl border border-white/[.07] p-5 text-[10px] text-white/25">No project selected. The preview surface will only display a real project URL once an actual runtime/deployment has produced one.</div>}</div>}
+          {tab==="terminal"&&<div className="h-full min-h-[620px] flex flex-col bg-[#090b0e]">
+            <div className="px-4 py-3 border-b border-white/[.06] flex items-center gap-3"><div><div className="text-[8px] uppercase tracking-[.18em] text-white/20">Isolated terminal</div><div className="text-[9px] text-white/35 mt-1">{project?.name||"No project attached"}</div></div><div className="ml-auto text-[8px] text-white/15">{terminalBusy?"running":"idle"}</div></div>
+            <div className="flex-1 p-4 font-mono text-[10px] leading-5 text-white/60 overflow-auto whitespace-pre-wrap">{terminalOutput||"Sandbox output will appear here. Commands execute only through the isolated runtime adapter; no host shell is used."}</div>
+            <div className="p-3 border-t border-white/[.06]"><div className="flex gap-2"><span className="px-2 py-2 text-emerald-300/70">$</span><input value={terminalCommand} onChange={e=>setTerminalCommand(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();void runTerminal()}}} disabled={!project||terminalBusy} className="flex-1 bg-transparent outline-none text-[10px] font-mono text-white/70" placeholder="npm install / npm run build / node …"/><button onClick={()=>void runTerminal()} disabled={!project||terminalBusy||!terminalCommand.trim()} className="px-3 rounded-lg bg-white text-black text-[8px] disabled:opacity-20">{terminalBusy?"Running…":"Run"}</button></div>{terminalPreview&&<div className="mt-2 text-[8px] text-indigo-200">Preview: {terminalPreview}</div>}</div>
+          </div>
           {tab==="run"&&<div>{events.length?events.map(e=><button key={e.id} onClick={()=>setSelectedEvent(e)} className="w-full text-left px-4 py-3 border-b border-white/[.05] hover:bg-white/[.03]"><div className="flex gap-2 text-[9px]"><span className={e.status==="failed"?"text-red-300":"text-emerald-300"}>●</span><span className="text-white/55">{e.title}</span><span className="ml-auto text-white/20">{e.status}</span></div>{e.detail&&<p className="text-[8px] text-white/20 mt-1">{e.detail}</p>}</button>):<div className="p-5 text-[9px] text-white/20">No runtime events recorded for this workspace yet.</div>}</div>}
         </div>
         <div className="p-3 border-t border-white/[.07]"><div className="rounded-2xl border border-white/[.1] bg-[#15181e] p-2">{picker&&<div className="mb-2 p-2 rounded-xl bg-[#1b1e25]">{apps.filter(a=>a.connected).map(a=><button key={a.slug} onClick={()=>{setContext(v=>v.some(x=>x.slug===a.slug)?v:[...v,a]);setPicker(false)}} className="block w-full text-left px-2 py-2 text-[9px] hover:bg-white/[.05]">@{a.name}</button>)}{!apps.some(a=>a.connected)&&<button onClick={()=>{setPicker(false);setAppOpen(true)}} className="text-[9px] text-indigo-200 p-2">Connect an app →</button>}</div>}<div className="flex items-end gap-2"><button onClick={()=>setPicker(v=>!v)} className="w-8 h-8 rounded-xl bg-white/[.05] text-white/40">+</button><VoiceInput onTranscript={setInput}/><textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();void send()}}} rows={2} placeholder="Ask the Operator to do something…" className="flex-1 resize-none bg-transparent outline-none text-[11px] leading-5 placeholder:text-white/20"/><button onClick={()=>void send()} disabled={!input.trim()||busy} className="w-9 h-9 rounded-xl bg-white text-black disabled:opacity-20">↑</button></div></div><p className="text-[8px] text-white/15 mt-2">Enter run · Shift+Enter newline · + adds connected tools to this turn</p></div>
