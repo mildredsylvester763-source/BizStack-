@@ -20,8 +20,15 @@ export async function POST(request: Request, { params }: { params: { projectId: 
     const spec = ACTIONS[action];
     if (!spec) return NextResponse.json({ error: "Unsupported terminal action." }, { status: 400 });
 
-    const { data: project, error } = await supabase.from("ai_projects").select("id,status").eq("id", params.projectId).single();
+    const { data: project, error } = await supabase.from("ai_projects").select("id,status,business_id").eq("id", params.projectId).single();
     if (error || !project || project.status === "deleted") return NextResponse.json({ error: "Project not found." }, { status: 404 });
+
+    const { data: canRun } = await supabase.rpc("user_can_business", {
+      p_business_id: project.business_id,
+      p_user_id: user.id,
+      p_permission: "run_project_runtime"
+    });
+    if (!canRun) return NextResponse.json({ error: "You do not have permission to run this project." }, { status: 403 });
 
     const { data: session, error: sessionError } = await supabase.from("ai_terminal_sessions").insert({
       project_id: project.id, user_id: user.id, status: "running",
