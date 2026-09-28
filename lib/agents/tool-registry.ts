@@ -249,11 +249,18 @@ export async function executeTool(toolKey: string, input: Record<string, unknown
       written.push(saved);
     }
 
+    const { data: snapshotFiles, error: snapshotError } = await supabase
+      .from("ai_project_files")
+      .select("path,content,content_sha,language,size_bytes,is_binary,version_no")
+      .eq("project_id", project.id)
+      .order("path", { ascending: true });
+    if (snapshotError) throw snapshotError;
+
     const { data: version, error: versionError } = await supabase.from("ai_project_versions").insert({
       project_id: project.id,
       version_no: 1,
       message: "Initial project snapshot",
-      snapshot: { format: "bizstack-project-snapshot/v1", files: written },
+      snapshot: { format: "bizstack-project-snapshot/v1", files: snapshotFiles ?? [], captured_at: new Date().toISOString() },
       created_by: userId
     }).select("id,version_no,message,created_at").single();
     if (versionError) throw versionError;
