@@ -5,7 +5,7 @@ type Data={authenticated:boolean;portal?:any;customer?:any;invoices?:any[]};
 
 export default function PortalClient({slug,initial}:{slug:string;initial:Data}){
  const [data,setData]=useState<Data>(initial),[email,setEmail]=useState(""),[token,setToken]=useState(""),[busy,setBusy]=useState(false),[notice,setNotice]=useState("");
- useEffect(()=>{const t=new URLSearchParams(location.search).get("token");if(t){setToken(t);void verify(t)}},[]);
+ useEffect(()=>{const t=new URLSearchParams(location.search).get("token");if(t){setToken(t);void verify(t);return;} (async()=>{try{const r=await fetch("/api/portal/session",{cache:"no-store"});const x=await r.json();if(x.authenticated)setData(x);}catch{}})()},[]);
  async function verify(raw:string){
   setBusy(true);setNotice("");
   try{const r=await fetch("/api/portal/verify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:raw})});const x=await r.json();if(!r.ok)throw new Error(x.error||"Access link failed.");const s=await fetch("/api/portal/session",{cache:"no-store"});setData(await s.json());history.replaceState({}, "", "/portal/"+encodeURIComponent(slug));}catch(e){setNotice(e instanceof Error?e.message:"Access verification failed.");}finally{setBusy(false)}
