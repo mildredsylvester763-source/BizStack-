@@ -88,8 +88,9 @@ async function getBusiness(supabase: ReturnType<typeof createClient>, userId: st
   const { data: business, error } = await supabase
     .from("businesses")
     .select("id,name,industry,currency,workspace_id,organization_id")
-    .eq("owner_id", userId)
-    .single();
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
 
   if (error || !business) throw new Error("Business context is not available.");
   return business;
@@ -160,6 +161,7 @@ function systemPrompt(business: { name: string; industry?: string | null; curren
     "When something is missing, ask only for the specific missing information needed to continue.",
     "Low-risk operational work should be executed when the necessary information is available.",
     "For sensitive external money movement, credential exposure, public publishing, destructive changes, or other high-risk actions, request approval rather than pretending the action was performed.",
+    "For software-building requests, use the persistent project tools to inspect existing projects, create real editable projects, create or modify real source files, and snapshot versions. Do not claim code, files, previews, terminals, deployments, or tests exist unless a tool actually created or verified them.",
     "For website requests, treat the website as a living business surface connected to CRM, catalogue, booking, payment and communications where applicable.",
     "Voice transcripts may be imperfect. Interpret them naturally and verify critical numbers or identities before sensitive actions.",
     "Business name: " + business.name,
