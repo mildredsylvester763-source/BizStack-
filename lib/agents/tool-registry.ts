@@ -325,7 +325,7 @@ export async function executeTool(toolKey: string, input: Record<string, unknown
     if (!websiteId) throw new Error("Website ID is required.");
     const { data: website, error: websiteError } = await supabase.from("websites").select("id,settings,status").eq("id", websiteId).eq("business_id", businessId).single();
     if (websiteError || !website) throw new Error("Website not found for this business.");
-    const allowed = new Set(["business_profile","products","inventory_availability"]);
+    const allowed = new Set(["business_profile","products","inventory_availability","services","locations","opening_hours","bookings","public_reviews"]);
     const rawSources = Array.isArray(input.sources) ? input.sources : [];
     const sources = rawSources.map((source) => {
       const item = source && typeof source === "object" ? source as Record<string, unknown> : {};
