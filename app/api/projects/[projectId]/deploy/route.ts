@@ -16,6 +16,10 @@ export async function POST(req:NextRequest,context:{params:{projectId:string}}){
   const supabase=createClient();
   const {data:{user}}=await supabase.auth.getUser();
   if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
+  const { data: projectAccess } = await supabase.from("ai_projects").select("id,business_id,status").eq("id",context.params.projectId).maybeSingle();
+  if(!projectAccess || projectAccess.status==="deleted") return NextResponse.json({error:"Project not found."},{status:404});
+  const { data: canDeploy } = await supabase.rpc("user_can_business",{p_business_id:projectAccess.business_id,p_user_id:user.id,p_permission:"deploy_projects"});
+  if(!canDeploy) return NextResponse.json({error:"You do not have permission to deploy this project."},{status:403});
   const body=await req.json().catch(()=>({}));
   const environment=body.environment==="production"?"production":"preview";
   const gitRef=typeof body.gitRef==="string"&&body.gitRef?body.gitRef:"main";
