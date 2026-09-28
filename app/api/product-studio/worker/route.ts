@@ -22,7 +22,7 @@ export async function POST(req:NextRequest){
   try{
    const response=await fetch(process.env.BIZSTACK_IMAGE_API_URL!,{
     method:"POST",
-    headers:{"content-type":"application/json","authorization:"Bearer "+process.env.BIZSTACK_IMAGE_API_KEY!},
+    headers:{"content-type":"application/json","authorization":"Bearer "+process.env.BIZSTACK_IMAGE_API_KEY!},
     body:JSON.stringify({prompt:job.prompt,style:job.style,assetType:job.asset_type,productId:job.product_id}),
     cache:"no-store"
    });
