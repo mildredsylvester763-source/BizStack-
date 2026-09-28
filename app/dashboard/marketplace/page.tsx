@@ -1,29 +1,28 @@
-// @ts-nocheck
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase-server";
 
 async function createListing(formData:FormData){
- "use server"; const supabase=createClient();
+ "use server"; const supabase=await createClient();
  const {data:{user}}=await supabase.auth.getUser(); if(!user)redirect("/login");
  const {data:business}=await supabase.from("businesses").select("id,currency").eq("owner_id",user.id).single(); if(!business)redirect("/onboarding");
  const {error}=await supabase.from("marketplace_listings").insert({seller_business_id:business.id,title:String(formData.get("title")||"").trim(),description:String(formData.get("description")||"").trim(),listing_type:String(formData.get("listingType")||"service"),category:String(formData.get("category")||"general"),price:formData.get("price")?Number(formData.get("price")):null,currency:String(formData.get("currency")||business.currency||"USD"),quantity_available:formData.get("quantity")?Number(formData.get("quantity")):null,status:"draft",tags:String(formData.get("tags")||"").split(",").map(v=>v.trim()).filter(Boolean),created_by:user.id});
  if(error)throw new Error(error.message); revalidatePath("/dashboard/marketplace");
 }
 async function publishListing(formData:FormData){
- "use server"; const supabase=createClient(); const {data:{user}}=await supabase.auth.getUser(); if(!user)redirect("/login"); const {data:business}=await supabase.from("businesses").select("id").eq("owner_id",user.id).single(); if(!business)redirect("/onboarding"); const id=String(formData.get("id")||"");
+ "use server"; const supabase=await createClient(); const {data:{user}}=await supabase.auth.getUser(); if(!user)redirect("/login"); const {data:business}=await supabase.from("businesses").select("id").eq("owner_id",user.id).single(); if(!business)redirect("/onboarding"); const id=String(formData.get("id")||"");
  await supabase.from("marketplace_listings").update({status:"published",updated_at:new Date().toISOString()}).eq("id",id).eq("seller_business_id",business.id); revalidatePath("/dashboard/marketplace");
 }
 async function inquire(formData:FormData){
- "use server"; const supabase=createClient(); const {data:{user}}=await supabase.auth.getUser(); if(!user)redirect("/login"); const {data:business}=await supabase.from("businesses").select("id").eq("owner_id",user.id).single(); if(!business)redirect("/onboarding"); const id=String(formData.get("listingId")||""); const message=String(formData.get("message")||"").trim();
+ "use server"; const supabase=await createClient(); const {data:{user}}=await supabase.auth.getUser(); if(!user)redirect("/login"); const {data:business}=await supabase.from("businesses").select("id").eq("owner_id",user.id).single(); if(!business)redirect("/onboarding"); const id=String(formData.get("listingId")||""); const message=String(formData.get("message")||"").trim();
  const {data:listing}=await supabase.from("marketplace_listings").select("id,seller_business_id,status").eq("id",id).eq("status","published").single();
  if(!listing||listing.seller_business_id===business.id)throw new Error("Listing unavailable for inquiry.");
  await supabase.from("marketplace_inquiries").insert({listing_id:id,buyer_business_id:business.id,message,requested_quantity:formData.get("quantity")?Number(formData.get("quantity")):null,offer_amount:formData.get("offer")?Number(formData.get("offer")):null,currency:formData.get("currency")||null});
  revalidatePath("/dashboard/marketplace");
 }
 export default async function MarketplacePage(){
- const supabase=createClient(); const {data:{user}}=await supabase.auth.getUser(); if(!user)redirect("/login");
+ const supabase=await createClient(); const {data:{user}}=await supabase.auth.getUser(); if(!user)redirect("/login");
  const {data:business}=await supabase.from("businesses").select("id,name,currency").eq("owner_id",user.id).single(); if(!business)redirect("/onboarding");
  const [{data:mine},{data:listings},{data:inquiries}]=await Promise.all([
   supabase.from("marketplace_listings").select("id,title,description,listing_type,category,price,currency,quantity_available,status,tags,created_at").eq("seller_business_id",business.id).order("created_at",{ascending:false}),
