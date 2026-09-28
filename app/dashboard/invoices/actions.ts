@@ -144,16 +144,13 @@ export async function createInvoice(
     throw new Error("That customer could not be found for this business.");
   }
 
-  const { count, error: countError } = await supabase
-    .from("invoices")
-    .select("id", { count: "exact", head: true })
-    .eq("business_id", business.id);
+  const { data: invoiceNumber, error: numberError } = await supabase.rpc("next_invoice_number", {
+    p_business_id: business.id
+  });
 
-  if (countError) {
-    throw new Error("Unable to number this invoice: " + countError.message);
+  if (numberError || !invoiceNumber) {
+    throw new Error("Unable to number this invoice: " + (numberError?.message ?? "Unknown error"));
   }
-
-  const invoiceNumber = "INV-" + String((count ?? 0) + 1).padStart(4, "0");
   const { data: invoice, error: invoiceError } = await supabase
     .from("invoices")
     .insert({
@@ -185,7 +182,16 @@ export async function createInvoice(
     throw new Error("Unable to save invoice lines: " + itemsError.message);
   }
 
-  const total = calculateInvoiceTotal(items);
+  const { data: calculatedInvoice, error: calculationError } = await supabase.rpc(
+    "recalculate_invoice_totals",
+    { p_invoice_id: invoice.id }
+  );
+  if (calculationError || !calculatedInvoice) {
+    await supabase.from("invoices").delete().eq("id", invoice.id).eq("business_id", business.id);
+    throw new Error("Unable to calculate invoice totals: " + (calculationError?.message ?? "Unknown error"));
+  }
+
+  const total = Number(calculatedInvoice.total ?? calculateInvoiceTotal(items));
   await logEvent(
     business.id,
     "invoice.created",
@@ -259,17 +265,21 @@ export async function markInvoicePaid(invoiceId: string) {
     return;
   }
 
-  const { error } = await supabase
-    .from("invoices")
-    .update({ status: "paid", paid_at: new Date().toISOString() })
-    .eq("id", invoiceId)
-    .eq("business_id", business.id);
+  const remaining = Math.max(0, Number((Number(invoice.status === "paid" ? 0 : 0))));
+  const currentTotal = calculateInvoiceTotal(items);
+  const { error } = await supabase.rpc("record_invoice_payment", {
+    p_invoice_id: invoiceId,
+    p_amount: Math.max(0, currentTotal),
+    p_method: "manual",
+    p_reference: "Marked paid from invoice action",
+    p_payment_date: new Date().toISOString()
+  });
 
   if (error) {
-    throw new Error("Unable to mark invoice as paid: " + error.message);
+    throw new Error("Unable to record invoice payment: " + error.message);
   }
 
-  const total = calculateInvoiceTotal(items);
+  const total = currentTotal;
   await logEvent(
     business.id,
     "invoice.paid",
