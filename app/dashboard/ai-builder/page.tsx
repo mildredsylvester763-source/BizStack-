@@ -16,6 +16,7 @@ import { runCommissionBuild } from "@/lib/ai/build-engine/commission-runtime";
 import { runBusinessDocumentBuild } from "@/lib/ai/build-engine/business-document-runtime";
 import { runSmsWalletBuild, runAppointmentBuild, runDigitalMenuBuild, runWaiverBuild } from "@/lib/ai/build-engine/customer-experience-runtime";
 import { runThriftBuild, runBusinessCreditBuild, runSuccessorAccessBuild, runComplianceBuild } from "@/lib/ai/build-engine/continuity-runtime";
+import { runVoiceAgentBuild, runBroadcastBuild, runCarbonReportBuild, runFractionalCfoBuild } from "@/lib/ai/build-engine/intelligence-runtime";
 
 async function runBuild(formData: FormData) {
   "use server";
@@ -79,6 +80,14 @@ async function runBuild(formData: FormData) {
     await runSuccessorAccessBuild({ businessId: business.id, userId: user.id, prompt, mode: "ask_first" });
   } else if (capability === "compliance") {
     await runComplianceBuild({ businessId: business.id, userId: user.id, prompt, mode: "auto_execute" });
+  } else if (capability === "voice_agent") {
+    await runVoiceAgentBuild({ businessId: business.id, userId: user.id, prompt, mode: "ask_first" });
+  } else if (capability === "broadcast") {
+    await runBroadcastBuild({ businessId: business.id, userId: user.id, prompt, mode: "ask_first" });
+  } else if (capability === "carbon_report") {
+    await runCarbonReportBuild({ businessId: business.id, userId: user.id, prompt, mode: "auto_execute" });
+  } else if (capability === "fractional_cfo") {
+    await runFractionalCfoBuild({ businessId: business.id, userId: user.id, prompt, mode: "draft_only" });
   } else {
     await runWebsiteBuild({ businessId: business.id, userId: user.id, prompt, mode: "auto_execute", publish: false });
   }
@@ -270,6 +279,38 @@ export default async function AIBuilderPage() {
       title: "Add a compliance obligation",
       description: "Creates a due-date, jurisdiction, priority and evidence-tracking record.",
       placeholder: "Create compliance item Annual Tax Filing, authority FIRS, jurisdiction Nigeria, due 2026-12-31, priority high.",
+      tone: "vault"
+    },
+    {
+      capability: "voice_agent",
+      eyebrow: "AI phone answering",
+      title: "Draft a business phone agent",
+      description: "Creates a provider-ready voice agent with greeting, instructions, escalation rules and tool boundaries.",
+      placeholder: "Create a phone agent called Front Desk. Greeting: Thanks for calling Acme. Instructions: answer hours and service questions, capture leads and escalate complaints.",
+      tone: "ink"
+    },
+    {
+      capability: "broadcast",
+      eyebrow: "Consent-safe broadcast",
+      title: "Prepare a WhatsApp or SMS campaign",
+      description: "Builds a recipient set while blocking customers without explicit channel opt-in.",
+      placeholder: "Create WhatsApp campaign October Promo. Message: New arrivals are now available. Include only opted-in customers.",
+      tone: "vault"
+    },
+    {
+      capability: "carbon_report",
+      eyebrow: "Carbon accounting",
+      title: "Record an emissions activity",
+      description: "Records quantified activity and recalculates documented CO2e using an explicit factor.",
+      placeholder: "Record 120 litres of generator diesel on 2026-09-28 with factor 2.68 kgCO2e per litre.",
+      tone: "ink"
+    },
+    {
+      capability: "fractional_cfo",
+      eyebrow: "Fractional CFO",
+      title: "Generate a finance snapshot",
+      description: "Builds a transparent management snapshot from real posted transactions and invoice records.",
+      placeholder: "Generate my current fractional CFO snapshot and highlight cashflow risks, overdue receivables and actions.",
       tone: "vault"
     },
     {
