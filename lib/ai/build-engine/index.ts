@@ -29,3 +29,6 @@ export * from '@/lib/ai/build-engine/finance-ops-runtime';
 
 export * from '@/lib/ai/build-engine/customer-experience-local';
 export * from '@/lib/ai/build-engine/customer-experience-runtime';
+
+export * from '@/lib/ai/build-engine/continuity-local';
+export * from '@/lib/ai/build-engine/continuity-runtime';
