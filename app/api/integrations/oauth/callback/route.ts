@@ -11,7 +11,7 @@ export async function GET(req:NextRequest){
  if(!code)return NextResponse.json({error:"Missing OAuth authorization code"},{status:400});
  const {data:i}=await supabase.from("integrations").select("provider,config").eq("id",s.integration_id).single(); const cfg=(i?.config||{}) as Record<string,any>;
  if(typeof cfg.oauth_token_url!=="string")return NextResponse.json({error:"OAuth token endpoint is not configured for this provider."},{status:409});
- const body=new URLSearchParams({grant_type:"authorization_code",code,redirect_uri:s.redirect_uri}); if(cfg.oauth_client_id)body.set("client_id",cfg.oauth_client_id);if(cfg.oauth_client_secret)body.set("client_secret",cfg.oauth_client_secret);
+ const body=new URLSearchParams({grant_type:"authorization_code",code,redirect_uri:s.redirect_uri}); const provider=String(i?.provider||""); const envClientId=provider==="github"?process.env.GITHUB_CLIENT_ID:null; const envClientSecret=provider==="github"?process.env.GITHUB_CLIENT_SECRET:null; if(cfg.oauth_client_id||envClientId)body.set("client_id",cfg.oauth_client_id||envClientId as string); if(cfg.oauth_client_secret||envClientSecret)body.set("client_secret",cfg.oauth_client_secret||envClientSecret as string);
  const response=await fetch(cfg.oauth_token_url,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded","Accept":"application/json"},body});
  const token=await response.json().catch(()=>({})); if(!response.ok)return NextResponse.json({error:token?.error_description||token?.error||"OAuth token exchange failed"},{status:502});
  const encrypted=encryptSecret({accessToken:token.access_token,refreshToken:token.refresh_token,metadata:{token_type:token.token_type,scope:token.scope,expires_in:token.expires_in}});
