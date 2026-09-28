@@ -21,6 +21,6 @@ export async function GET(){
   const outflows=(tx||[]).filter(x=>x.direction==="outflow").reduce((s,x)=>s+Number(x.amount||0),0);
   const currentBalance=inflows-outflows+(registers||[]).reduce((s,x)=>s+Number(x.expected_cash||0),0);
   const expectedCollections=(invoices||[]).reduce((s,x)=>s+Math.max(0,Number(x.total||0)-Number(x.paid_amount||0)),0);
-  const snapshot=buildCashflowSnapshot({currentBalance,recentInflows:inflows,recentOutflows:outflows,expectedInvoiceCollections:expectedCollections,expectedObligations:0,horizonDays:horizon,minimumBuffer});
+  const snapshot=buildCashflowSnapshot({currentBalance,recentInflows:inflows,recentOutflows:outflows,expectedInvoiceCollections:expectedCollections,expectedObligations:(recentOutflows/30)*horizon,horizonDays:horizon,minimumBuffer});
   return NextResponse.json({currency:business.currency||"USD",rule:rule||null,snapshot});
 }
