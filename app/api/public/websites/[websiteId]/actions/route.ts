@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase-admin";
+import { createClient } from "@/lib/supabase-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -193,6 +194,20 @@ export async function POST(
 
     const binding = await getActionBinding(supabase, websiteId, website.business_id, action);
     if (!binding) return NextResponse.json({ error: "This website action is not enabled." }, { status: 403 });
+
+    if (binding.auth_mode === "authenticated") {
+      const sessionClient = await createClient();
+      const { data: { user } } = await sessionClient.auth.getUser();
+      if (!user) return NextResponse.json({ error: "Sign in is required for this website action." }, { status: 401 });
+      const { data: allowed } = await sessionClient.rpc("user_can_business", {
+        p_business_id: website.business_id,
+        p_user_id: user.id,
+        p_permission: "read_business_context"
+      });
+      if (!allowed) return NextResponse.json({ error: "You do not have access to this business." }, { status: 403 });
+    } else if (binding.auth_mode !== "public") {
+      return NextResponse.json({ error: "This authentication mode is not available through the public website action endpoint yet." }, { status: 403 });
+    }
 
     const headerKey = text(request.headers.get("idempotency-key"), 200);
     const idempotencyKey = headerKey || text(body.idempotencyKey, 200);
