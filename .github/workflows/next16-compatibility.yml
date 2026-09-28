@@ -19,7 +19,7 @@ jobs:
       - run: npm install
       - name: Apply official Next 16 async API codemod
         if: "!contains(github.event.head_commit.message, '[next16-codemod]')"
-        run: npx @next/codemod@canary next-async-request-api .
+        run: npx @next/codemod@canary next-async-request-api . --force
       - name: Commit codemod changes
         if: "!contains(github.event.head_commit.message, '[next16-codemod]')"
         run: |
