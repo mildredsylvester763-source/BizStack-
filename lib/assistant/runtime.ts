@@ -216,14 +216,21 @@ async function executeOperatorTurn(args: {
   const maxSteps = Math.min(Number(agent?.system_config?.max_tool_steps ?? 8), 12);
 
   for (let iteration = 0; iteration < maxSteps; iteration += 1) {
-    const { message } = await askModel(messages);
+    const modelResult = await askModel(messages);
+    const message = modelResult.message;
     if (!message) throw new Error("The AI provider returned no assistant message.");
 
     if (message.content || message.tool_calls?.length) {
       await saveMessage(supabase, conversationId, businessId, {
         role: "assistant",
         content: String(message.content ?? ""),
-        metadata: { tool_calls: message.tool_calls ?? [] }
+        metadata: {
+          tool_calls: message.tool_calls ?? [],
+          ai_provider: modelResult.provider,
+          ai_model: modelResult.model,
+          task: modelResult.task ?? null,
+          attempted_providers: modelResult.attemptedProviders ?? [modelResult.provider]
+        }
       });
     }
 
@@ -243,6 +250,8 @@ async function executeOperatorTurn(args: {
 
       return { conversationId, runId, status: "succeeded", message: finalText, toolResults: results };
     }
+
+    const pendingToolMessages: ModelMessage[] = [];
 
     for (const toolCall of message.tool_calls) {
       const toolName = toolCall.function?.name;
@@ -314,27 +323,20 @@ async function executeOperatorTurn(args: {
           }).eq("id", step.id).eq("business_id", businessId);
         }
 
+        const serializedOutput = JSON.stringify(output);
         await saveMessage(supabase, conversationId, businessId, {
           role: "tool",
-          content: JSON.stringify(output),
+          content: serializedOutput,
           toolName,
           toolCallId: toolCall.id
         });
 
-        messages = [
-          ...messages,
-          {
-            role: "assistant",
-            content: String(message.content ?? ""),
-            tool_calls: message.tool_calls
-          },
-          {
-            role: "tool",
-            content: JSON.stringify(output),
-            tool_call_id: toolCall.id,
-            name: toolName
-          }
-        ];
+        pendingToolMessages.push({
+          role: "tool",
+          content: serializedOutput,
+          tool_call_id: toolCall.id,
+          name: toolName
+        });
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Tool execution failed.";
         if (step?.id) {
@@ -347,6 +349,18 @@ async function executeOperatorTurn(args: {
         throw error;
       }
     }
+
+    // Provider tool-call protocols require the assistant tool-call message to be
+    // followed by all corresponding tool results, in the same turn.
+    messages = [
+      ...messages,
+      {
+        role: "assistant",
+        content: String(message.content ?? ""),
+        tool_calls: message.tool_calls
+      },
+      ...pendingToolMessages
+    ];
   }
 
   throw new Error("The operator reached its execution step limit before completing the task.");
