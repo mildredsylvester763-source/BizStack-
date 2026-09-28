@@ -69,6 +69,17 @@ export async function GET(_req:NextRequest,context:{params:{projectId:string}}){
   const supabase=createClient();
   const {data:{user}}=await supabase.auth.getUser();
   if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
+  const { data: project } = await supabase.from("ai_projects")
+    .select("id,business_id,status")
+    .eq("id", context.params.projectId)
+    .maybeSingle();
+  if (!project || project.status === "deleted") return NextResponse.json({error:"Project not found."},{status:404});
+  const { data: canRead } = await supabase.rpc("user_can_business", {
+    p_business_id: project.business_id,
+    p_user_id: user.id,
+    p_permission: "read_project_history"
+  });
+  if (!canRead) return NextResponse.json({error:"You do not have permission to view repair history."},{status:403});
   const {data,error}=await supabase.from("ai_repair_runs").select("*").eq("project_id",context.params.projectId).order("created_at",{ascending:false}).limit(50);
   if(error)throw error;
   return NextResponse.json({repairs:data||[]});
