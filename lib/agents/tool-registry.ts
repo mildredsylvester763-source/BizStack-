@@ -280,7 +280,7 @@ export async function executeTool(toolKey: string, input: Record<string, unknown
 
   if (toolKey === "project.files.write") {
     const projectId = String(input.project_id ?? "").trim();
-    const path = String(input.path ?? "").trim().replace(/\\+/g, "/").replace(/^\\/+/, "");
+    const path = String(input.path ?? "").trim().replace(/\\+/g, "/").replace(/^\\+/, "");
     const source = String(input.content ?? "");
     if (!projectId || !path || path.includes("..") || path.length > 500) throw new Error("Invalid project file input.");
     if (source.length > 2_000_000) throw new Error("Project file is too large.");
