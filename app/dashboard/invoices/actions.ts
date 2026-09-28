@@ -62,7 +62,7 @@ async function getBusinessContext() {
 }
 
 async function loadInvoiceForAction(
-  supabase: ReturnType<typeof createClient>,
+  supabase: Awaited<ReturnType<typeof createClient>>,
   businessId: string,
   invoiceId: string
 ) {
