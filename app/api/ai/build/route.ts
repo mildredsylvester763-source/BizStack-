@@ -90,7 +90,15 @@ export async function POST(request: Request) {
                                                             ? await runMarketplaceListingBuild({businessId:business.id,userId:user.id,prompt,mode})
                                                             : capability==='finance_api'
                                                               ? await runFinanceApiBuild({businessId:business.id,userId:user.id,prompt,mode})
-                                                              : await runWebsiteBuild({businessId:business.id,userId:user.id,prompt,websiteId:typeof body.websiteId==='string'?body.websiteId:null,mode,publish:Boolean(body.publish)});
+                                                              : await runWebsiteBuild({
+          businessId:business.id,
+          userId:user.id,
+          prompt,
+          websiteId:typeof body.websiteId==='string'?body.websiteId:null,
+          projectId:typeof body.projectId==='string'?body.projectId:null,
+          mode,
+          publish:Boolean(body.publish)
+        });
     return NextResponse.json(result);
   }catch(error){
     return NextResponse.json({error:error instanceof Error?error.message:'Build failed'},{status:400});
