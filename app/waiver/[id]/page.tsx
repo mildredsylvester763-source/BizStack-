@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase-server";
 
-export default async function PublicWaiverPage({params}:{params:{id:string}}){
+export default async function PublicWaiverPage(props:{params: Promise<{id:string}>}) {
+ const params = await props.params;
  const supabase=createClient();
  const {data:waiver}=await supabase.from("waivers").select("id,title,body,version,required,status").eq("id",params.id).eq("status","published").single();
  if(!waiver)return <main className="min-h-screen bg-ledger grid place-items-center p-6"><div className="text-center"><h1 className="font-display text-3xl">Waiver unavailable</h1><p className="text-sm text-ink/50 mt-2">This waiver is not published.</p></div></main>;

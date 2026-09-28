@@ -13,11 +13,11 @@ async function getEvents(id:string){
   return body;
 }
 
-export async function POST(req:NextRequest,context:{params:{projectId:string}}){
+export async function POST(req:NextRequest,context:{params: Promise<{projectId:string}>}){
   const supabase=createClient();
   const {data:{user}}=await supabase.auth.getUser();
   if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
-  const { data: accessProject } = await supabase.from("ai_projects").select("id,business_id,status").eq("id",context.params.projectId).maybeSingle();
+  const { data: accessProject } = await supabase.from("ai_projects").select("id,business_id,status").eq("id",(await context.params).projectId).maybeSingle();
   if(!accessProject || accessProject.status==="deleted") return NextResponse.json({error:"Project not found."},{status:404});
   const { data: canRepair } = await supabase.rpc("user_can_business",{p_business_id:accessProject.business_id,p_user_id:user.id,p_permission:"write_project_files"});
   if(!canRepair) return NextResponse.json({error:"You do not have permission to repair this project."},{status:403});
@@ -29,7 +29,7 @@ export async function POST(req:NextRequest,context:{params:{projectId:string}}){
     const { data: existingRepair, error: existingRepairError } = await supabase.from("ai_repair_runs")
       .select("id,status")
       .eq("deployment_id", deploymentId)
-      .eq("project_id", context.params.projectId)
+      .eq("project_id", (await context.params).projectId)
       .in("status", ["queued","planned","awaiting_approval"])
       .order("created_at", { ascending: false })
       .limit(1)
@@ -40,9 +40,9 @@ export async function POST(req:NextRequest,context:{params:{projectId:string}}){
     return NextResponse.json({ ok: true, mode: "execute", repair: result });
   }
 
-  const {data:deployment,error:de}=await supabase.from("ai_deployments").select("*").eq("id",deploymentId).eq("project_id",context.params.projectId).single();
+  const {data:deployment,error:de}=await supabase.from("ai_deployments").select("*").eq("id",deploymentId).eq("project_id",(await context.params).projectId).single();
   if(de||!deployment)return NextResponse.json({error:"Deployment record not found."},{status:404});
-  const {data:project}=await supabase.from("ai_projects").select("id,business_id").eq("id",context.params.projectId).single();
+  const {data:project}=await supabase.from("ai_projects").select("id,business_id").eq("id",(await context.params).projectId).single();
   if(!project)return NextResponse.json({error:"Project not found."},{status:404});
 
   const raw=await getEvents(deployment.provider_deployment_id||"");
@@ -65,13 +65,13 @@ export async function POST(req:NextRequest,context:{params:{projectId:string}}){
   return NextResponse.json({ok:true,repair,diagnosis});
 }
 
-export async function GET(_req:NextRequest,context:{params:{projectId:string}}){
+export async function GET(_req:NextRequest,context:{params: Promise<{projectId:string}>}){
   const supabase=createClient();
   const {data:{user}}=await supabase.auth.getUser();
   if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
   const { data: project } = await supabase.from("ai_projects")
     .select("id,business_id,status")
-    .eq("id", context.params.projectId)
+    .eq("id", (await context.params).projectId)
     .maybeSingle();
   if (!project || project.status === "deleted") return NextResponse.json({error:"Project not found."},{status:404});
   const { data: canRead } = await supabase.rpc("user_can_business", {
@@ -80,7 +80,7 @@ export async function GET(_req:NextRequest,context:{params:{projectId:string}}){
     p_permission: "read_project_history"
   });
   if (!canRead) return NextResponse.json({error:"You do not have permission to view repair history."},{status:403});
-  const {data,error}=await supabase.from("ai_repair_runs").select("*").eq("project_id",context.params.projectId).order("created_at",{ascending:false}).limit(50);
+  const {data,error}=await supabase.from("ai_repair_runs").select("*").eq("project_id",(await context.params).projectId).order("created_at",{ascending:false}).limit(50);
   if(error)throw error;
   return NextResponse.json({repairs:data||[]});
 }

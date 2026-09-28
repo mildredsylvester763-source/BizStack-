@@ -4,7 +4,7 @@ import { executeRepair } from "@/lib/repair/engine";
 
 export const runtime = "nodejs";
 
-export async function POST(request: NextRequest, context: { params: { projectId: string } }) {
+export async function POST(request: NextRequest, context: { params: Promise<{ projectId: string }> }) {
   try {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -16,7 +16,7 @@ export async function POST(request: NextRequest, context: { params: { projectId:
 
     const { data: project } = await supabase.from("ai_projects")
       .select("id,business_id,status")
-      .eq("id", context.params.projectId)
+      .eq("id", (await context.params).projectId)
       .maybeSingle();
     if (!project || project.status === "deleted") return NextResponse.json({ error: "Project not found." }, { status: 404 });
 
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest, context: { params: { projectId:
       .from("ai_repair_runs")
       .select("id,project_id,status")
       .eq("id", repairId)
-      .eq("project_id", context.params.projectId)
+      .eq("project_id", (await context.params).projectId)
       .single();
 
     if (error || !repair) return NextResponse.json({ error: "Repair run not found." }, { status: 404 });

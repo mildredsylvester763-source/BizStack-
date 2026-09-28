@@ -5,7 +5,8 @@ import crypto from "node:crypto";
 
 export const runtime="nodejs";
 
-export async function POST(req:NextRequest,{params}:{params:{id:string}}){
+export async function POST(req:NextRequest, props:{params: Promise<{id:string}>}) {
+ const params = await props.params;
  const admin=createAdminClient();
  const contentType=req.headers.get("content-type")||"";
  const body=contentType.includes("application/json")?await req.json().catch(()=>({})):Object.fromEntries((await req.formData()).entries());
