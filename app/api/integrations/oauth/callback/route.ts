@@ -2,23 +2,46 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import { encryptSecret } from "@/lib/security/secrets";
 export const runtime="nodejs";
+
+const providerEnv:Record<string,string>={github:"GITHUB", "google-drive":"GOOGLE", gmail:"GOOGLE", "google-calendar":"GOOGLE"};
+
 export async function GET(req:NextRequest){
- const supabase=createClient(); const url=new URL(req.url); const state=url.searchParams.get("state"); const code=url.searchParams.get("code"); const oauthError=url.searchParams.get("error");
+ const supabase=createClient(); const url=new URL(req.url);
+ const state=url.searchParams.get("state"),code=url.searchParams.get("code"),oauthError=url.searchParams.get("error");
  if(!state)return NextResponse.json({error:"Missing OAuth state"},{status:400});
- const {data:s}=await supabase.from("integration_oauth_states").select("id,business_id,integration_id,attempt_id,redirect_uri,status,expires_at").eq("state_token",state).eq("status","pending").single();
+ const {data:s}=await supabase.from("integration_oauth_states").select("id,business_id,integration_id,attempt_id,redirect_uri,status,expires_at,provider").eq("state_token",state).eq("status","pending").single();
  if(!s||new Date(s.expires_at)<new Date())return NextResponse.json({error:"OAuth state is invalid or expired"},{status:400});
  if(oauthError){await supabase.from("integration_oauth_states").update({status:"failed",error_message:oauthError,completed_at:new Date().toISOString()}).eq("id",s.id);await supabase.from("integration_connection_attempts").update({status:"failed",error_message:oauthError,completed_at:new Date().toISOString()}).eq("id",s.attempt_id);return NextResponse.json({error:oauthError},{status:400});}
  if(!code)return NextResponse.json({error:"Missing OAuth authorization code"},{status:400});
- const {data:i}=await supabase.from("integrations").select("provider,config").eq("id",s.integration_id).single(); const cfg=(i?.config||{}) as Record<string,any>;
+ const {data:i}=await supabase.from("integrations").select("provider,config").eq("id",s.integration_id).single();
+ const cfg=(i?.config||{}) as Record<string,any>,provider=String(i?.provider||s.provider||"");
  if(typeof cfg.oauth_token_url!=="string")return NextResponse.json({error:"OAuth token endpoint is not configured for this provider."},{status:409});
- const body=new URLSearchParams({grant_type:"authorization_code",code,redirect_uri:s.redirect_uri}); const provider=String(i?.provider||""); const envClientId=provider==="github"?process.env.GITHUB_CLIENT_ID:null; const envClientSecret=provider==="github"?process.env.GITHUB_CLIENT_SECRET:null; if(cfg.oauth_client_id||envClientId)body.set("client_id",cfg.oauth_client_id||envClientId as string); if(cfg.oauth_client_secret||envClientSecret)body.set("client_secret",cfg.oauth_client_secret||envClientSecret as string);
+ const prefix=providerEnv[provider],clientId=prefix?process.env[prefix+"_CLIENT_ID"]:null,clientSecret=prefix?process.env[prefix+"_CLIENT_SECRET"]:null;
+ const body=new URLSearchParams({grant_type:"authorization_code",code,redirect_uri:s.redirect_uri});
+ if(cfg.oauth_client_id||clientId)body.set("client_id",cfg.oauth_client_id||clientId as string);
+ if(cfg.oauth_client_secret||clientSecret)body.set("client_secret",cfg.oauth_client_secret||clientSecret as string);
  const response=await fetch(cfg.oauth_token_url,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded","Accept":"application/json"},body});
- const token=await response.json().catch(()=>({})); if(!response.ok)return NextResponse.json({error:token?.error_description||token?.error||"OAuth token exchange failed"},{status:502});
+ const token=await response.json().catch(()=>({}));
+ if(!response.ok||!token.access_token)return NextResponse.json({error:token?.error_description||token?.error||"OAuth token exchange failed"},{status:502});
+ let identity:any={};
+ try{
+   const identityUrl=provider==="github"?"https://api.github.com/user":"https://www.googleapis.com/oauth2/v2/userinfo";
+   const ir=await fetch(identityUrl,{headers:{Authorization:"Bearer "+token.access_token,Accept:"application/json"}});
+   if(ir.ok)identity=await ir.json();
+ }catch{}
  const encrypted=encryptSecret({accessToken:token.access_token,refreshToken:token.refresh_token,metadata:{token_type:token.token_type,scope:token.scope,expires_in:token.expires_in}});
  const {error:saveError}=await supabase.from("integration_credentials").upsert({business_id:s.business_id,integration_id:s.integration_id,credential_kind:"oauth",encrypted_payload:encrypted,status:"active",expires_at:token.expires_in?new Date(Date.now()+Number(token.expires_in)*1000).toISOString():null,metadata:{scope:token.scope||null}},{onConflict:"integration_id"});
  if(saveError)return NextResponse.json({error:saveError.message},{status:500});
  await supabase.from("integration_oauth_states").update({status:"exchanged",completed_at:new Date().toISOString()}).eq("id",s.id);
- await supabase.from("integration_connection_attempts").update({status:"credential_saved",completed_at:new Date().toISOString()}).eq("id",s.attempt_id);
- await supabase.from("integrations").update({status:"pending",error_message:null,config:{...cfg,oauth_authorized_at:new Date().toISOString()}}).eq("id",s.integration_id);
- return NextResponse.redirect(new URL("/dashboard/integrations?oauth=success",req.url));
+ await supabase.from("integration_connection_attempts").update({status:"verified",completed_at:new Date().toISOString()}).eq("id",s.attempt_id);
+ await supabase.from("integrations").update({
+   status:"connected",error_message:null,last_verified_at:new Date().toISOString(),
+   external_account_id:String(identity.id||identity.sub||""),external_account_email:identity.email||null,
+   external_account_name:identity.name||identity.login||identity.email||null,
+   account_label:identity.email||identity.login||null,
+   permission_state:{scopes:token.scope||cfg.oauth_scopes||[],authorized:true},
+   action_policy:{read:true,write:true,delete:false,share:false},
+   config:{...cfg,oauth_authorized_at:new Date().toISOString(),identity:{id:identity.id||identity.sub||null,email:identity.email||null,name:identity.name||identity.login||null}}
+ }).eq("id",s.integration_id);
+ return NextResponse.redirect(new URL("/dashboard/ai-builder?connected="+encodeURIComponent(provider),req.url));
 }
