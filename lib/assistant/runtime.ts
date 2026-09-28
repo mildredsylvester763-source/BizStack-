@@ -181,7 +181,8 @@ function systemPrompt(business: { name: string; industry?: string | null; curren
     "Business name: " + business.name,
     "Industry: " + (business.industry || "not specified"),
     "Base currency: " + (business.currency || "not specified")
-  ].join("\n");
+  ].join("
+");
 }
 
 function toolRequiresApproval(tool: ReturnType<typeof getToolDefinition>, agent: any) {
@@ -248,8 +249,10 @@ async function executeOperatorTurn(args: {
   agent: any;
   runId: string;
   messages: ModelMessage[];
+  projectId?: string | null;
 }) : Promise<OperatorResult> {
-  const { supabase, businessId, userId, conversationId, agent, runId } = args;\n  const projectId = (args as any).projectId ?? null;
+  const { supabase, businessId, userId, conversationId, agent, runId, projectId = null } = args;
+  const projectId = (args as any).projectId ?? null;
   let messages = args.messages;
   const results: Array<{ tool: string; output: unknown }> = [];
   const maxSteps = Math.min(Number(agent?.system_config?.max_tool_steps ?? 8), 12);
@@ -395,12 +398,14 @@ export async function runUniversalAssistant({
   userId,
   conversationId,
   input,
-  clientMessageId
+  clientMessageId,
+  projectId
 }: {
   userId: string;
   conversationId?: string | null;
   input: string;
   clientMessageId?: string | null;
+  projectId?: string | null;
 }) : Promise<OperatorResult> {
   const supabase = createClient();
   const business = await getBusiness(supabase, userId);
@@ -451,7 +456,8 @@ export async function runUniversalAssistant({
       conversationId: conversationIdValue,
       agent,
       runId,
-      messages
+      messages,
+      projectId
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Assistant run failed.";
