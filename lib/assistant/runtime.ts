@@ -300,7 +300,7 @@ async function executeOperatorTurn(args: {
           runId,
           status: "waiting_approval",
           message: `I’ve prepared the next action. It needs your approval before I execute it: ${definition.name}.`,
-          approval: { id: approval.id, action: approval.requested_action, reason: approval.reason },
+          approval: { id: approval.id, runId, action: approval.requested_action, reason: approval.reason },
           toolResults: results
         };
       }
