@@ -34,7 +34,7 @@ function globals(spec: WebsiteSpec) {
 
 export function compileWebsiteToProject(spec: WebsiteSpec) {
   const files: ProjectFile[] = [
-    {path:"package.json",language:"json",content:JSON.stringify({name:spec.subdomain||"bizstack-site",private:true,scripts:{dev:"next dev",build:"next build",start:"next start"},dependencies:{next:"14.2.15",react:"^18.3.1","react-dom":"^18.3.1"}},null,2)},
+    {path:"package.json",language:"json",content:JSON.stringify({name:spec.subdomain||"bizstack-site",private:true,scripts:{dev:"next dev",build:"next build",start:"next start"},dependencies:{next:"14.2.15",react:"^18.3.1","react-dom":"^18.3.1"},devDependencies:{"@types/node":"^20.14.0","@types/react":"^18.3.0","@types/react-dom":"^18.3.0",typescript:"^5.5.3"}},null,2)},
     {path:"tsconfig.json",language:"json",content:JSON.stringify({compilerOptions:{target:"es5",lib:["dom","dom.iterable","esnext"],allowJs:false,skipLibCheck:true,strict:true,noEmit:true,esModuleInterop:true,module:"esnext",moduleResolution:"bundler",resolveJsonModule:true,isolatedModules:true,jsx:"preserve",incremental:true,plugins:[{name:"next"}]},include:["next-env.d.ts","**/*.ts","**/*.tsx",".next/types/**/*.ts"],exclude:["node_modules"]},null,2)},
     {path:"next-env.d.ts",language:"typescript",content:"/// <reference types=\\"next\\" />\\n/// <reference types=\\"next/image-types/global\\" />\\n"},
     {path:"next.config.mjs",language:"javascript",content:"const nextConfig={reactStrictMode:true};\\nexport default nextConfig;\\n"},
