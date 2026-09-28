@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - chore/next-15-safe-migration-v2
+  pull_request:
+    branches:
+      - main
 
 jobs:
   build:
