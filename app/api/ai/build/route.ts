@@ -6,6 +6,7 @@ import { runMoneyEntryBuild, runProductInventoryBuild } from '@/lib/ai/build-eng
 import { runCustomerBuild } from '@/lib/ai/build-engine/customer-runtime';
 import { runConnectorBuild } from '@/lib/ai/build-engine/connector-runtime';
 import { runQuoteBuild } from '@/lib/ai/build-engine/quote-runtime';
+import { runDualCurrencyBuild, runLoanReadinessBuild, runObligationBuild, runPayrollAdvanceBuild } from '@/lib/ai/build-engine/finance-ops-runtime';
 import { runCashSaleBuild } from '@/lib/ai/build-engine/cash-sale-runtime';
 import { runSupplierPriceBuild } from '@/lib/ai/build-engine/supplier-price-runtime';
 import { runCommissionBuild } from '@/lib/ai/build-engine/commission-runtime';
