@@ -91,21 +91,12 @@ export async function GET(
         .order("name", { ascending: true })
         .limit(500);
 
-      result.inventory_availability = (data ?? []).map((row: Record<string, unknown>) => {
-        const safe = pick(
-          row,
-          requestedFields.length ? requestedFields : [...PUBLIC_INVENTORY_FIELDS],
-          PUBLIC_INVENTORY_FIELDS
-        );
-        const quantity = Number(row.stock_quantity ?? 0);
-        return {
-          ...safe,
-          availability: quantity > 0 ? "in_stock" : "out_of_stock"
-        };
-      });
+      result.inventory_availability = (data ?? []).map((row: Record<string, unknown>) => ({
+        ...pick(row, requestedFields.length ? requestedFields : [...PUBLIC_INVENTORY_FIELDS], PUBLIC_INVENTORY_FIELDS),
+        availability: Number(row.stock_quantity ?? 0) > 0 ? "in_stock" : "out_of_stock"
+      }));
+      continue;
     }
-  }
-
 
     if (key === "services") {
       const { data } = await supabase
@@ -116,7 +107,7 @@ export async function GET(
         .order("name", { ascending: true })
         .limit(200);
 
-      const allowed = new Set(["id","name","description","duration_minutes","price","currency","active"]);
+      const allowed = new Set(["id", "name", "description", "duration_minutes", "price", "currency", "active"]);
       result.services = (data ?? []).map((row: Record<string, unknown>) =>
         pick(row, requestedFields.length ? requestedFields : [...allowed], allowed)
       );
@@ -133,7 +124,7 @@ export async function GET(
         .order("name", { ascending: true })
         .limit(100);
 
-      const allowed = new Set(["id","name","code","address","city","state_region","country","postal_code","phone","email","timezone","is_primary","is_active"]);
+      const allowed = new Set(["id", "name", "code", "address", "city", "state_region", "country", "postal_code", "phone", "email", "timezone", "is_primary", "is_active"]);
       result.locations = (data ?? []).map((row: Record<string, unknown>) =>
         pick(row, requestedFields.length ? requestedFields : [...allowed], allowed)
       );
@@ -145,11 +136,11 @@ export async function GET(
         .from("appointments")
         .select("id,service_id,starts_at,ends_at,status,price,deposit_required,deposit_paid,currency")
         .eq("business_id", website.business_id)
-        .in("status", ["pending","confirmed"])
+        .in("status", ["pending", "confirmed"])
         .order("starts_at", { ascending: true })
         .limit(200);
 
-      const allowed = new Set(["id","service_id","starts_at","ends_at","status","price","deposit_required","deposit_paid","currency"]);
+      const allowed = new Set(["id", "service_id", "starts_at", "ends_at", "status", "price", "deposit_required", "deposit_paid", "currency"]);
       result.bookings = (data ?? []).map((row: Record<string, unknown>) =>
         pick(row, requestedFields.length ? requestedFields : [...allowed], allowed)
       );
@@ -165,7 +156,7 @@ export async function GET(
         .order("created_at", { ascending: false })
         .limit(200);
 
-      const allowed = new Set(["id","channel","rating","message","sentiment","created_at"]);
+      const allowed = new Set(["id", "channel", "rating", "message", "sentiment", "created_at"]);
       result.public_reviews = (data ?? []).map((row: Record<string, unknown>) =>
         pick(row, requestedFields.length ? requestedFields : [...allowed], allowed)
       );
@@ -180,21 +171,16 @@ export async function GET(
         .maybeSingle();
 
       const settings = data?.module_settings;
-      const hours =
+      result.opening_hours =
         settings && typeof settings === "object" && !Array.isArray(settings)
           ? (settings as Record<string, unknown>).opening_hours ?? null
           : null;
-      result.opening_hours = hours;
       continue;
     }
+  }
 
   return NextResponse.json(
     { websiteId: website.id, updatedAt: new Date().toISOString(), data: result },
-    {
-      headers: {
-        "Cache-Control": "no-store",
-        "Access-Control-Allow-Origin": "*"
-      }
-    }
+    { headers: { "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" } }
   );
 }
