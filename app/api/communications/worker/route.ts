@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase-admin";
-import { sendEmail, sendSms, sendWhatsApp, type ProviderResult } from "@/lib/integrations/providers";
+import { sendEmail, sendSms, sendWhatsApp, sendFacebookMessenger, type ProviderResult } from "@/lib/integrations/providers";
 
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
@@ -23,9 +23,10 @@ export async function POST(req:NextRequest){
   const results=[];
   for(const job of jobs||[]){
     let result:ProviderResult;
-    if(job.channel==="email") result=await sendEmail({to:job.recipient,subject:job.subject||undefined,body:job.body||"",metadata:{idempotencyKey:job.idempotency_key}});
+    if(job.channel==="email") result=await sendEmail({to:job.recipient,subject:job.subject||undefined,body:job.body||"",metadata:{idempotencyKey:job.idempotency_key,providerConfig:job.provider_config}});
     else if(job.channel==="sms") result=await sendSms({to:job.recipient,body:job.body||""});
-    else if(job.channel==="whatsapp") result=await sendWhatsApp({to:job.recipient,body:job.body||""});
+    else if(job.channel==="whatsapp") result=await sendWhatsApp({to:job.recipient,body:job.body||"",metadata:{providerConfig:job.provider_config}});
+    else if(job.channel==="facebook_messenger" || job.channel==="messenger") result=await sendFacebookMessenger({to:job.recipient,body:job.body||"",metadata:{providerConfig:job.provider_config}});
     else result={ok:false,provider:"none",error:`Channel ${job.channel} is not enabled by the current provider runtime`};
 
     if(result.ok){
