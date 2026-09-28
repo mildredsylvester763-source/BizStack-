@@ -230,7 +230,7 @@ export async function executeTool(toolKey: string, input: Record<string, unknown
     const written: Array<Record<string, unknown>> = [];
     for (const raw of requestedFiles.slice(0, 100)) {
       const row = raw as Record<string, unknown>;
-      const path = String(row.path ?? "").trim().replace(/\\+/g, "/").replace(/^\\/+/, "");
+      const path = String(row.path ?? "").trim().replace(/\\+/g, "/").replace(/^\\+/, "");
       const source = String(row.content ?? "");
       if (!path || path.includes("..") || path.length > 500) throw new Error("Invalid project file path: " + path);
       if (source.length > 2_000_000) throw new Error("Project file is too large: " + path);
