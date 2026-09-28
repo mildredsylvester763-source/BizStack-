@@ -76,7 +76,7 @@ export async function GET(
         .order("name", { ascending: true })
         .limit(500);
 
-      result.products = (data ?? []).map((row) =>
+      result.products = (data ?? []).map((row: Record<string, unknown>) =>
         pick(row, requestedFields.length ? requestedFields : [...PUBLIC_PRODUCT_FIELDS], PUBLIC_PRODUCT_FIELDS)
       );
       continue;
@@ -91,7 +91,7 @@ export async function GET(
         .order("name", { ascending: true })
         .limit(500);
 
-      result.inventory_availability = (data ?? []).map((row) => {
+      result.inventory_availability = (data ?? []).map((row: Record<string, unknown>) => {
         const safe = pick(
           row,
           requestedFields.length ? requestedFields : [...PUBLIC_INVENTORY_FIELDS],
@@ -117,7 +117,7 @@ export async function GET(
         .limit(200);
 
       const allowed = new Set(["id","name","description","duration_minutes","price","currency","active"]);
-      result.services = (data ?? []).map((row) =>
+      result.services = (data ?? []).map((row: Record<string, unknown>) =>
         pick(row, requestedFields.length ? requestedFields : [...allowed], allowed)
       );
       continue;
@@ -134,7 +134,7 @@ export async function GET(
         .limit(100);
 
       const allowed = new Set(["id","name","code","address","city","state_region","country","postal_code","phone","email","timezone","is_primary","is_active"]);
-      result.locations = (data ?? []).map((row) =>
+      result.locations = (data ?? []).map((row: Record<string, unknown>) =>
         pick(row, requestedFields.length ? requestedFields : [...allowed], allowed)
       );
       continue;
@@ -150,7 +150,7 @@ export async function GET(
         .limit(200);
 
       const allowed = new Set(["id","service_id","starts_at","ends_at","status","price","deposit_required","deposit_paid","currency"]);
-      result.bookings = (data ?? []).map((row) =>
+      result.bookings = (data ?? []).map((row: Record<string, unknown>) =>
         pick(row, requestedFields.length ? requestedFields : [...allowed], allowed)
       );
       continue;
@@ -166,7 +166,7 @@ export async function GET(
         .limit(200);
 
       const allowed = new Set(["id","channel","rating","message","sentiment","created_at"]);
-      result.public_reviews = (data ?? []).map((row) =>
+      result.public_reviews = (data ?? []).map((row: Record<string, unknown>) =>
         pick(row, requestedFields.length ? requestedFields : [...allowed], allowed)
       );
       continue;
