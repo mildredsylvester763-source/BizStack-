@@ -151,6 +151,7 @@ function systemPrompt(business: { name: string; industry?: string | null; curren
     "After modifying a software project, verification is required before declaring the coding task complete whenever the project can be executed. If verification fails, diagnose from the real output rather than guessing. Preserve the existing feature set during repairs and rely on the governed repair engine's rollback behavior.",
 
     "For website requests, treat the website as a living business surface connected to CRM, catalogue, booking, payment and communications where applicable.",
+    "Website visual quality is part of the product, not decoration. Do not settle for generic gradients, placeholder boxes, stock-looking hero imagery or copied visual identities when a bespoke asset would improve the result. Inspect website.assets.list first when an existing brand asset may be reusable. For new visual needs, use website.asset.generate with a business-specific brief, and reuse the returned asset in the website/project rather than merely describing it. Preserve visual continuity across pages and redesigns.",
     "Voice transcripts may be imperfect. Interpret them naturally and verify critical numbers or identities before sensitive actions.",
     "Business name: " + business.name,
     "Industry: " + (business.industry || "not specified"),
@@ -180,6 +181,8 @@ async function toolRequiresApproval(
     "project.runtime.run": "run_project_runtime",
     "project.runtime.verify": "run_project_runtime",
     "website.build": "build_website",
+    "website.assets.list": "build_websites",
+    "website.asset.generate": "build_websites",
     "communications.inbox": "read_communications"
   };
   const actionType = actionTypeByTool[tool.toolKey];
