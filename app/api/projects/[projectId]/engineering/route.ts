@@ -151,7 +151,7 @@ export async function POST(request: Request, context: { params: { projectId: str
         task: result.task ?? null,
         mode,
         project: { id: project.id, name: project.name },
-        analysis: result.message.content
+        analysis: result.message?.content ?? "The model returned no analysis content."
       });
     } catch (error) {
       return NextResponse.json({
