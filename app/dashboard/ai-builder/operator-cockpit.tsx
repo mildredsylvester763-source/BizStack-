@@ -320,6 +320,17 @@ export default function OperatorCockpit({
               {!engineeringOutput&&<div className="max-w-xl mx-auto pt-10 text-center"><div className="text-[8px] uppercase tracking-[.2em] text-white/20">Agentic engineering loop</div><h3 className="text-xl mt-2">Plan, inspect, review and verify before changing the code.</h3><p className="text-[10px] leading-5 text-white/25 mt-3">Select a file for focused review, or leave the selection empty for a project-level analysis. These modes never claim to have changed files.</p></div>}
               {engineeringOutput&&<pre className="whitespace-pre-wrap text-[10px] leading-5 text-white/65 font-mono">{engineeringOutput}</pre>}
             </div>
+            <div className="mt-4 rounded-xl border border-white/[.06] bg-white/[.02] p-3">
+              <div className="flex items-center justify-between"><span className="text-[8px] uppercase tracking-[.18em] text-white/20">Checkpoints</span><button onClick={()=>void snapshot()} disabled={!project||versioning||saving} className="px-2.5 py-1.5 rounded-lg bg-white/[.06] text-[8px] text-white/60 disabled:opacity-20">Snapshot now</button></div>
+              <div className="mt-3 space-y-2 max-h-40 overflow-auto">
+                {versionsBusy&&<div className="text-[8px] text-white/25">Loading checkpoints…</div>}
+                {!versionsBusy&&!versions.length&&<div className="text-[8px] text-white/20">No saved checkpoints yet.</div>}
+                {versions.map(v=><div key={v.id} className="flex items-center gap-2 rounded-lg border border-white/[.05] bg-white/[.015] p-2">
+                  <div className="min-w-0 flex-1"><div className="text-[8px] text-white/55">v{v.version_no} · {v.message||"Snapshot"}</div><div className="text-[7px] text-white/20 mt-1">{v.created_at?new Date(v.created_at).toLocaleString():""}</div></div>
+                  <button onClick={()=>void restoreVersion(String(v.id))} disabled={restoringVersion||versioning||saving} className="px-2 py-1 rounded bg-white/[.05] text-[7px] text-white/50 disabled:opacity-20">{restoringVersion?"Restoring…":"Restore"}</button>
+                </div>)}
+              </div>
+            </div>
             <div className="p-3 border-t border-white/[.06] space-y-3">
               <div className="flex items-center justify-between"><span className="text-[8px] text-white/20">{selectedPath?"Focused: "+selectedPath:"Project-wide context"}</span><button onClick={()=>void runEngineeringMode(engineeringMode)} disabled={!project||engineeringBusy} className="px-3 py-2 rounded-lg bg-indigo-400/10 text-indigo-200 text-[8px] disabled:opacity-20">Re-run {engineeringMode}</button></div>
               <div className="flex flex-wrap gap-2"><button onClick={()=>void verifyProject()} disabled={!project||shipBusy} className="px-3 py-2 rounded-lg bg-emerald-300/[.08] border border-emerald-300/[.1] text-emerald-200 text-[8px] disabled:opacity-20">{shipBusy?"Working…":"Verify build"}</button><button onClick={()=>void deployProject()} disabled={!project||shipBusy} className="px-3 py-2 rounded-lg bg-white/[.06] border border-white/[.08] text-white/60 text-[8px] disabled:opacity-20">Deploy preview</button></div>
