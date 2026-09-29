@@ -16,6 +16,7 @@ export default function WebsiteMobileToolbar({
   onRoute: (path: string) => void;
   onDevice: (device: "wide" | "desktop" | "tablet" | "mobile") => void;
   onAsk: (prompt: string) => void;
+  onBlueprint: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const devices = [
@@ -54,7 +55,7 @@ export default function WebsiteMobileToolbar({
         <div className="px-3 pb-3">
           <div className="rounded-2xl border border-white/[.07] bg-white/[.025] p-2">
             <div className="grid grid-cols-2 gap-1.5">
-              <button onClick={() => onAsk("Open the Website Blueprint for this project and show its current sitemap, flows, design direction and content system.")} className="rounded-xl bg-indigo-300/[.08] border border-indigo-300/[.1] px-3 py-2.5 text-left text-[8px] text-indigo-100">Blueprint</button>
+              <button onClick={() => { onBlueprint(); setOpen(false); }} className="rounded-xl bg-indigo-300/[.08] border border-indigo-300/[.1] px-3 py-2.5 text-left text-[8px] text-indigo-100">Blueprint</button>
               <button onClick={() => onAsk("Enter Design Mode for this website. Inspect the selected page and prepare source-backed visual controls before making changes.")} className="rounded-xl bg-cyan-300/[.06] border border-cyan-300/[.08] px-3 py-2.5 text-left text-[8px] text-cyan-100">Design Mode</button>
               <button onClick={() => onAsk("Inspect this website's responsive behavior across phone, tablet and desktop and identify concrete source-backed fixes.")} className="rounded-xl border border-white/[.07] px-3 py-2.5 text-left text-[8px] text-white/55">Responsive audit</button>
               <button onClick={() => onAsk("Explain this website's routes, components, data, integrations, SEO and deployment dependencies from its real source graph.")} className="rounded-xl border border-white/[.07] px-3 py-2.5 text-left text-[8px] text-white/55">Explain site</button>
