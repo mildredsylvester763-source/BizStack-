@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import { runSandboxCommand, sandboxPreviewDomain } from "@/lib/sandbox/vercel";
 
-export async function POST(_request: Request, { params }: { params: { projectId: string } }) {
+export async function POST(_request: Request, props: { params: Promise<{ projectId: string }> }) {
+  const params = await props.params;
   try {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
