@@ -4,12 +4,12 @@ import { createClient } from "@/lib/supabase-server";
 import OperatorCockpit from "./operator-cockpit";
 
 export default async function AIBuilderPage() {
-  const supabase=createClient();
+  const supabase=await createClient();
   const {data:{user}}=await supabase.auth.getUser();
   if(!user)redirect("/login");
   const {data:business}=await supabase.from("businesses").select("id,name").eq("owner_id",user.id).single();
   if(!business)redirect("/onboarding");
-  const {data:conversation}=await supabase.from("ai_conversations").select("id,title").eq("business_id",business.id).order("last_message_at",{ascending:false}).limit(1).maybeSingle();
+  const {data:conversation}=await supabase.from("ai_conversations").select("id,title,metadata").eq("business_id",business.id).eq("metadata->>surface","website_creator").order("last_message_at",{ascending:false}).limit(1).maybeSingle();
   const {data:messages}=conversation?.id?await supabase.from("ai_messages").select("id,role,content,metadata").eq("conversation_id",conversation.id).order("created_at",{ascending:true}).limit(80):{data:[]};
   return <main className="min-h-screen bg-[#080a0d]">
     <header className="h-12 border-b border-white/[.07] bg-[#0b0d10] text-white">

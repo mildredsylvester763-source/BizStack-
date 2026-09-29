@@ -1,6 +1,11 @@
 import { createClient } from "@/lib/supabase-server";
 import { runBizStackModel, type BizStackModelMessage, type BizStackTool } from "@/lib/ai/providers/router";
 import { executeTool, getToolDefinition, TOOL_REGISTRY, type RuntimeContext } from "@/lib/agents/tool-registry";
+import {
+  attachmentReferences,
+  hydrateAttachmentContent,
+  linkAttachmentsToConversation
+} from "@/lib/ai/attachments";
 
 type Message = {
   role: "system" | "user" | "assistant" | "tool";
@@ -42,7 +47,7 @@ async function askModel(messages: ModelMessage[]) {
 }
 
 async function getBusiness(
-  supabase: ReturnType<typeof createClient>,
+  supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
   requestedBusinessId?: string | null
 ) {
@@ -63,7 +68,7 @@ async function getBusiness(
 }
 
 async function getOrCreateAgent(
-  supabase: ReturnType<typeof createClient>,
+  supabase: Awaited<ReturnType<typeof createClient>>,
   businessId: string
 ) {
   const { data: existing } = await supabase
@@ -115,23 +120,47 @@ async function getOrCreateAgent(
 }
 
 async function getConversationMessages(
-  supabase: ReturnType<typeof createClient>,
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  businessId: string,
   conversationId: string
 ): Promise<ModelMessage[]> {
   const { data } = await supabase
     .from("ai_messages")
     .select("role,content,tool_name,tool_call_id,metadata")
     .eq("conversation_id", conversationId)
+    .eq("business_id", businessId)
     .order("created_at", { ascending: true })
     .limit(50);
 
-  return (data ?? []).map((row) => ({
-    role: row.role as ModelMessage["role"],
-    content: row.content,
-    tool_call_id: row.tool_call_id ?? undefined,
-    name: row.tool_name ?? undefined,
-    ...(Array.isArray(row.metadata?.tool_calls) ? { tool_calls: row.metadata.tool_calls } : {})
-  }));
+  const rows = data ?? [];
+  const attachmentIds: string[] = Array.from(new Set(
+    rows.flatMap((row) =>
+      row.role === "user" && Array.isArray(row.metadata?.attachments)
+        ? row.metadata.attachments.map((item: any) => String(item?.id || "")).filter(Boolean)
+        : []
+    )
+  )).slice(-12) as string[];
+
+  const hydratedEntries = await Promise.all(
+    attachmentIds.map(async (id) => [id, await hydrateAttachmentContent(supabase, businessId, [id])] as const)
+  );
+  const byAttachment = new Map(hydratedEntries.map(([id, value]) => [id, value.parts]));
+
+  return rows.map((row) => {
+    const ids: string[] = row.role === "user" && Array.isArray(row.metadata?.attachments)
+      ? row.metadata.attachments.map((item: any) => String(item?.id || "")).filter(Boolean) as string[]
+      : [];
+    const attachmentParts = ids.flatMap((id) => byAttachment.get(id) || []);
+    return {
+      role: row.role as ModelMessage["role"],
+      content: attachmentParts.length
+        ? [{ type: "text" as const, text: String(row.content || "") }, ...attachmentParts]
+        : row.content,
+      tool_call_id: row.tool_call_id ?? undefined,
+      name: row.tool_name ?? undefined,
+      ...(Array.isArray(row.metadata?.tool_calls) ? { tool_calls: row.metadata.tool_calls } : {})
+    };
+  });
 }
 
 function systemPrompt(business: { name: string; industry?: string | null; currency?: string | null }, projectId?: string | null) {
@@ -151,7 +180,10 @@ function systemPrompt(business: { name: string; industry?: string | null; curren
     "After modifying a software project, verification is required before declaring the coding task complete whenever the project can be executed. If verification fails, diagnose from the real output rather than guessing. Preserve the existing feature set during repairs and rely on the governed repair engine's rollback behavior.",
 
     "For website requests, treat the website as a living business surface connected to CRM, catalogue, booking, payment and communications where applicable.",
+    "Website visual quality is part of the product, not decoration. Do not settle for generic gradients, placeholder boxes, stock-looking hero imagery or copied visual identities when a bespoke asset would improve the result. Inspect website.assets.list first when an existing brand asset may be reusable. For new visual needs, use website.asset.generate with a business-specific brief, and reuse the returned asset in the website/project rather than merely describing it. Preserve visual continuity across pages and redesigns.",
     "Voice transcripts may be imperfect. Interpret them naturally and verify critical numbers or identities before sensitive actions.",
+    "Attachments are first-class project and business inputs. When the user attaches an image, screenshot, document, PDF, spreadsheet or text file, inspect the supplied attachment content before answering or changing the project. Use extracted document/spreadsheet text and the actual image pixels where available. When an attachment is a design reference, treat it as visual direction, not permission to copy protected branding or assets.",
+    "When an attachment and a software project appear in the same turn, use the attachment as engineering evidence: derive the relevant content, map it to the existing project graph, and make real source-file changes through the governed project tools when the user asked for implementation. Do not describe an attachment-derived change as complete unless the relevant project tool actually performed it.",
     "Business name: " + business.name,
     "Industry: " + (business.industry || "not specified"),
     "Base currency: " + (business.currency || "not specified"),
@@ -160,7 +192,7 @@ function systemPrompt(business: { name: string; industry?: string | null; curren
 }
 
 async function toolRequiresApproval(
-  supabase: ReturnType<typeof createClient>,
+  supabase: Awaited<ReturnType<typeof createClient>>,
   businessId: string,
   tool: ReturnType<typeof getToolDefinition>,
   agent: any
@@ -180,6 +212,8 @@ async function toolRequiresApproval(
     "project.runtime.run": "run_project_runtime",
     "project.runtime.verify": "run_project_runtime",
     "website.build": "build_website",
+    "website.assets.list": "build_websites",
+    "website.asset.generate": "build_websites",
     "communications.inbox": "read_communications"
   };
   const actionType = actionTypeByTool[tool.toolKey];
@@ -198,7 +232,7 @@ async function toolRequiresApproval(
 }
 
 async function saveMessage(
-  supabase: ReturnType<typeof createClient>,
+  supabase: Awaited<ReturnType<typeof createClient>>,
   conversationId: string,
   businessId: string,
   message: { role: "user" | "assistant" | "tool"; content: string; toolName?: string; toolCallId?: string; metadata?: Record<string, unknown> },
@@ -219,7 +253,7 @@ async function saveMessage(
 }
 
 async function createRun(
-  supabase: ReturnType<typeof createClient>,
+  supabase: Awaited<ReturnType<typeof createClient>>,
   businessId: string,
   agentId: string,
   conversationId: string,
@@ -247,7 +281,7 @@ async function createRun(
 }
 
 async function executeOperatorTurn(args: {
-  supabase: ReturnType<typeof createClient>;
+  supabase: Awaited<ReturnType<typeof createClient>>;
   businessId: string;
   userId: string;
   conversationId: string;
@@ -418,7 +452,8 @@ export async function runUniversalAssistant({
   conversationId,
   input,
   clientMessageId,
-  projectId
+  projectId,
+  attachmentIds
 }: {
   userId: string;
   businessId?: string | null;
@@ -426,19 +461,21 @@ export async function runUniversalAssistant({
   input: string;
   clientMessageId?: string | null;
   projectId?: string | null;
+  attachmentIds?: string[];
 }) : Promise<OperatorResult> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const business = await getBusiness(supabase, userId, businessId);
   const agent = await getOrCreateAgent(supabase, business.id);
 
   let conversationIdValue = conversationId || null;
   if (conversationIdValue) {
     const { data: existing } = await supabase.from("ai_conversations")
-      .select("id")
+      .select("id,metadata")
       .eq("id", conversationIdValue)
       .eq("business_id", business.id)
       .single();
-    if (!existing) conversationIdValue = null;
+    const existingProjectId = typeof existing?.metadata?.project_id === "string" ? existing.metadata.project_id : null;
+    if (!existing || (projectId && existingProjectId !== projectId)) conversationIdValue = null;
   }
 
   if (!conversationIdValue) {
@@ -447,6 +484,7 @@ export async function runUniversalAssistant({
       created_by: userId,
       agent_id: agent.id,
       title: input.trim().slice(0, 80) || "New conversation",
+      metadata: { project_id: projectId || null, surface: projectId ? "website_creator" : "ai_builder" },
       last_message_at: new Date().toISOString()
     }).select("id").single();
     if (error || !conversation) throw new Error("Could not create the assistant conversation.");
@@ -455,18 +493,39 @@ export async function runUniversalAssistant({
 
   if (!conversationIdValue) throw new Error("Assistant conversation could not be established.");
 
+  const requestedAttachmentIds = Array.from(new Set((attachmentIds || []).filter(Boolean))).slice(0, 12);
+  await linkAttachmentsToConversation(
+    supabase,
+    business.id,
+    requestedAttachmentIds,
+    conversationIdValue,
+    projectId || null
+  );
+  const attachmentMeta = requestedAttachmentIds.length
+    ? await attachmentReferences(supabase, business.id, requestedAttachmentIds)
+    : [];
+
   await saveMessage(supabase, conversationIdValue, business.id, {
     role: "user",
-    content: input.trim()
+    content: input.trim(),
+    metadata: attachmentMeta.length ? { attachments: attachmentMeta } : {}
   }, clientMessageId ?? undefined);
 
-  const history = await getConversationMessages(supabase, conversationIdValue);
+  const history = await getConversationMessages(supabase, business.id, conversationIdValue);
   const messages: ModelMessage[] = [
     { role: "system", content: systemPrompt(business, projectId) },
     ...history
   ];
 
-  const runId = await createRun(supabase, business.id, agent.id, conversationIdValue, input, userId, projectId);
+  const runId = await createRun(
+    supabase,
+    business.id,
+    agent.id,
+    conversationIdValue,
+    input,
+    userId,
+    projectId
+  );
 
   try {
     return await executeOperatorTurn({
@@ -497,7 +556,7 @@ export async function approveOperatorRun({
   userId: string;
   runId: string;
 }) : Promise<OperatorResult> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const business = await getBusiness(supabase, userId);
 
   const { data: run, error: runError } = await supabase
@@ -551,7 +610,7 @@ export async function approveOperatorRun({
     toolCallId
   });
 
-  const history = await getConversationMessages(supabase, run.conversation_id);
+  const history = await getConversationMessages(supabase, business.id, run.conversation_id);
   const agent = await getOrCreateAgent(supabase, business.id);
   await supabase.from("ai_agent_runs").update({ status: "running", approval_required: false }).eq("id", run.id).eq("business_id", business.id);
 

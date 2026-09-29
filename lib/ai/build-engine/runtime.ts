@@ -1,11 +1,13 @@
 import { createClient } from '@/lib/supabase-server';
 import { buildPlan, countWebsiteRequirements } from '@/lib/ai/build-engine/capabilities';
 import { generateWebsiteSpec } from '@/lib/ai/build-engine/provider';
+import { compileWebsiteToProject } from '@/lib/ai/build-engine/project-compiler';
+import { generateWebsiteAsset, imageGenerationConfigured } from '@/lib/ai/assets/generation';
 import type { BuildContext, BuildMode, WebsiteSpec } from '@/lib/ai/build-engine/types';
 import { runSandboxCommand, sandboxConfigured, syncFiles } from '@/lib/sandbox/vercel';
 
 async function ownerBusiness(businessId: string, userId: string) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: business, error } = await supabase.from('businesses').select('id,name,industry,currency,contact_email,contact_phone,organization_id,workspace_id').eq('id', businessId).eq('owner_id', userId).single();
   if (error || !business) throw new Error('Business context is not available.');
   return { supabase, business };
@@ -65,6 +67,130 @@ function structuralTests(spec: WebsiteSpec) {
     { key:'all_sections_have_ids', pass:spec.pages.every((p)=>p.sections.every((s)=>Boolean(s.id))), expected:'section ids', actual:spec.pages.flatMap((p)=>p.sections).map((s)=>s.id) },
     { key:'seo_present', pass:spec.pages.every((p)=>Boolean(p.seo.title && p.seo.description)), expected:'SEO title and description for every page', actual:spec.pages.map((p)=>p.seo) }
   ];
+}
+
+async function enrichWebsiteWithVisualAssets(args: {
+  supabase: any;
+  businessId: string;
+  userId: string;
+  projectId?: string | null;
+  websiteId?: string | null;
+  buildRunId: string;
+  originalPrompt: string;
+  spec: WebsiteSpec;
+  enabled: boolean;
+}) {
+  const { supabase, businessId, userId, projectId = null, websiteId = null, buildRunId, originalPrompt, spec, enabled } = args;
+  const result = {
+    status: "skipped" as "skipped" | "configured" | "partial",
+    generated: [] as Array<Record<string, unknown>>,
+    reused: [] as Array<Record<string, unknown>>,
+    warnings: [] as string[]
+  };
+
+  if (!enabled) {
+    result.warnings.push("Visual asset generation was disabled for this build.");
+    return result;
+  }
+  if (!imageGenerationConfigured()) {
+    result.warnings.push("Visual asset generation is not configured; the website build continued without generated imagery.");
+    return result;
+  }
+
+  const scope = websiteId ? { website_id: websiteId } : projectId ? { project_id: projectId } : { business_id: businessId };
+  const { data: existingAssets, error: assetError } = await supabase
+    .from("ai_website_assets")
+    .select("id,kind,name,storage_path,alt_text")
+    .eq("business_id", businessId)
+    .eq("status", "active")
+    .match(scope)
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  if (assetError) {
+    result.warnings.push("Existing visual assets could not be inspected: " + assetError.message);
+  }
+
+  const publicUrl = (row: any) => supabase.storage.from("bizstack-website-assets").getPublicUrl(String(row.storage_path)).data.publicUrl;
+  const logo = (existingAssets ?? []).find((asset: any) => asset.kind === "logo");
+  const heroAsset = (existingAssets ?? []).find((asset: any) => asset.kind === "hero");
+
+  if (logo && !spec.theme.logoUrl) {
+    spec.theme.logoUrl = publicUrl(logo);
+    result.reused.push({ id: logo.id, kind: "logo", name: logo.name, public_url: spec.theme.logoUrl });
+  }
+
+  const home = spec.pages.find((page) => page.slug === "home") ?? spec.pages[0];
+  const heroSection = home?.sections.find((section) => section.type === "hero");
+
+  if (heroAsset && heroSection && !heroSection.imageUrl) {
+    heroSection.imageUrl = publicUrl(heroAsset);
+    heroSection.imageAlt = heroAsset.alt_text || String(heroAsset.name || "Brand hero visual");
+    result.reused.push({ id: heroAsset.id, kind: "hero", name: heroAsset.name, public_url: heroSection.imageUrl });
+  }
+
+  const visualDirection = [
+    "Website theme: " + spec.theme.style,
+    "Primary color: " + spec.theme.primary,
+    "Accent color: " + spec.theme.accent,
+    "Typography: " + spec.theme.typography
+  ].join(", ");
+  const referenceContext = "Original website brief: " + originalPrompt;
+
+  if (!spec.theme.logoUrl) {
+    try {
+      const asset = await generateWebsiteAsset({
+        supabase,
+        businessId,
+        userId,
+        websiteId,
+        projectId,
+        buildRunId,
+        kind: "logo",
+        name: businessId + " bespoke brand mark",
+        prompt: "Design a distinctive original logo/brand mark for this business. It must feel owned by this business rather than like a generic template. Derive the symbol from the business identity and the website's visual direction.",
+        altText: "Bespoke brand mark",
+        visualDirection,
+        referenceContext
+      });
+      spec.theme.logoUrl = asset.public_url;
+      result.generated.push(asset);
+    } catch (error) {
+      result.warnings.push(error instanceof Error ? error.message : "Logo generation failed.");
+    }
+  }
+
+  if (heroSection && !heroSection.imageUrl) {
+    try {
+      const asset = await generateWebsiteAsset({
+        supabase,
+        businessId,
+        userId,
+        websiteId,
+        projectId,
+        buildRunId,
+        kind: "hero",
+        name: businessId + " bespoke website hero",
+        prompt: [
+          "Create a signature hero visual for the homepage.",
+          "The composition must be specific to this business and work behind website copy.",
+          "Use the actual industry, audience and brief to create a memorable scene or art direction.",
+          "Do not use a generic office photo, generic laptop mockup, generic abstract gradient or template illustration."
+        ].join(" "),
+        altText: String(heroSection.heading || "Bespoke homepage visual"),
+        visualDirection,
+        referenceContext
+      });
+      heroSection.imageUrl = asset.public_url;
+      heroSection.imageAlt = asset.name;
+      result.generated.push(asset);
+    } catch (error) {
+      result.warnings.push(error instanceof Error ? error.message : "Hero image generation failed.");
+    }
+  }
+
+  result.status = result.generated.length && result.warnings.length ? "partial" : "configured";
+  return result;
 }
 
 async function verifyGeneratedProject(supabase: any, businessId: string, projectId: string, buildRunId: string, userId: string) {
@@ -128,8 +254,8 @@ async function verifyGeneratedProject(supabase: any, businessId: string, project
   return { status: 'verified', sandbox: sandbox.name };
 }
 
-export async function runWebsiteBuild(args: { businessId:string; userId:string; prompt:string; websiteId?:string|null; projectId?:string|null; mode?:BuildMode; publish?:boolean }) {
-  const { businessId, userId, prompt, websiteId, projectId, mode='ask_first', publish=false } = args;
+export async function runWebsiteBuild(args: { businessId:string; userId:string; prompt:string; websiteId?:string|null; projectId?:string|null; mode?:BuildMode; publish?:boolean; generateAssets?:boolean }) {
+  const { businessId, userId, prompt, websiteId, projectId, mode='ask_first', publish=false, generateAssets=true } = args;
   if (!prompt.trim()) throw new Error('Describe what you want BizStack to build.');
   const { supabase, business } = await ownerBusiness(businessId,userId);
   let existingWebsite:any = null;
@@ -153,6 +279,17 @@ export async function runWebsiteBuild(args: { businessId:string; userId:string; 
     const generated=await generateWebsiteSpec(prompt,context);
     if(!generated.spec) throw new Error(generated.error || 'The build engine could not produce a website specification.');
     const spec=generated.spec;
+    const visualAssets = await enrichWebsiteWithVisualAssets({
+      supabase,
+      businessId,
+      userId,
+      projectId,
+      websiteId,
+      buildRunId: run.id,
+      originalPrompt: prompt,
+      spec,
+      enabled: generateAssets
+    });
     const metrics=countWebsiteRequirements(spec);
     let projectResult:any=null;
     if(projectId){
@@ -191,7 +328,13 @@ export async function runWebsiteBuild(args: { businessId:string; userId:string; 
       return {runId:run.id,status:'waiting_approval',approvalId:approval.id,result:{spec,tests,metrics}};
     }
     const finalWebsiteId=await applyWebsiteSpec(supabase,businessId,websiteId,spec,Boolean(publish));
-    const result={websiteId:finalWebsiteId,project:projectResult,published:Boolean(publish),metrics,provider:generated.providerKey,providerStatus:generated.status,spec,tests};
+    if (visualAssets.generated.length) {
+      await supabase.from("ai_website_assets")
+        .update({ website_id: finalWebsiteId, updated_at: new Date().toISOString() })
+        .eq("business_id", businessId)
+        .eq("build_run_id", run.id);
+    }
+    const result={websiteId:finalWebsiteId,project:projectResult,published:Boolean(publish),metrics,provider:generated.providerKey,providerStatus:generated.status,spec,tests,visualAssets};
     await supabase.from('ai_build_steps').insert({business_id:businessId,build_run_id:run.id,sequence_no:5,step_key:'persist',step_type:'execution',status:'succeeded',input:{websiteId:finalWebsiteId},output:result,started_at:new Date().toISOString(),finished_at:new Date().toISOString()});
     await supabase.from('ai_build_runs').update({status:'succeeded',result,finished_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',run.id).eq('business_id',businessId);
     await supabase.from('events').insert({ business_id:businessId,event_type:'ai.build.completed',summary:'Website build completed with ' + metrics.pages + ' pages and ' + metrics.sections + ' structured sections.',evidence:{build_run_id:run.id,website_id:finalWebsiteId,provider:generated.providerKey,provider_status:generated.status,metrics},status:'info',priority:'normal',category:'ai_build' });

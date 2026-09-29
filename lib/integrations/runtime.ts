@@ -14,7 +14,7 @@ export type ExternalCredential = {
 };
 
 export async function assertBusinessOwner(businessId: string, userId: string) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data, error } = await supabase.from("businesses").select("id,name,currency").eq("id", businessId).eq("owner_id", userId).single();
   if (error || !data) throw new Error("Business access denied");
   return data;
@@ -26,7 +26,7 @@ export async function saveIntegrationCredential(args: {
   kind: "api_key"|"oauth"|"bearer"|"basic"|"database"|"webhook"|"custom";
   credential: ExternalCredential;
 }) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const encrypted = encryptSecret(args.credential);
   const { data, error } = await supabase.from("integration_credentials").upsert({
     business_id: args.businessId,
@@ -41,14 +41,14 @@ export async function saveIntegrationCredential(args: {
 }
 
 export async function loadIntegrationCredential(integrationId: string, businessId: string) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data, error } = await supabase.from("integration_credentials").select("*").eq("integration_id", integrationId).eq("business_id", businessId).eq("status","active").single();
   if (error) throw error;
   return { row: data, credential: decryptSecret<ExternalCredential>(data.encrypted_payload) };
 }
 
 export async function markIntegrationVerified(integrationId: string, businessId: string) {
-  const supabase = createClient();
+  const supabase = await createClient();
   await supabase.from("integration_credentials").update({last_verified_at:new Date().toISOString(),status:"active"}).eq("integration_id",integrationId).eq("business_id",businessId);
   await supabase.from("integrations").update({status:"connected",error_message:null,last_synced_at:new Date().toISOString()}).eq("id",integrationId).eq("business_id",businessId);
 }

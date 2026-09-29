@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase-server";
 import { runWebsiteBuild } from "@/lib/ai/build-engine/runtime";
 
 async function ownerContext(){
-  const supabase=createClient();
+  const supabase=await createClient();
   const {data:{user}}=await supabase.auth.getUser();
   if(!user) redirect("/login");
   const {data:business}=await supabase.from("businesses").select("id,name").eq("owner_id",user.id).single();
@@ -85,7 +85,9 @@ async function publishWebsite(formData:FormData){
   revalidatePath("/site");
 }
 
-export default async function WebsiteEditor({params,searchParams}:{params:{id:string},searchParams:{page?:string}}){
+export default async function WebsiteEditor(props:{params: Promise<{id:string}>,searchParams: Promise<{page?:string}>}) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const {supabase,business}=await ownerContext();
   const {data:site}=await supabase.from("websites").select("id,name,status,subdomain,custom_domain,current_version,settings").eq("id",params.id).eq("business_id",business.id).single();
   if(!site) notFound();
@@ -95,7 +97,7 @@ export default async function WebsiteEditor({params,searchParams}:{params:{id:st
   const {data:builds}=await supabase.from("ai_build_runs").select("id,status,provider_status,request_text,result,error_message,created_at").eq("business_id",business.id).eq("capability_key","website").order("created_at",{ascending:false}).limit(5);
   const latestBuild=builds?.[0];
   return <main className="min-h-screen bg-ledger">
-    <header className="border-b border-rule bg-white"><div className="max-w-7xl mx-auto px-6 py-5 flex justify-between items-center gap-4"><div><Link href="/dashboard/website" className="text-xs text-ink/45">← Websites</Link><h1 className="font-display text-2xl mt-1">{site.name}</h1><p className="text-xs text-ink/45 mt-1">{site.subdomain?site.subdomain+".bizstack.local":"No public subdomain"} · v{site.current_version}</p></div><div className="flex gap-2">{page&&<Link href={page.slug==="home"?"/site/"+site.subdomain:"/site/"+site.subdomain+"/"+page.slug} className="border border-rule px-4 py-2 text-sm">Open preview</Link>}<form action={publishWebsite}><input type="hidden" name="websiteId" value={site.id}/><button className="bg-vault text-white px-4 py-2 text-sm">Publish saved changes</button></form></div></div></header>
+    <header className="border-b border-rule bg-white"><div className="max-w-7xl mx-auto px-6 py-5 flex justify-between items-center gap-4"><div><Link href="/dashboard/website" className="text-xs text-ink/45">← Websites</Link><h1 className="font-display text-2xl mt-1">{site.name}</h1><p className="text-xs text-ink/45 mt-1">{site.subdomain?site.subdomain+".bizstack.local":"No public subdomain"} · v{site.current_version}</p></div><div className="flex gap-2"><Link href="/dashboard/ai-builder" className="border border-indigo-200 bg-indigo-50 text-indigo-800 px-4 py-2 text-sm">Open AI Builder</Link>{page&&<Link href={page.slug==="home"?"/site/"+site.subdomain:"/site/"+site.subdomain+"/"+page.slug} className="border border-rule px-4 py-2 text-sm">Open preview</Link>}<form action={publishWebsite}><input type="hidden" name="websiteId" value={site.id}/><button className="bg-vault text-white px-4 py-2 text-sm">Publish saved changes</button></form></div></div></header>
     <section className="max-w-7xl mx-auto px-6 py-8 space-y-6">
       <div className="bg-ink text-mist p-6 rounded-sm">
         <p className="text-xs uppercase tracking-[.16em] text-mist/60">BizStack AI Build Engine</p>

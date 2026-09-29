@@ -4,7 +4,8 @@ import { createAdminClient } from "@/lib/supabase-admin";
 
 export const runtime="nodejs";
 
-export async function POST(req:NextRequest,{params}:{params:{slug:string}}){
+export async function POST(req:NextRequest, props:{params: Promise<{slug:string}>}) {
+ const params = await props.params;
  const admin=createAdminClient();
  const body=await req.json().catch(()=>({}));
  const {data:menu,error:me}=await admin.from("digital_menus").select("id,business_id,name,currency,status").eq("slug",params.slug).eq("status","published").single();

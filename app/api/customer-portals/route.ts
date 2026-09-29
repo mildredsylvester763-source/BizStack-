@@ -6,14 +6,14 @@ async function businessForUser(supabase:any,userId:string){
  return data;
 }
 export async function GET(){
- const supabase=createClient(); const {data:{user}}=await supabase.auth.getUser(); if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
+ const supabase=await createClient(); const {data:{user}}=await supabase.auth.getUser(); if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
  const business=await businessForUser(supabase,user.id); if(!business)return NextResponse.json({error:"Business context is not available."},{status:404});
  const {data,error}=await supabase.from("customer_portals").select("id,name,status,slug,settings,created_at,updated_at").eq("business_id",business.id).order("created_at",{ascending:false});
  if(error)return NextResponse.json({error:error.message},{status:500});
  return NextResponse.json({business,portals:data||[]});
 }
 export async function POST(req:NextRequest){
- const supabase=createClient(); const {data:{user}}=await supabase.auth.getUser(); if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
+ const supabase=await createClient(); const {data:{user}}=await supabase.auth.getUser(); if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
  const business=await businessForUser(supabase,user.id); if(!business)return NextResponse.json({error:"Business context is not available."},{status:404});
  const body=await req.json().catch(()=>({}));
  const name=String(body?.name||"Customer Portal").trim().slice(0,120);
@@ -26,7 +26,7 @@ export async function POST(req:NextRequest){
  return NextResponse.json({portal:data}, {status:201});
 }
 export async function PATCH(req:NextRequest){
- const supabase=createClient(); const {data:{user}}=await supabase.auth.getUser(); if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
+ const supabase=await createClient(); const {data:{user}}=await supabase.auth.getUser(); if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
  const business=await businessForUser(supabase,user.id); if(!business)return NextResponse.json({error:"Business context is not available."},{status:404});
  const body=await req.json().catch(()=>({})); const id=String(body?.id||"");
  if(!id)return NextResponse.json({error:"Portal id is required."},{status:400});

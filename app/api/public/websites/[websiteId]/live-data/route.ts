@@ -8,78 +8,76 @@ const PUBLIC_PRODUCT_FIELDS = new Set(["id","name","sku","unit","unit_price","is
 const PUBLIC_PROFILE_FIELDS = new Set(["name","industry","currency","address","contact_email","contact_phone"]);
 const PUBLIC_INVENTORY_FIELDS = new Set(["id","name","sku","unit","stock_quantity","is_active"]);
 
+type PublishedWebsiteRecord = {
+  id:string;
+  business_id:string;
+  status:string;
+};
+
+type WebsiteBindingRecord = {
+  source_key:string;
+  enabled:boolean;
+  exposure:string;
+  fields:unknown;
+  sync_mode:string|null;
+};
+
+type PublicProductRecord = {
+  id:string;
+  name:string;
+  sku:string|null;
+  unit:string|null;
+  unit_price:number|string|null;
+  stock_quantity:number|string|null;
+  is_active:boolean;
+};
+
 function pick(row: Record<string, unknown>, fields: string[], allowed: Set<string>) {
   const output: Record<string, unknown> = {};
-  for (const field of fields) if (allowed.has(field)) output[field] = row[field];
+  for (const field of fields) {
+    if (allowed.has(field)) output[field] = row[field];
+  }
   return output;
 }
 
 export async function GET(
   _req: Request,
-  { params }: { params: { websiteId: string } }
+  { params }: { params: Promise<{ websiteId: string }> }
 ) {
   const supabase = createAdminClient();
-  const { data: website, error } = await supabase
+  const { websiteId } = await params;
+  const { data: rawWebsite, error } = await supabase
     .from("websites")
-     .select("id,business_id,status")
-    .eq("id", params.websiteId)
+    .select("id,business_id,status")
+    .eq("id", websiteId)
     .eq("status", "published")
     .single();
+  const website = rawWebsite as PublishedWebsiteRecord|null;
 
   if (error || !website) {
     return NextResponse.json({ error: "Published website not found." }, { status: 404 });
   }
 
-  const { data: bindings, error: bindingError } = await supabase
+  const { data: rawBindings, error: bindingError } = await supabase
     .from("website_business_bindings")
     .select("source_key,enabled,exposure,fields,sync_mode")
     .eq("website_id", website.id)
     .eq("business_id", website.business_id)
     .eq("enabled", true)
     .eq("exposure", "public");
+  const bindings = (rawBindings ?? []) as WebsiteBindingRecord[];
 
-  if (bindingError) return NextResponse.json({ error: "Website data binding unavailable." }, { status: 500 });
+  if (bindingError) {
+    return NextResponse.json({ error: "Website data binding unavailable." }, { status: 500 });
+  }
 
   const result: Record<string, unknown> = {};
+
   for (const binding of bindings ?? []) {
     const key = String(binding.source_key);
-    const requestedFields = Array.isArray(binding.fields) ? binding.fields.map(String).slice(0, 30) : [];
-
-    if (key === "business_profile") {
-      const { data } = await supabase.from("businesses").select("name,industry,currency,address,contact_email,contact_phone").eq("id", website.business_id).single();
-      result.business_profile = data ? pick(data, requestedFields.length ? requestedFields : [...PUBLIC_PROFILE_FIELDS], PUBLIC_PROFILE_FIELDS) : null;
-      continue;
-    }
-
-    if (key === "products") {
-      const { data } = await supabase.from("products").select("id,name,sku,unit,unit_price,is_active").eq("business_id", website.business_id).eq("is_active", true).order("name", { ascending: true }).limit(500);
-      result.products = (data ?? []).map((row) => pick(row, requestedFields.length ? requestedFields : [...PUBLIC_PRODUCT_FIELDS], PUBLIC_PRODUCT_FIELDS));
-      continue;
-    }
-
-    if (key === "inventory_availability") {
-      const { data } = await supabase.from("products").select("id,name,sku,unit,stock_quantity,is_active").eq("business_id", website.business_id).eq("is_active", true).order("name", { ascending: true }).limit(500);
-      result.inventory_availability = (data ?? []).map((row) => {
-        const safe = pick(row, requestedFields.length ? requestedFields : [...PUBLIC_INVENTORY_FIELDS], PUBLIC_INVENTORY_FIELDS);
-        return { ...safe, availability: Number(row.stock_quantity ?? 0) > 0 ? "in_stock" : "out_of_stock" };
-      });
-    }
-  }
-
-  return NextResponse.json(
-      { websiteId: website.id, updatedAt: new Date().toISOString(), data: {} },
-      { headers: { "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" } }
-    );
-  }
-
-  const sources = Array.isArray(live.sources) ? live.sources : [];
-  const result: Record<string, unknown> = {};
-
-  for (const raw of sources) {
-    if (!raw || typeof raw !== "object") continue;
-    const source = raw as Record<string, unknown>;
-    const key = String(source.key ?? "");
-    const requestedFields = Array.isArray(source.fields) ? source.fields.map(String).slice(0, 30) : [];
+    const requestedFields = Array.isArray(binding.fields)
+      ? binding.fields.map(String).slice(0, 30)
+      : [];
 
     if (key === "business_profile") {
       const { data } = await supabase
@@ -87,40 +85,72 @@ export async function GET(
         .select("name,industry,currency,address,contact_email,contact_phone")
         .eq("id", website.business_id)
         .single();
-      result.business_profile = data ? pick(data, requestedFields.length ? requestedFields : [...PUBLIC_PROFILE_FIELDS], PUBLIC_PROFILE_FIELDS) : null;
+
+      result.business_profile = data
+        ? pick(
+            data,
+            requestedFields.length ? requestedFields : [...PUBLIC_PROFILE_FIELDS],
+            PUBLIC_PROFILE_FIELDS
+          )
+        : null;
       continue;
     }
 
     if (key === "products") {
-      const { data } = await supabase
+      const { data: rawData } = await supabase
         .from("products")
         .select("id,name,sku,unit,unit_price,is_active")
         .eq("business_id", website.business_id)
         .eq("is_active", true)
         .order("name", { ascending: true })
         .limit(500);
-      result.products = (data ?? []).map((row) => pick(row, requestedFields.length ? requestedFields : [...PUBLIC_PRODUCT_FIELDS], PUBLIC_PRODUCT_FIELDS));
+      const data = (rawData ?? []) as PublicProductRecord[];
+
+      result.products = data.map((row) =>
+        pick(
+          row,
+          requestedFields.length ? requestedFields : [...PUBLIC_PRODUCT_FIELDS],
+          PUBLIC_PRODUCT_FIELDS
+        )
+      );
       continue;
     }
 
     if (key === "inventory_availability") {
-      const { data } = await supabase
+      const { data: rawData } = await supabase
         .from("products")
         .select("id,name,sku,unit,stock_quantity,is_active")
         .eq("business_id", website.business_id)
         .eq("is_active", true)
         .order("name", { ascending: true })
         .limit(500);
-      result.inventory_availability = (data ?? []).map((row) => {
-        const safe = pick(row, requestedFields.length ? requestedFields : [...PUBLIC_INVENTORY_FIELDS], PUBLIC_INVENTORY_FIELDS);
-        const quantity = Number(row.stock_quantity ?? 0);
-        return { ...safe, availability: quantity > 0 ? "in_stock" : "out_of_stock" };
+      const data = (rawData ?? []) as PublicProductRecord[];
+
+      result.inventory_availability = data.map((row) => {
+        const safe = pick(
+          row,
+          requestedFields.length ? requestedFields : [...PUBLIC_INVENTORY_FIELDS],
+          PUBLIC_INVENTORY_FIELDS
+        );
+        return {
+          ...safe,
+          availability: Number(row.stock_quantity ?? 0) > 0 ? "in_stock" : "out_of_stock"
+        };
       });
     }
   }
 
   return NextResponse.json(
-    { websiteId: website.id, updatedAt: new Date().toISOString(), data: result },
-    { headers: { "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" } }
+    {
+      websiteId: website.id,
+      updatedAt: new Date().toISOString(),
+      data: result
+    },
+    {
+      headers: {
+        "Cache-Control": "no-store",
+        "Access-Control-Allow-Origin": "*"
+      }
+    }
   );
 }

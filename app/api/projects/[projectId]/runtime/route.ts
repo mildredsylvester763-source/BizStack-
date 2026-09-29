@@ -24,7 +24,7 @@ function validCommand(cmd: unknown, args: unknown) {
   return { cmd, args: args as string[] };
 }
 
-async function loadProject(supabase: ReturnType<typeof createClient>, projectId: string, userId: string) {
+async function loadProject(supabase: Awaited<ReturnType<typeof createClient>>, projectId: string, userId: string) {
   const { data, error } = await supabase
     .from("ai_projects")
     .select("id,name,slug,status,business_id,framework,runtime")
@@ -38,7 +38,7 @@ async function loadProject(supabase: ReturnType<typeof createClient>, projectId:
   return data;
 }
 
-async function loadFiles(supabase: ReturnType<typeof createClient>, projectId: string) {
+async function loadFiles(supabase: Awaited<ReturnType<typeof createClient>>, projectId: string) {
   const { data, error } = await supabase
     .from("ai_project_files")
     .select("path,content,is_binary")
@@ -52,10 +52,10 @@ async function loadFiles(supabase: ReturnType<typeof createClient>, projectId: s
 
 export async function POST(
   request: Request,
-  context: { params: { projectId: string } }
+  context: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -66,7 +66,7 @@ export async function POST(
       }, { status: 503 });
     }
 
-    const project = await loadProject(supabase, context.params.projectId, user.id);
+    const project = await loadProject(supabase, (await context.params).projectId, user.id);
     const body = await request.json().catch(() => ({}));
     const action = typeof body.action === "string" ? body.action : "sync";
 

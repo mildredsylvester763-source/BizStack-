@@ -6,7 +6,7 @@ import type { BuildMode } from '@/lib/ai/build-engine/types';
 function checksum(value:unknown){const json=JSON.stringify(value);let hash=2166136261;for(let i=0;i<json.length;i+=1){hash^=json.charCodeAt(i);hash=Math.imul(hash,16777619);}return(hash>>>0).toString(16);}
 
 export async function runProductInventoryBuild(args:{businessId:string;userId:string;prompt:string;mode?:BuildMode}){
-  const {businessId,userId,prompt,mode='auto_execute'}=args; const supabase=createClient();
+  const {businessId,userId,prompt,mode='auto_execute'}=args; const supabase=await createClient();
   const {data:business,error:be}=await supabase.from('businesses').select('id,name,currency,workspace_id').eq('id',businessId).eq('owner_id',userId).single();
   if(be||!business)throw new Error('Business context is not available.');
   const plan=buildPlan({capability:'product_inventory',prompt,mode,context:{business:{id:business.id,name:business.name,currency:business.currency}}});
@@ -42,7 +42,7 @@ export async function runProductInventoryBuild(args:{businessId:string;userId:st
 }
 
 export async function runMoneyEntryBuild(args:{businessId:string;userId:string;prompt:string;mode?:BuildMode}){
-  const {businessId,userId,prompt,mode='auto_execute'}=args; const supabase=createClient();
+  const {businessId,userId,prompt,mode='auto_execute'}=args; const supabase=await createClient();
   const {data:business,error:be}=await supabase.from('businesses').select('id,name,currency,workspace_id').eq('id',businessId).eq('owner_id',userId).single();
   if(be||!business)throw new Error('Business context is not available.');
   const plan=buildPlan({capability:'money_transaction',prompt,mode,context:{business:{id:business.id,name:business.name,currency:business.currency}}});

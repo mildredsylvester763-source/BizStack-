@@ -1,11 +1,15 @@
 import { createHash } from "node:crypto";
 import { createClient } from "@/lib/supabase-server";
+import { runBizStackModel, type BizStackModelMessage } from "@/lib/ai/providers/router";
+import { buildProjectGraph } from "@/lib/project-graph";
+import { WEBSITE_DESIGN_BRIDGE_PATH, WEBSITE_DESIGN_BRIDGE_SOURCE } from "@/lib/website/design-bridge-source";
 import { runWebsiteBuild } from "@/lib/ai/build-engine/runtime";
 import { runInvoiceBuild } from "@/lib/ai/build-engine/invoice-runtime";
 import { runProductInventoryBuild } from "@/lib/ai/build-engine/operations-runtime";
 import { runSandboxCommand, sandboxConfigured, syncFiles } from "@/lib/sandbox/vercel";
 import { syncConnectorResource } from "@/lib/connectors/sync-runtime";
 import { executeRepair } from "@/lib/repair/engine";
+import { generateWebsiteAsset, imageGenerationConfigured, type WebsiteAssetKind } from "@/lib/ai/assets/generation";
 
 export type ToolDefinition = {
   toolKey: string;
@@ -37,7 +41,10 @@ export const TOOL_REGISTRY: ToolDefinition[] = [
   { toolKey: "communications.inbox", name: "Unified Communications Inbox", riskLevel: "low", permission: "read_integrations", description: "Read recent customer communications across connected channels such as WhatsApp, SMS and email without treating them as login/authentication.", inputSchema: { type: "object", properties: { channel: { type: "string" }, limit: { type: "number", minimum: 1, maximum: 100 } } } },
   { toolKey: "integrations.test", name: "Test Integration", riskLevel: "medium", permission: "write_integrations", description: "Verify a connected integration against its real provider API, update connection health, and record an auditable health-check event.", inputSchema: { type: "object", properties: { integration_id: { type: "string" } }, required: ["integration_id"] } },
   { toolKey: "integrations.sync", name: "Sync Connected Resource", riskLevel: "medium", permission: "write_integrations", description: "Run a governed sync for a connected custom connector resource and persist the external records, cursor, run evidence and errors.", inputSchema: { type: "object", properties: { integration_id: { type: "string" }, resource_key: { type: "string" } }, required: ["integration_id","resource_key"] } },
-  { toolKey: "website.build", name: "Build Website", riskLevel: "medium", permission: "build_websites", description: "Create or modify a real BizStack website from natural language, optionally compiling the same design into an editable software project.", inputSchema: { type: "object", properties: { prompt: { type: "string" }, website_id: { type: "string" }, project_id: { type: "string" }, publish: { type: "boolean" } }, required: ["prompt"] } },
+  { toolKey: "website.build", name: "Build Website", riskLevel: "medium", permission: "build_websites", description: "Create or modify a real BizStack website from natural language, optionally compiling the same design into an editable software project.", inputSchema: { type: "object", properties: { prompt: { type: "string" }, website_id: { type: "string" }, project_id: { type: "string" }, publish: { type: "boolean" }, generate_assets: { type: "boolean" } }, required: ["prompt"] } },
+  { toolKey: "website.blueprint.generate", name: "Website Blueprint", riskLevel: "low", permission: "build_websites", description: "Generate and persist a source-aware website sitemap, page structure, user flows, design direction and engineering dependencies without changing project source files.", inputSchema: { type: "object", properties: { project_id: { type: "string" }, brief: { type: "string" } }, required: ["project_id","brief"] } },
+  { toolKey: "website.assets.list", name: "Website Asset Library", riskLevel: "low", permission: "build_websites", description: "Inspect existing bespoke website visual assets so the builder can reuse the business identity instead of creating generic replacements.", inputSchema: { type: "object", properties: { website_id: { type: "string" }, project_id: { type: "string" }, kind: { type: "string" }, limit: { type: "number", minimum: 1, maximum: 50 } } } },
+  { toolKey: "website.asset.generate", name: "Generate Website Visual", riskLevel: "medium", permission: "build_websites", description: "Generate an original, business-specific image or brand asset and persist it into the BizStack website asset library. Never substitutes generic stock or copied brand visuals.", inputSchema: { type: "object", properties: { prompt: { type: "string" }, kind: { type: "string", enum: ["logo","hero","section_image","product_scene","background","illustration","og_image","favicon","custom"] }, website_id: { type: "string" }, project_id: { type: "string" }, build_run_id: { type: "string" }, name: { type: "string" }, alt_text: { type: "string" }, visual_direction: { type: "string" }, reference_context: { type: "string" } }, required: ["prompt","kind"] } },
   { toolKey: "website.live_data.configure", name: "Website Live Business Data", riskLevel: "medium", permission: "build_websites", description: "Configure a published website to read an allowlisted, non-sensitive slice of the business in near real time, such as public products, availability and business profile data. Private invoices, balances and customer records are never exposed by this surface.", inputSchema: { type: "object", properties: { website_id: { type: "string" }, enabled: { type: "boolean" }, sources: { type: "array", items: { type: "object" } } }, required: ["website_id","sources"] } },
   { toolKey: "events.create", name: "Create Business Event", riskLevel: "low", permission: "draft_actions", description: "Record an auditable internal action, recommendation or handoff.", inputSchema: { type: "object", properties: { event_type: { type: "string" }, summary: { type: "string" }, category: { type: "string" }, priority: { type: "string" }, action_type: { type: "string" } }, required: ["summary"] } },
   { toolKey: "projects.list", name: "Project Directory", riskLevel: "low", permission: "read_projects", description: "Inspect persistent software projects and their verified deployment state.", inputSchema: emptyObject() },
@@ -51,6 +58,9 @@ export const TOOL_REGISTRY: ToolDefinition[] = [
   { toolKey: "project.runtime.verify", name: "Project Verification", riskLevel: "medium", permission: "run_project_runtime", description: "Synchronize the current project into the isolated sandbox and verify it with install, build, lint, and test commands when those scripts exist.", inputSchema: { type: "object", properties: { project_id: { type: "string" }, include_tests: { type: "boolean" } }, required: ["project_id"] } },
   { toolKey: "project.repair.execute", name: "Execute Project Repair", riskLevel: "high", permission: "write_project_files", description: "Execute an existing planned AI repair run for a project. The repair engine snapshots first, applies minimal patches, verifies the result in the sandbox, and rolls back failed repairs.", inputSchema: { type: "object", properties: { repair_id: { type: "string" }, project_id: { type: "string" } }, required: ["repair_id","project_id"] } },
   { toolKey: "project.versions.diff", name: "Project Version Diff", riskLevel: "low", permission: "read_project_history", description: "Compare two persisted project snapshots and return added, removed and changed files.", inputSchema: { type: "object", properties: { project_id: { type: "string" }, from_version: { type: "number" }, to_version: { type: "number" } }, required: ["project_id"] } },
+  { toolKey: "website.design.apply", name: "Website Design Mode", riskLevel: "medium", permission: "write_project_files", description: "Apply a source-backed visual, content or responsive website change to a real project file, checkpoint it, and verify the project.", inputSchema: { type: "object", properties: { project_id: { type: "string" }, source_path: { type: "string" }, instruction: { type: "string" }, element: { type: "string" }, mode: { type: "string", enum: ["style","content","responsive"] } }, required: ["project_id","instruction"] } },
+  { toolKey: "website.design.bridge", name: "Enable Live Design Selection", riskLevel: "medium", permission: "write_project_files", description: "Install the preview-only BizStack design-selection bridge into a supported website layout.", inputSchema: { type: "object", properties: { project_id: { type: "string" } }, required: ["project_id"] } },
+  { toolKey: "website.seo.apply", name: "Website SEO/AEO Apply", riskLevel: "medium", permission: "write_project_files", description: "Apply saved source-backed SEO/AEO guidance to real website source, checkpoint it, and verify the project.", inputSchema: { type: "object", properties: { project_id: { type: "string" }, source_path: { type: "string" }, instruction: { type: "string" }, route: { type: "string" } }, required: ["project_id","instruction"] } },
 ];
 
 export function getToolDefinition(toolKey: string) {
@@ -70,6 +80,21 @@ export function buildPlan(input: string): { toolKey: string; input: Record<strin
   if (/(autonom|permission|approval|automation|what can you do automatically)/.test(text)) plan.push({ toolKey: "business.autonomy.status", input: {} });
   if (/(whatsapp|facebook messenger|messenger|sms|email|customer message|inbox|reply to customer)/.test(text)) plan.push({ toolKey: "communications.inbox", input: { limit: 50 } });
   if (/(build|create|make|edit|modify|code|app|application|website|project|repository|file|feature|terminal|preview)/.test(text)) plan.push({ toolKey: "projects.list", input: {} });
+  if (/(design mode|typography|font size|font weight|border radius|shadow|spacing|visual style|visual change|responsive layout|change the content|redesign this|make this bigger|make this smaller)/.test(text) && /website|page|section|button|heading|image|form|design/.test(text)) {
+    const sourceMatch = input.match(/source(?:\s+file)?:\s*([^\s,;]+\.(?:tsx|ts|jsx|js|css|scss))/i);
+    plan.push({
+      toolKey: "website.design.apply",
+      input: {
+        project_id: undefined,
+        source_path: sourceMatch?.[1] ? sourceMatch[1].replace(/[.)]+$/, "") : "",
+        instruction: input.trim(),
+        element: "",
+        mode: /responsive/.test(text) ? "responsive" : /content/.test(text) ? "content" : "style"
+      }
+    });
+  }
+  if (/(enable live selection|live canvas|select elements on canvas|click elements in preview|install design bridge|interactive design mode)/.test(text) && /website|design|preview|canvas/.test(text)) plan.push({ toolKey: "website.design.bridge", input: { project_id: undefined } });
+  if (/(apply|implement|add|configure|install).*(seo|aeo|structured data|schema|metadata|canonical|sitemap|robots|open graph)/i.test(text) && /website|page|site/.test(text)) plan.push({ toolKey: "website.seo.apply", input: { project_id: undefined, route: "" } });
   if (/(live|real.?time|sync|dynamic|update.*website|website.*business data|products.*website)/.test(text) && /website/.test(text)) plan.push({ toolKey: "website.live_data.configure", input: {} });
   if (/(record this|log this|create an action|create a task|note this|add to timeline)/.test(text)) {
     plan.push({ toolKey: "events.create", input: { event_type: "agent.requested_action", summary: input.trim(), category: "agent", priority: "normal", action_type: "agent_followup" } });
@@ -78,7 +103,7 @@ export function buildPlan(input: string): { toolKey: string; input: Record<strin
 }
 
 export type RuntimeContext = {
-  supabase: ReturnType<typeof createClient>;
+  supabase: Awaited<ReturnType<typeof createClient>>;
   businessId: string;
   userId: string;
   projectId?: string | null;
@@ -229,6 +254,439 @@ export async function executeTool(toolKey: string, input: Record<string, unknown
     return await syncConnectorResource({ supabase, businessId, integrationId, resourceKey });
   }
 
+  if (toolKey === "website.blueprint.generate") {
+    const projectId = String(input.project_id ?? "").trim();
+    const brief = String(input.brief ?? "").trim();
+    if (!projectId || !brief) throw new Error("project_id and brief are required.");
+
+    const { data: project, error: projectError } = await supabase
+      .from("ai_projects")
+      .select("id,business_id,name,framework,metadata,status")
+      .eq("id", projectId)
+      .eq("business_id", businessId)
+      .neq("status", "deleted")
+      .single();
+    if (projectError || !project) throw new Error("Project not found.");
+
+    const { data: business, error: businessError } = await supabase
+      .from("businesses")
+      .select("id,name,industry,currency")
+      .eq("id", businessId)
+      .single();
+    if (businessError || !business) throw new Error("Business context is not available.");
+
+    const { data: files } = await supabase
+      .from("ai_project_files")
+      .select("path,content,language")
+      .eq("project_id", projectId)
+      .order("path");
+    const graph = buildProjectGraph(projectId, (files ?? []).map((f) => ({ path: String(f.path), content: f.content, language: f.language })));
+
+    const schema = {
+      title: "string",
+      summary: "string",
+      audience: ["string"],
+      goals: ["string"],
+      pages: [{ id: "string", path: "/example", name: "string", purpose: "string", priority: "primary|secondary|utility", sections: [{ id: "string", name: "string", purpose: "string", data: ["string"], primary_action: "string" }] }],
+      flows: [{ id: "string", name: "string", steps: ["string"], outcome: "string" }],
+      design_direction: { style: "string", visual_principles: ["string"], typography: "string", color_direction: "string", motion: "string", responsive_strategy: "string" },
+      content_system: { cms_candidates: ["string"], reusable_components: ["string"], dynamic_data_candidates: ["string"] },
+      engineering_notes: { auth: ["string"], integrations: ["string"], data_dependencies: ["string"], verification: ["string"] }
+    };
+    const messages: BizStackModelMessage[] = [
+      { role: "system", content: "Create an implementation-ready website blueprint. Return only JSON matching: " + JSON.stringify(schema) },
+      { role: "user", content: [
+        "Business: " + business.name,
+        "Industry: " + (business.industry || "not specified"),
+        "Project: " + project.name,
+        "Framework: " + (project.framework || "not specified"),
+        "Existing routes: " + JSON.stringify(graph.routes),
+        "Existing graph: " + JSON.stringify(graph.summary),
+        "Brief: " + brief
+      ].join("\n") }
+    ];
+    let raw = "";
+    try {
+      const result = await runBizStackModel(messages, []);
+      raw = String(result.message?.content || "").trim();
+    } catch {}
+    let parsed: any = null;
+    try { parsed = raw ? JSON.parse(raw) : null; } catch {}
+    const blueprint = {
+      version: 1,
+      title: typeof parsed?.title === "string" ? parsed.title : project.name + " Website Blueprint",
+      summary: typeof parsed?.summary === "string" ? parsed.summary : "Source-aware website structure and implementation plan.",
+      audience: Array.isArray(parsed?.audience) ? parsed.audience.map(String).slice(0, 20) : [],
+      goals: Array.isArray(parsed?.goals) ? parsed.goals.map(String).slice(0, 20) : [],
+      pages: Array.isArray(parsed?.pages) && parsed.pages.length ? parsed.pages.slice(0, 40) : [{ id: "home", path: "/", name: "Home", priority: "primary", purpose: "Introduce the business.", sections: [] }],
+      flows: Array.isArray(parsed?.flows) ? parsed.flows.slice(0, 20) : [],
+      design_direction: parsed?.design_direction || {},
+      content_system: parsed?.content_system || {},
+      engineering_notes: parsed?.engineering_notes || {},
+      generated_at: new Date().toISOString()
+    };
+    const metadata = { ...(project.metadata && typeof project.metadata === "object" ? project.metadata : {}), blueprint };
+    const { error: updateError } = await supabase.from("ai_projects").update({ metadata, updated_at: new Date().toISOString() }).eq("id", projectId).eq("business_id", businessId);
+    if (updateError) throw updateError;
+    return { blueprint, generated_by: raw ? "ai" : "deterministic-fallback", graph_summary: graph.summary };
+  }
+
+
+  if (toolKey === "website.design.bridge") {
+    const projectId = String(input.project_id ?? context.projectId ?? "").trim();
+    if (!projectId) throw new Error("project_id is required.");
+
+    const { data: project, error: projectError } = await supabase
+      .from("ai_projects")
+      .select("id,business_id,name,status")
+      .eq("id", projectId)
+      .eq("business_id", businessId)
+      .neq("status", "deleted")
+      .single();
+    if (projectError || !project) throw new Error("Project not found.");
+
+    const { data: files, error: filesError } = await supabase
+      .from("ai_project_files")
+      .select("id,path,content,language,is_binary,version_no")
+      .eq("project_id", projectId)
+      .order("path");
+    if (filesError) throw filesError;
+
+    const bridge = (files ?? []).find((file: any) => String(file.path) === WEBSITE_DESIGN_BRIDGE_PATH);
+    const layoutCandidates = [
+      "app/layout.tsx",
+      "app/layout.ts",
+      "app/layout.jsx",
+      "app/layout.js",
+      "src/app/layout.tsx",
+      "src/app/layout.ts",
+      "src/app/layout.jsx",
+      "src/app/layout.js",
+      "pages/_app.tsx",
+      "pages/_app.js"
+    ];
+    const layout = (files ?? []).find((file: any) => layoutCandidates.includes(String(file.path)) && !file.is_binary && typeof file.content === "string");
+    if (!layout) throw new Error("No supported application layout file was found. Design Mode needs a known application root to install live selection.");
+
+    const alreadyImported = /BizStackDesignBridge/.test(String(layout.content));
+    if (bridge && alreadyImported) return { installed: true, bridge_path: WEBSITE_DESIGN_BRIDGE_PATH, layout_path: layout.path, changed: false };
+
+    await executeTool("project.version.create", { project_id: projectId, message: "Design Mode checkpoint before installing live selection bridge" }, context);
+
+    if (!bridge) {
+      const checksum = createHash("sha256").update(WEBSITE_DESIGN_BRIDGE_SOURCE, "utf8").digest("hex");
+      const { error: bridgeError } = await supabase.from("ai_project_files").upsert({
+        project_id: projectId,
+        path: WEBSITE_DESIGN_BRIDGE_PATH,
+        content: WEBSITE_DESIGN_BRIDGE_SOURCE,
+        content_sha: checksum,
+        language: "typescriptreact",
+        size_bytes: Buffer.byteLength(WEBSITE_DESIGN_BRIDGE_SOURCE, "utf8"),
+        is_binary: false,
+        version_no: 1,
+        updated_by: userId,
+        updated_at: new Date().toISOString()
+      }, { onConflict: "project_id,path" });
+      if (bridgeError) throw bridgeError;
+    }
+
+    const layoutMessages: BizStackModelMessage[] = [
+      {
+        role: "system",
+        content: [
+          "Patch a real application root layout to install BizStackDesignBridge.",
+          "Return ONLY JSON.",
+          "The JSON object must contain a content field with the complete updated source file and a summary field.",
+          "Do not return markdown or a diff.",
+          "Preserve all existing imports, providers, metadata, structure, data fetching and behavior.",
+          "Add the BizStackDesignBridge import and render <BizStackDesignBridge /> inside the root layout.",
+          "Use the project's existing import alias when possible; otherwise use a correct relative import.",
+          "Do not add dependencies."
+        ].join("\n")
+      },
+      {
+        role: "user",
+        content: "Layout path: " + String(layout.path) + "\nCurrent layout:\n" + String(layout.content)
+      }
+    ];
+
+    const result = await runBizStackModel(layoutMessages, []);
+    const raw = String(result.message?.content || "").trim();
+    let parsed: any = null;
+    try { parsed = JSON.parse(raw); } catch {}
+    const updatedLayout = typeof parsed?.content === "string" ? parsed.content : "";
+    if (!updatedLayout || !/BizStackDesignBridge/.test(updatedLayout)) {
+      throw new Error("The bridge installer could not produce a valid layout patch.");
+    }
+
+    const checksum = createHash("sha256").update(updatedLayout, "utf8").digest("hex");
+    const { error: layoutError } = await supabase.from("ai_project_files").upsert({
+      id: layout.id,
+      project_id: projectId,
+      path: layout.path,
+      content: updatedLayout,
+      content_sha: checksum,
+      language: layout.language || "typescriptreact",
+      size_bytes: Buffer.byteLength(updatedLayout, "utf8"),
+      is_binary: false,
+      version_no: Number(layout.version_no ?? 0) + 1,
+      updated_by: userId,
+      updated_at: new Date().toISOString()
+    }, { onConflict: "project_id,path" });
+    if (layoutError) throw layoutError;
+
+    let verification: Record<string, unknown> | null = null;
+    try {
+      verification = await executeTool("project.runtime.verify", { project_id: projectId, include_tests: false }, context) as Record<string, unknown>;
+    } catch (error) {
+      verification = { ok: false, error: error instanceof Error ? error.message : "Verification failed." };
+    }
+
+    return { installed: true, changed: true, bridge_path: WEBSITE_DESIGN_BRIDGE_PATH, layout_path: layout.path, verification };
+  }
+
+
+  if (toolKey === "website.seo.apply") {
+    const projectId = String(input.project_id ?? context.projectId ?? "").trim();
+    const instruction = String(input.instruction ?? "").trim();
+    const requestedRoute = String(input.route ?? "").trim();
+    let sourcePath = String(input.source_path ?? "").trim().replace(/\\+/g, "/").replace(/^\\+/, "");
+    if (!projectId || !instruction) throw new Error("project_id and instruction are required.");
+
+    const { data: project, error: projectError } = await supabase
+      .from("ai_projects")
+      .select("id,business_id,name,framework,metadata,status")
+      .eq("id", projectId)
+      .eq("business_id", businessId)
+      .neq("status", "deleted")
+      .single();
+    if (projectError || !project) throw new Error("Project not found.");
+
+    const { data: files, error: filesError } = await supabase
+      .from("ai_project_files")
+      .select("id,path,content,language,is_binary,version_no")
+      .eq("project_id", projectId)
+      .order("path");
+    if (filesError) throw filesError;
+
+    const metadata = project.metadata && typeof project.metadata === "object" ? project.metadata as Record<string, unknown> : {};
+    const seoSystem = metadata.seo_system ?? {};
+
+    if (!sourcePath) {
+      const graph = buildProjectGraph(projectId, (files ?? []).map((file: any) => ({
+        path: String(file.path),
+        content: file.content,
+        language: file.language
+      })));
+      const routeMatch = requestedRoute
+        ? graph.routes.find((entry: any) => String(entry.path) === requestedRoute)
+        : null;
+      sourcePath = String(routeMatch?.source || "");
+    }
+
+    if (!sourcePath) {
+      const layoutCandidates = [
+        "app/layout.tsx","app/layout.ts","app/layout.jsx","app/layout.js",
+        "src/app/layout.tsx","src/app/layout.ts","src/app/layout.jsx","src/app/layout.js"
+      ];
+      sourcePath = String((files ?? []).find((file: any) => layoutCandidates.includes(String(file.path)))?.path || "");
+    }
+
+    const current = (files ?? []).find((file: any) => String(file.path) === sourcePath);
+    if (!current || current.is_binary || typeof current.content !== "string") {
+      throw new Error("A writable SEO source file could not be resolved.");
+    }
+
+    const messages: BizStackModelMessage[] = [
+      {
+        role: "system",
+        content: [
+          "You are BizStack SEO/AEO implementation mode operating on real source code.",
+          "Return ONLY JSON with fields: summary, content, affected_areas, verification_focus.",
+          "The content field must be the complete updated source file, not markdown and not a diff.",
+          "Preserve all existing behavior, imports, data bindings, accessibility and rendering.",
+          "Implement only the saved SEO/AEO requirements that make sense for the selected source.",
+          "Use Next.js metadata conventions when the project is Next.js.",
+          "Add structured data only when safe and based on known project/business facts; never invent claims.",
+          "Do not claim ranking improvements."
+        ].join("\n")
+      },
+      {
+        role: "user",
+        content: [
+          "Project: " + project.name,
+          "Framework: " + (project.framework || "unknown"),
+          "Route: " + (requestedRoute || "site-wide"),
+          "Instruction: " + instruction,
+          "Saved SEO/AEO system: " + JSON.stringify(seoSystem),
+          "Source path: " + sourcePath,
+          "Current source:\n" + current.content
+        ].join("\n\n")
+      }
+    ];
+
+    const result = await runBizStackModel(messages, []);
+    const raw = String(result.message?.content || "").trim();
+    let parsed: any = null;
+    try { parsed = JSON.parse(raw); } catch {}
+    const updatedSource = typeof parsed?.content === "string" ? parsed.content : "";
+    if (!updatedSource || updatedSource.length > 2_000_000) throw new Error("SEO/AEO mode returned invalid source.");
+
+    if (updatedSource === current.content) {
+      return { applied: false, source_path: sourcePath, summary: String(parsed?.summary || "No source change was necessary.") };
+    }
+
+    await executeTool("project.version.create", { project_id: projectId, message: "SEO/AEO checkpoint before " + sourcePath }, context);
+
+    const checksum = createHash("sha256").update(updatedSource, "utf8").digest("hex");
+    const { data: saved, error: saveError } = await supabase.from("ai_project_files").upsert({
+      id: current.id,
+      project_id: projectId,
+      path: sourcePath,
+      content: updatedSource,
+      content_sha: checksum,
+      language: current.language || null,
+      size_bytes: Buffer.byteLength(updatedSource, "utf8"),
+      is_binary: false,
+      version_no: Number(current.version_no ?? 0) + 1,
+      updated_by: userId,
+      updated_at: new Date().toISOString()
+    }, { onConflict: "project_id,path" });
+    if (saveError) throw saveError;
+
+    let verification: Record<string, unknown> | null = null;
+    try {
+      verification = await executeTool("project.runtime.verify", { project_id: projectId, include_tests: false }, context) as Record<string, unknown>;
+    } catch (error) {
+      verification = { ok: false, error: error instanceof Error ? error.message : "Verification failed." };
+    }
+
+    return {
+      applied: true,
+      source_path: sourcePath,
+      summary: String(parsed?.summary || "SEO/AEO source change applied."),
+      affected_areas: Array.isArray(parsed?.affected_areas) ? parsed.affected_areas.map(String).slice(0, 20) : [],
+      verification_focus: Array.isArray(parsed?.verification_focus) ? parsed.verification_focus.map(String).slice(0, 20) : [],
+      file: saved,
+      verification
+    };
+  }
+
+  if (toolKey === "website.design.apply") {
+    const projectId = String(input.project_id ?? context.projectId ?? "").trim();
+    const instruction = String(input.instruction ?? "").trim();
+    let sourcePath = String(input.source_path ?? "").trim().replace(/\\+/g, "/").replace(/^\\+/, "");
+    const mode = String(input.mode ?? "style").trim();
+    if (!projectId || !instruction) throw new Error("project_id and instruction are required.");
+
+    const { data: project, error: projectError } = await supabase
+      .from("ai_projects")
+      .select("id,business_id,name,framework,status")
+      .eq("id", projectId)
+      .eq("business_id", businessId)
+      .neq("status", "deleted")
+      .single();
+    if (projectError || !project) throw new Error("Project not found.");
+
+    const { data: files, error: filesError } = await supabase
+      .from("ai_project_files")
+      .select("id,path,content,language,is_binary,version_no")
+      .eq("project_id", projectId)
+      .order("path");
+    if (filesError) throw filesError;
+
+    if (!sourcePath) {
+      const match = instruction.match(/source(?:\\s+file)?:\\s*([^\\s,;]+\\.(?:tsx|ts|jsx|js|css|scss))/i);
+      sourcePath = match?.[1]?.replace(/[.)]+$/, "") || "";
+    }
+    if (!sourcePath) {
+      const pageCandidate = (files ?? []).find((file: any) => /(^|\/)page\.(tsx|ts|jsx|js)$/.test(String(file.path)));
+      sourcePath = pageCandidate?.path ? String(pageCandidate.path) : "";
+    }
+
+    const current = (files ?? []).find((file: any) => String(file.path) === sourcePath);
+    if (!current || current.is_binary || typeof current.content !== "string") throw new Error("A writable source file could not be resolved for Design Mode.");
+
+    const schema = {
+      summary: "string",
+      content: "complete updated source file as a plain string",
+      affected_areas: ["string"],
+      verification_focus: ["string"]
+    };
+    const messages: BizStackModelMessage[] = [
+      {
+        role: "system",
+        content: [
+          "You are BizStack Design Mode operating on real source code.",
+          "Return ONLY JSON matching this schema: " + JSON.stringify(schema),
+          "The content field MUST contain the complete updated source file, not a diff and not markdown.",
+          "Preserve all unrelated behavior, imports, data bindings, accessibility, responsive logic and business functionality.",
+          "Do not invent APIs, components, dependencies or assets that are not already present.",
+          "Make the smallest robust source change that satisfies the design instruction.",
+          "The selected file is the authoritative source of truth."
+        ].join("\n")
+      },
+      {
+        role: "user",
+        content: [
+          "Project: " + project.name,
+          "Framework: " + (project.framework || "unknown"),
+          "Mode: " + mode,
+          "Source path: " + sourcePath,
+          "Design instruction: " + instruction,
+          "Current source:\n" + current.content
+        ].join("\n\n")
+      }
+    ];
+
+    const result = await runBizStackModel(messages, []);
+    const raw = String(result.message?.content || "").trim();
+    let parsed: any = null;
+    try { parsed = JSON.parse(raw); } catch {
+      const unfenced = raw.replace(/^\s*\```(?:json)?/i, "").replace(/\`\`\`\s*$/i, "").trim();
+      try { parsed = JSON.parse(unfenced); } catch {}
+    }
+    const updatedSource = typeof parsed?.content === "string" ? parsed.content : "";
+    if (!updatedSource || updatedSource.length > 2_000_000) throw new Error("Design Mode returned an invalid source update.");
+    if (updatedSource === current.content) return { applied: false, reason: "No source change was necessary.", source_path: sourcePath, summary: parsed?.summary || "No change." };
+
+    await executeTool("project.version.create", { project_id: projectId, message: "Design Mode checkpoint before " + sourcePath }, context);
+
+    const checksum = createHash("sha256").update(updatedSource, "utf8").digest("hex");
+    const { data: saved, error: saveError } = await supabase.from("ai_project_files").upsert({
+      id: current.id,
+      project_id: projectId,
+      path: sourcePath,
+      content: updatedSource,
+      content_sha: checksum,
+      language: current.language || null,
+      size_bytes: Buffer.byteLength(updatedSource, "utf8"),
+      is_binary: false,
+      version_no: Number((current as any).version_no ?? 0) + 1,
+      updated_by: userId,
+      updated_at: new Date().toISOString()
+    }, { onConflict: "project_id,path" }).select("id,path,content_sha,language,size_bytes,version_no,updated_at").single();
+    if (saveError) throw saveError;
+
+    let verification: Record<string, unknown> | null = null;
+    try {
+      verification = await executeTool("project.runtime.verify", { project_id: projectId, include_tests: false }, context) as Record<string, unknown>;
+    } catch (error) {
+      verification = { ok: false, error: error instanceof Error ? error.message : "Verification failed." };
+    }
+
+    return {
+      applied: true,
+      project_id: projectId,
+      source_path: sourcePath,
+      summary: String(parsed?.summary || "Design change applied."),
+      affected_areas: Array.isArray(parsed?.affected_areas) ? parsed.affected_areas.map(String).slice(0, 20) : [],
+      verification_focus: Array.isArray(parsed?.verification_focus) ? parsed.verification_focus.map(String).slice(0, 20) : [],
+      file: saved,
+      verification
+    };
+  }
+
   if (toolKey === "website.build") {
     const prompt = String(input.prompt ?? "").trim();
     if (!prompt) throw new Error("Website instructions are required.");
@@ -239,8 +697,52 @@ export async function executeTool(toolKey: string, input: Record<string, unknown
       websiteId: input.website_id ? String(input.website_id) : null,
       projectId: input.project_id ? String(input.project_id) : null,
       mode: "auto_execute",
-      publish: input.publish === true
+      publish: input.publish === true,
+      generateAssets: input.generate_assets !== false
     });
+  }
+
+  if (toolKey === "website.assets.list") {
+    const limit = Math.min(Math.max(Number(input.limit ?? 30), 1), 50);
+    let query = supabase.from("ai_website_assets")
+      .select("id,website_id,project_id,kind,name,public_url:storage_path,storage_path,mime_type,width,height,alt_text,model,status,metadata,created_at")
+      .eq("business_id", businessId)
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (input.website_id) query = query.eq("website_id", String(input.website_id));
+    if (input.project_id) query = query.eq("project_id", String(input.project_id));
+    if (input.kind) query = query.eq("kind", String(input.kind));
+    const { data, error } = await query;
+    if (error) throw error;
+    const assets = (data ?? []).map((asset: any) => {
+      const publicUrl = supabase.storage.from("bizstack-website-assets").getPublicUrl(String(asset.storage_path)).data.publicUrl;
+      return { ...asset, public_url: publicUrl };
+    });
+    return { configured: imageGenerationConfigured(), assets };
+  }
+
+  if (toolKey === "website.asset.generate") {
+    const prompt = String(input.prompt ?? "").trim();
+    const kind = String(input.kind ?? "").trim() as WebsiteAssetKind;
+    const allowed: WebsiteAssetKind[] = ["logo","hero","section_image","product_scene","background","illustration","og_image","favicon","custom"];
+    if (!prompt) throw new Error("A visual generation brief is required.");
+    if (!allowed.includes(kind)) throw new Error("Unsupported website visual asset kind.");
+    const asset = await generateWebsiteAsset({
+      supabase,
+      businessId,
+      userId,
+      websiteId: input.website_id ? String(input.website_id) : null,
+      projectId: input.project_id ? String(input.project_id) : context.projectId || null,
+      buildRunId: input.build_run_id ? String(input.build_run_id) : null,
+      kind,
+      name: input.name ? String(input.name) : undefined,
+      prompt,
+      altText: input.alt_text ? String(input.alt_text) : null,
+      visualDirection: input.visual_direction ? String(input.visual_direction) : null,
+      referenceContext: input.reference_context ? String(input.reference_context) : null
+    });
+    return { generated: true, asset };
   }
 
   if (toolKey === "website.live_data.configure") {
@@ -487,7 +989,7 @@ export async function executeTool(toolKey: string, input: Record<string, unknown
     const has = (name: string) => typeof packageJson?.scripts?.[name] === "string";
     const results: Array<Record<string, unknown>> = [];
 
-    const installCommand =
+    const installCommand: [string, string[]] =
       sourceFiles.some((file) => file.path === "package-lock.json") ? ["npm", ["ci"]] :
       sourceFiles.some((file) => file.path === "pnpm-lock.yaml") ? ["pnpm", ["install", "--frozen-lockfile"]] :
       sourceFiles.some((file) => file.path === "yarn.lock") ? ["yarn", ["install", "--frozen-lockfile"]] :

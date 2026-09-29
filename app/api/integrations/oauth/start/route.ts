@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import { createClient } from "@/lib/supabase-server";
 export const runtime="nodejs";
 export async function POST(req:NextRequest){
- const supabase=createClient(); const {data:{user}}=await supabase.auth.getUser(); if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
+ const supabase=await createClient(); const {data:{user}}=await supabase.auth.getUser(); if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
  const body=await req.json().catch(()=>({})); const businessId=String(body.businessId||""),integrationId=String(body.integrationId||"");
  const {data:i}=await supabase.from("integrations").select("id,business_id,provider,connection_type,config").eq("id",integrationId).eq("business_id",businessId).single();
  const {data:b}=await supabase.from("businesses").select("id").eq("id",businessId).eq("owner_id",user.id).single();

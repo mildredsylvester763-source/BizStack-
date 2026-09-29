@@ -155,22 +155,22 @@ export default function NewInvoicePage() {
   }
 
   return (
-    <main className="min-h-screen bg-ledger">
-      <header className="border-b border-rule bg-white">
+    <main className="min-h-screen bg-[#f4f1ea] text-[#151817]">
+      <header className="border-b border-black/10 bg-[#fbfaf7]/95 backdrop-blur sticky top-0 z-20">
         <div className="max-w-5xl mx-auto px-6 py-5 flex items-center justify-between">
           <Link href="/dashboard/invoices" className="text-sm text-ink/50 hover:text-ink">← Back to invoices</Link>
           <span className="text-xs uppercase tracking-[0.16em] text-ink/35">Invoice builder</span>
         </div>
       </header>
 
-      <section className="max-w-5xl mx-auto px-6 py-10">
-        <div className="mb-8">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+        <div className="mb-8"><div className="inline-flex items-center gap-2 rounded-full bg-[#183f38] text-white px-3 py-1.5 text-[10px] uppercase tracking-[.16em] mb-4">BizStack · Commercial Studio</div>
           <p className="text-xs uppercase tracking-[0.18em] text-vault mb-2">Money in</p>
           <h1 className="font-display text-4xl text-ink">Create a professional invoice</h1>
           <p className="text-ink/55 mt-2 max-w-2xl">Capture the full commercial context now so the invoice can later power payments, reminders, accounting, customer history and AI workflows.</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="grid xl:grid-cols-[minmax(0,1fr)_360px] gap-6 items-start"><div className="space-y-6">
           <section className="bg-white border border-rule p-6">
             <h2 className="font-display text-xl text-ink mb-5">Invoice details</h2>
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -258,6 +258,37 @@ export default function NewInvoicePage() {
               {loading ? "Creating invoice..." : "Create professional invoice"}
             </button>
           </div>
+        </div>
+        <aside className="xl:sticky xl:top-24 space-y-4">
+          <div className="rounded-[28px] border border-black/10 bg-[#fffdf9] shadow-[0_24px_80px_rgba(20,20,16,.10)] overflow-hidden">
+            <div className="p-5 border-b border-black/10 flex items-center justify-between">
+              <div><p className="text-[10px] uppercase tracking-[.18em] text-black/35">Live invoice</p><p className="font-display text-lg mt-1">{reference || "Untitled invoice"}</p></div>
+              <span className="text-[10px] rounded-full bg-black/[.05] px-2 py-1">Draft</span>
+            </div>
+            <div className="p-5">
+              <div className="flex justify-between gap-4">
+                <div><p className="text-[10px] uppercase tracking-wider text-black/30">Bill to</p><p className="text-sm mt-1">{customers.find(c => c.id === customerId)?.name || "Select customer"}</p></div>
+                <div className="text-right"><p className="text-[10px] uppercase tracking-wider text-black/30">Due</p><p className="text-sm mt-1">{dueDate || "Not set"}</p></div>
+              </div>
+              <div className="mt-6 border-t border-black/10 pt-4 space-y-3">
+                {items.filter(i => i.description.trim()).slice(0, 6).map((item, i) => <div key={i} className="flex justify-between gap-4 text-xs"><span className="truncate text-black/60">{item.description} × {item.quantity}</span><span>{(item.quantity * item.unit_price).toFixed(2)}</span></div>)}
+                {items.every(i => !i.description.trim()) && <p className="text-xs text-black/30">Line items will appear here as you build the invoice.</p>}
+              </div>
+              <div className="mt-6 border-t border-black/10 pt-4 space-y-2">
+                <div className="flex justify-between text-xs text-black/50"><span>Subtotal</span><span>{subtotal.toFixed(2)} {currency}</span></div>
+                {discountAmount > 0 && <div className="flex justify-between text-xs text-black/50"><span>Discount</span><span>-{discountAmount.toFixed(2)}</span></div>}
+                {taxEnabled && <div className="flex justify-between text-xs text-black/50"><span>{taxName}</span><span>{taxAmount.toFixed(2)}</span></div>}
+                <div className="flex justify-between items-end pt-3 border-t border-black/10"><span className="text-xs text-black/50">Total</span><span className="font-display text-2xl">{total.toFixed(2)} {currency}</span></div>
+              </div>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-black/10 bg-[#183f38] text-white p-5">
+            <p className="text-[10px] uppercase tracking-[.18em] text-white/45">Payment readiness</p>
+            <p className="font-display text-xl mt-2">No fake payment rail</p>
+            <p className="text-xs text-white/55 mt-2 leading-5">The invoice can be created without a provider. Verified connections can later expose their real collection capability without changing this commercial record.</p>
+            <Link href="/dashboard/integrations" className="inline-block mt-4 text-xs border border-white/15 bg-white/10 rounded-xl px-3 py-2">Configure connections</Link>
+          </div>
+        </aside>
         </form>
       </section>
     </main>

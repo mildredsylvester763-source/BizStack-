@@ -55,10 +55,14 @@ export async function POST(req: NextRequest) {
   if (!slug || !email || !email.includes("@")) return NextResponse.json({ error: "Enter the portal link and your email address." }, { status: 400 });
 
   const admin = createAdminClient();
-  const { data: portal } = await admin.from("customer_portals").select("id,business_id,name,status,slug,settings").eq("slug", slug).maybeSingle();
+  type PortalAccessRecord = { id: string; business_id: string; name: string; status: string; slug: string; settings: Record<string, unknown> | null };
+  type CustomerAccessRecord = { id: string; name: string | null; email: string | null; billing_email: string | null };
+  const { data: portalData } = await admin.from("customer_portals").select("id,business_id,name,status,slug,settings").eq("slug", slug).maybeSingle();
+  const portal = portalData as PortalAccessRecord | null;
   if (!portal || portal.status !== "published") return NextResponse.json({ message: "If that email is registered for this portal, a secure access link will be sent." });
 
-  const { data: customer } = await admin.from("customers").select("id,name,email,billing_email").eq("business_id", portal.business_id).or("email.ilike."+email+",billing_email.ilike."+email).limit(1).maybeSingle();
+  const { data: customerData } = await admin.from("customers").select("id,name,email,billing_email").eq("business_id", portal.business_id).or("email.ilike."+email+",billing_email.ilike."+email).limit(1).maybeSingle();
+  const customer = customerData as CustomerAccessRecord | null;
   if (!customer) return NextResponse.json({ message: "If that email is registered for this portal, a secure access link will be sent." });
 
   const rawToken = crypto.randomBytes(32).toString("base64url");
@@ -66,13 +70,17 @@ export async function POST(req: NextRequest) {
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
   await admin.from("customer_portal_access_requests").delete().eq("portal_id", portal.id).eq("customer_id", customer.id).is("consumed_at", null);
 
-  const { error } = await admin.from("customer_portal_access_requests").insert({
+  // The generated Supabase Database type does not currently expose this table, so the
+  // insert builder resolves to `never[]`. Keep the typed admin client everywhere else
+  // and cast only this boundary instead of weakening the whole route.
+  const accessRequest = {
     portal_id: portal.id,
     customer_id: customer.id,
     email,
     token_hash: tokenHash,
     expires_at: expiresAt
-  });
+  };
+  const { error } = await (admin.from("customer_portal_access_requests") as any).insert(accessRequest);
   if (error) return NextResponse.json({ error: "Could not prepare portal access." }, { status: 500 });
 
   const origin = new URL(req.url).origin;
@@ -84,6 +92,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Portal email delivery is unavailable." }, { status: 503 });
   }
 
-  await admin.from("customer_portal_events").insert({ portal_id: portal.id, customer_id: customer.id, event_type: "access_requested", metadata: { channel: "email" } });
+  const accessEvent = { portal_id: portal.id, customer_id: customer.id, event_type: "access_requested", metadata: { channel: "email" } };
+  await (admin.from("customer_portal_events") as any).insert(accessEvent);
   return NextResponse.json({ message: "If that email is registered for this portal, a secure access link has been sent." });
 }

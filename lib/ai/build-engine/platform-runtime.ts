@@ -21,7 +21,7 @@ async function finish(supabase:any,businessId:string,runId:string,artifactType:s
 }
 
 export async function runProductPhotoBuild({businessId,userId,prompt,mode="draft_only"}:{businessId:string;userId:string;prompt:string;mode?:BuildMode}){
- const supabase=createClient();const {data:business,error}=await supabase.from("businesses").select("id,name,currency,workspace_id").eq("id",businessId).eq("owner_id",userId).single();if(error||!business)throw new Error("Business context is not available.");
+ const supabase=await createClient();const {data:business,error}=await supabase.from("businesses").select("id,name,currency,workspace_id").eq("id",businessId).eq("owner_id",userId).single();if(error||!business)throw new Error("Business context is not available.");
  const draft=parseProductPhotoRequest(prompt),started=await start(supabase,business,userId,"product_photo",prompt,mode);if(started.existing)return{runId:started.existing.id,status:started.existing.status,result:started.existing.result};const runId=started.run.id;
  try{
   const {data:products}=await supabase.from("products").select("id,name,sku,description").eq("business_id",businessId).ilike("name","%"+draft.productName+"%").eq("is_active",true).limit(5);
@@ -36,7 +36,7 @@ export async function runProductPhotoBuild({businessId,userId,prompt,mode="draft
 }
 
 export async function runMarketplaceListingBuild({businessId,userId,prompt,mode="draft_only"}:{businessId:string;userId:string;prompt:string;mode?:BuildMode}){
- const supabase=createClient();const {data:business,error}=await supabase.from("businesses").select("id,name,currency,workspace_id").eq("id",businessId).eq("owner_id",userId).single();if(error||!business)throw new Error("Business context is not available.");
+ const supabase=await createClient();const {data:business,error}=await supabase.from("businesses").select("id,name,currency,workspace_id").eq("id",businessId).eq("owner_id",userId).single();if(error||!business)throw new Error("Business context is not available.");
  const draft=parseMarketplaceListingRequest(prompt),started=await start(supabase,business,userId,"marketplace_listing",prompt,mode);if(started.existing)return{runId:started.existing.id,status:started.existing.status,result:started.existing.result};const runId=started.run.id;
  try{
   const {data:listing,error:le}=await supabase.from("marketplace_listings").insert({seller_business_id:businessId,title:draft.title,description:draft.description,listing_type:draft.listingType,category:draft.category,price:draft.price,currency:draft.currency||business.currency,quantity_available:draft.quantityAvailable,location_country:draft.country,location_region:draft.region,status:"draft",tags:draft.tags,created_by:userId}).select("id,title,description,listing_type,category,price,currency,quantity_available,location_country,location_region,status,tags").single();
@@ -48,7 +48,7 @@ export async function runMarketplaceListingBuild({businessId,userId,prompt,mode=
 }
 
 export async function runFinanceApiBuild({businessId,userId,prompt,mode="ask_first"}:{businessId:string;userId:string;prompt:string;mode?:BuildMode}){
- const supabase=createClient();const {data:business,error}=await supabase.from("businesses").select("id,name,workspace_id").eq("id",businessId).eq("owner_id",userId).single();if(error||!business)throw new Error("Business context is not available.");
+ const supabase=await createClient();const {data:business,error}=await supabase.from("businesses").select("id,name,workspace_id").eq("id",businessId).eq("owner_id",userId).single();if(error||!business)throw new Error("Business context is not available.");
  const draft=parseFinanceApiRequest(prompt),started=await start(supabase,business,userId,"finance_api",prompt,mode);if(started.existing)return{runId:started.existing.id,status:started.existing.status,result:{...started.existing.result,apiKey:null}};
  const runId=started.run.id;
  try{

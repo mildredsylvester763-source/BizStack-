@@ -3,13 +3,13 @@ import { createClient } from "@/lib/supabase-server";
 
 export async function GET(
   _request: Request,
-  context: { params: { projectId: string } }
+  context: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const { data: project } = await supabase.from("ai_projects").select("id,name,slug,business_id,status").eq("id", context.params.projectId).single();
+    const { data: project } = await supabase.from("ai_projects").select("id,name,slug,business_id,status").eq("id", (await context.params).projectId).single();
     if (!project || project.status === "deleted") return NextResponse.json({ error: "Project not found." }, { status: 404 });
     const { data, error } = await supabase.from("ai_project_versions")
       .select("id,project_id,version_no,message,source_run_id,created_by,created_at")
@@ -24,10 +24,10 @@ export async function GET(
 
 export async function POST(
   request: Request,
-  context: { params: { projectId: string } }
+  context: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -38,7 +38,7 @@ export async function POST(
     const { data: project, error: projectError } = await supabase
       .from("ai_projects")
       .select("id,name,slug,business_id,status")
-      .eq("id", context.params.projectId)
+      .eq("id", (await context.params).projectId)
       .single();
 
     if (projectError || !project || project.status === "deleted") {

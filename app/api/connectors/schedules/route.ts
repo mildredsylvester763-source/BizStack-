@@ -7,7 +7,7 @@ export const runtime="nodejs";
 const allowedIntervals=new Set([300,900,1800,3600,21600,43200,86400]);
 
 export async function POST(req:NextRequest){
-  const supabase=createClient();
+  const supabase=await createClient();
   const {data:{user}}=await supabase.auth.getUser();
   if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
   const body=await req.json().catch(()=>({}));
@@ -37,7 +37,7 @@ export async function POST(req:NextRequest){
 }
 
 export async function DELETE(req:NextRequest){
-  const supabase=createClient();
+  const supabase=await createClient();
   const {data:{user}}=await supabase.auth.getUser();
   if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
   const body=await req.json().catch(()=>({}));

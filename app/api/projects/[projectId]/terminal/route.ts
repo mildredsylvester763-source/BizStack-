@@ -10,9 +10,10 @@ const ACTIONS: Record<string, { cmd: string; args: string[] }> = {
   dev: { cmd: "npm", args: ["run", "dev", "--", "--hostname", "0.0.0.0", "--port", "3000"] }
 };
 
-export async function POST(request: Request, { params }: { params: { projectId: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ projectId: string }> }) {
+  const params = await props.params;
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const body = await request.json().catch(() => ({}));

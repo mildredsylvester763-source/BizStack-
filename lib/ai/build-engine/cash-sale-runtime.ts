@@ -11,7 +11,7 @@ function checksum(value: unknown) {
 }
 
 export async function runCashSaleBuild({ businessId, userId, prompt, mode = 'auto_execute' }: { businessId: string; userId: string; prompt: string; mode?: BuildMode }) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: business, error } = await supabase.from('businesses').select('id,name,currency,workspace_id').eq('id', businessId).eq('owner_id', userId).single();
   if (error || !business) throw new Error('Business context is not available.');
   const plan = buildPlan({ capability: 'cash_sale', prompt, mode, context: { business: { id: business.id, name: business.name, currency: business.currency } } });

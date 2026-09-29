@@ -10,7 +10,7 @@ export async function decideBuildApproval(args:{
   userId:string;
   decision:BuildApprovalDecision;
 }){
-  const supabase=createClient();
+  const supabase=await createClient();
   const {approvalId,businessId,userId,decision}=args;
   const {data:approval,error}=await supabase.from('ai_build_approvals')
     .select('id,build_run_id,status,proposed_payload,requested_action')

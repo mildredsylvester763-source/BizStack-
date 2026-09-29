@@ -18,7 +18,7 @@ import { runBusinessDocumentBuild } from '@/lib/ai/build-engine/business-documen
 import type { BuildMode } from '@/lib/ai/build-engine/types';
 
 export async function POST(request: Request) {
-  const supabase=createClient();
+  const supabase=await createClient();
   const {data:{user}}=await supabase.auth.getUser();
   if(!user) return NextResponse.json({error:'Unauthorized'},{status:401});
   const body=await request.json().catch(()=>({}));
@@ -101,7 +101,8 @@ export async function POST(request: Request) {
           websiteId:typeof body.websiteId==='string'?body.websiteId:null,
           projectId:typeof body.projectId==='string'?body.projectId:null,
           mode,
-          publish:Boolean(body.publish)
+          publish:Boolean(body.publish),
+          generateAssets: body.generateAssets !== false
         });
     return NextResponse.json(result);
   }catch(error){

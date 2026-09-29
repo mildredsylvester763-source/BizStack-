@@ -12,17 +12,17 @@ function normalizePath(value: string) {
 
 export async function GET(
   _request: Request,
-  context: { params: { projectId: string } }
+  context: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { data: project, error: projectError } = await supabase
       .from("ai_projects")
       .select("id,name,slug,business_id,status")
-      .eq("id", context.params.projectId)
+      .eq("id", (await context.params).projectId)
       .single();
 
     if (projectError || !project || project.status === "deleted") {
@@ -44,10 +44,10 @@ export async function GET(
 
 export async function PUT(
   request: Request,
-  context: { params: { projectId: string } }
+  context: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -59,7 +59,7 @@ export async function PUT(
     const { data: project, error: projectError } = await supabase
       .from("ai_projects")
       .select("id,business_id,status")
-      .eq("id", context.params.projectId)
+      .eq("id", (await context.params).projectId)
       .single();
 
     if (projectError || !project || project.status === "deleted") {
@@ -105,10 +105,10 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  context: { params: { projectId: string } }
+  context: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -117,7 +117,7 @@ export async function DELETE(
     const { data: project, error: projectError } = await supabase
       .from("ai_projects")
       .select("id,business_id,status")
-      .eq("id", context.params.projectId)
+      .eq("id", (await context.params).projectId)
       .single();
     if (projectError || !project || project.status === "deleted") {
       return NextResponse.json({ error: "Project not found." }, { status: 404 });

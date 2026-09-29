@@ -7,7 +7,7 @@ const categoryMap:any={banking:"banking",payments:"payments",accounting:"account
 const connectionMap:any={oauth:"oauth",api_key:"api_key",bearer:"api_key",basic:"api_key",webhook:"webhook",database:"database",file_import:"file_import",custom:"api_key"};
 
 export async function POST(req:NextRequest){
- const supabase=createClient();
+ const supabase=await createClient();
  const {data:{user}}=await supabase.auth.getUser();
  if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
  const body=await req.json().catch(()=>null);
