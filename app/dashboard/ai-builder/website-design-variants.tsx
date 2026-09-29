@@ -96,7 +96,7 @@ export default function WebsiteDesignVariants({
                     </div>
                     <button
                       onClick={() => onAsk(
-                        "Use the saved design direction \\"" + variant.name + "\\" for the " + route +
+                        "Use the saved design direction '" + variant.name + "' for the " + route +
                         " page. Positioning: " + variant.positioning +
                         ". Typography: " + variant.typography_direction +
                         ". Colors: " + variant.color_direction +
