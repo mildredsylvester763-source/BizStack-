@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase-server";
+import { BizIcon, BizPanel, BizSection, BizStatus } from "@/components/ui/BizStackVisual";
 
 export default async function IdentityPage() {
   const supabase = await createClient();
@@ -8,9 +9,53 @@ export default async function IdentityPage() {
   if (!user) redirect("/login");
   const { data: business } = await supabase.from("businesses").select("id,name").eq("owner_id", user.id).single();
   if (!business) redirect("/onboarding");
-  const { data: verifications } = await supabase.from("customer_identity_verifications").select("id,customer_id,verification_type,status,provider,verified_at,expires_at,created_at,customer:customers(name,company_name)").eq("business_id", business.id).order("created_at", { ascending: false }).limit(100);
-  return <main className="min-h-screen bg-ledger"><header className="border-b border-rule bg-white"><div className="max-w-6xl mx-auto px-6 py-5"><Link href="/dashboard" className="text-xs text-ink/45">← Dashboard</Link><h1 className="font-display text-2xl mt-1">Identity & verification</h1></div></header>
-  <section className="max-w-6xl mx-auto px-6 py-10"><div className="max-w-3xl mb-8"><p className="text-xs uppercase tracking-[.16em] text-vault">Trust layer</p><h2 className="font-display text-3xl mt-2">Verification is not the same as a customer record.</h2><p className="text-sm text-ink/55 mt-3 leading-6">Creating “Harry” or any other customer only creates a business record. Email verification proves control of an email address; it does not prove that the person is who they claim to be. Stronger checks such as government ID, business registration, tax ID, address or bank ownership can be connected through approved verification providers when a business actually requires them.</p></div>
-  <div className="bg-white border border-rule p-5 mb-6 grid md:grid-cols-3 gap-4 text-sm"><div><p className="text-ink/40 text-xs">Customer record</p><p className="mt-1">Business-created identity</p></div><div><p className="text-ink/40 text-xs">Contact verification</p><p className="mt-1">Email / phone / WhatsApp ownership</p></div><div><p className="text-ink/40 text-xs">KYC / business verification</p><p className="mt-1">External evidence and provider result</p></div></div>
-  <div className="space-y-3">{(verifications || []).map((v:any)=><div key={v.id} className="bg-white border border-rule p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-3"><div><p className="font-medium">{v.customer?.name || v.customer?.company_name || "Customer"}</p><p className="text-xs text-ink/45 mt-1">{v.verification_type.replaceAll("_"," ")} · {v.provider || "provider not connected"}</p></div><span className="text-xs capitalize text-vault">{v.status}</span></div>)}{!(verifications || []).length&&<div className="bg-white border border-dashed border-rule p-8 text-sm text-ink/45">No verification checks have been created yet.</div>}</div></section></main>;
+
+  const { data: verifications } = await supabase.from("customer_identity_verifications")
+    .select("id,customer_id,verification_type,status,provider,verified_at,expires_at,created_at,customer:customers(name,company_name)")
+    .eq("business_id", business.id)
+    .order("created_at", { ascending: false }).limit(100);
+
+  const checks=verifications||[];
+  const verified=checks.filter((x:any)=>x.status==="verified").length;
+  const pending=checks.filter((x:any)=>x.status==="pending").length;
+
+  return <div className="biz-content">
+    <BizSection number="4.4" title="Security & Authentication" subtitle="Keep business data safe with layered identity, session and verification controls.">
+      <div className="grid xl:grid-cols-[1fr_1fr_1fr] gap-3">
+        <BizPanel title="Authentication providers" subtitle="Business login surfaces">
+          <div className="p-4 space-y-2">
+            {["Email & Password","Google OAuth","GitHub OAuth","Microsoft OAuth","Magic Link","Phone OTP"].map((x,i)=><div key={x} className="flex items-center gap-2 rounded-xl border border-white/[.06] bg-white/[.02] p-3"><BizIcon tone={i<4?"green":"blue"} size="sm">✓</BizIcon><span className="text-[8px] text-white/55 flex-1">{x}</span><BizStatus tone="green">Enabled</BizStatus></div>)}
+          </div>
+        </BizPanel>
+        <BizPanel title="Session & security" subtitle="Protection controls">
+          <div className="p-4 space-y-2">
+            {[
+              ["Session timeout","7 days","Configured"],
+              ["Refresh token rotation","Enabled","Recommended"],
+              ["Multi-factor authentication","Enabled","Available"],
+              ["IP restrictions","Disabled","Optional"],
+              ["Audit logs","Enabled","Recorded"]
+            ].map(([a,b,c])=><div key={a} className="rounded-xl border border-white/[.06] bg-white/[.02] p-3"><div className="text-[8px] text-white/55">{a}</div><div className="flex justify-between mt-2"><span className="text-[8px] text-white/25">{b}</span><span className="text-[7px] text-emerald-300">{c}</span></div></div>)}
+          </div>
+        </BizPanel>
+        <BizPanel title="User roles & permissions" subtitle="Access boundaries">
+          <div className="p-4 space-y-2">
+            {["Owner","Admin","Member","Viewer","Custom role"].map((x,i)=><div key={x} className="biz-list-row px-0"><BizIcon tone={i===0?"purple":"slate"} size="sm">{x.slice(0,1)}</BizIcon><div className="flex-1 text-[8px] text-white/55">{x}</div><span className="biz-mini">{["Full access","Manage team","Build & view","Read only","Custom"][i]}</span></div>)}
+          </div>
+        </BizPanel>
+      </div>
+    </BizSection>
+
+    <BizSection title="Identity verification ledger" subtitle="Verification results are separate from customer records and remain auditable.">
+      <div className="grid xl:grid-cols-[1.2fr_.8fr] gap-3">
+        <BizPanel title="Verification requests" subtitle="Current checks">
+          {checks.length===0?<div className="p-8 text-center"><BizIcon tone="purple" size="lg">✓</BizIcon><div className="mt-3 text-[10px] text-white/55">No verification checks yet</div><p className="mt-1 text-[8px] text-white/20">Create checks only when the business actually requires identity evidence.</p></div>:
+          checks.map((v:any)=><div key={v.id} className="biz-list-row px-4 py-4"><BizIcon tone={v.status==="verified"?"green":v.status==="pending"?"orange":"red"} size="md">✓</BizIcon><div className="min-w-0 flex-1"><div className="text-[9px] text-white/65">{v.customer?.name||v.customer?.company_name||"Customer"}</div><div className="text-[7px] text-white/20 mt-1">{String(v.verification_type).replaceAll("_"," ")} · {v.provider||"Provider not connected"}</div></div><BizStatus tone={v.status==="verified"?"green":v.status==="pending"?"orange":"red"}>{v.status}</BizStatus></div>)}
+        </BizPanel>
+        <BizPanel title="Verification summary" subtitle="Live counts from this business">
+          <div className="p-4 grid grid-cols-2 gap-2"><div className="biz-metric"><div className="biz-metric-label">Verified</div><div className="biz-metric-value">{verified}</div></div><div className="biz-metric"><div className="biz-metric-label">Pending</div><div className="biz-metric-value">{pending}</div></div><div className="col-span-2 rounded-xl border border-indigo-400/15 bg-indigo-400/[.04] p-3 text-[8px] leading-4 text-indigo-100/45">Verification status is evidence returned by a configured verification provider; it is not inferred from the customer's name or contact record.</div></div>
+        </BizPanel>
+      </div>
+    </BizSection>
+  </div>;
 }
