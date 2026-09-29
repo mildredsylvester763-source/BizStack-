@@ -111,18 +111,39 @@ function routeFromFile(path: string): RouteEntry | null {
 
 function inferElementMap(content: string | null) {
   const text = content || "";
-  const checks = [
-    { label: "Headings", pattern: /<h[1-6]\b/g, prompt: "headings and their typography" },
-    { label: "Buttons", pattern: /<button\b|<Button\b/g, prompt: "buttons and calls to action" },
-    { label: "Links", pattern: /<a\b|<Link\b/g, prompt: "navigation links" },
-    { label: "Images", pattern: /<img\b|<Image\b/g, prompt: "images and visual media" },
-    { label: "Forms", pattern: /<form\b/g, prompt: "forms and input layout" },
-    { label: "Sections", pattern: /<section\b/g, prompt: "sections and page composition" }
-  ];
+  const pattern = /<(h[1-6]|button|Button|a|Link|img|Image|form|section|header|footer|nav|main)\b[^>]*>/g;
+  const counts = new Map<string, number>();
+  const lines = text.split("\n");
+  const items: Array<{
+    id: string;
+    label: string;
+    prompt: string;
+    count: number;
+    line: number;
+    excerpt: string;
+  }> = [];
 
-  return checks
-    .map((item) => ({ ...item, count: text.match(item.pattern)?.length || 0 }))
-    .filter((item) => item.count > 0);
+  for (const match of text.matchAll(pattern)) {
+    const tag = String(match[1]);
+    const index = match.index ?? 0;
+    const line = text.slice(0, index).split("\n").length;
+    const occurrence = (counts.get(tag.toLowerCase()) || 0) + 1;
+    counts.set(tag.toLowerCase(), occurrence);
+    const normalized = tag.toLowerCase();
+    const labelTag = normalized === "link" ? "Link" : normalized === "button" ? "Button" : tag[0].toUpperCase() + tag.slice(1);
+    const excerpt = (lines[line - 1] || "").trim().slice(0, 150);
+    items.push({
+      id: normalized + "-" + occurrence + "-" + line,
+      label: labelTag + " " + occurrence,
+      prompt: "the " + labelTag.toLowerCase() + " element near source line " + line,
+      count: 1,
+      line,
+      excerpt
+    });
+    if (items.length >= 80) break;
+  }
+
+  return items;
 }
 
 export default function WebsiteWorkspace({
