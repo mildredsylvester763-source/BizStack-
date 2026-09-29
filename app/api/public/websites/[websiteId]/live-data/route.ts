@@ -42,13 +42,14 @@ function pick(row: Record<string, unknown>, fields: string[], allowed: Set<strin
 
 export async function GET(
   _req: Request,
-  { params }: { params: { websiteId: string } }
+  { params }: { params: Promise<{ websiteId: string }> }
 ) {
   const supabase = createAdminClient();
+  const { websiteId } = await params;
   const { data: rawWebsite, error } = await supabase
     .from("websites")
     .select("id,business_id,status")
-    .eq("id", params.websiteId)
+    .eq("id", websiteId)
     .eq("status", "published")
     .single();
   const website = rawWebsite as PublishedWebsiteRecord|null;
