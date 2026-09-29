@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { Spectral, IBM_Plex_Sans } from "next/font/google";
+import { Space_Grotesk, IBM_Plex_Sans } from "next/font/google";
 import "./globals.css";
 
-const display = Spectral({
+const display = Space_Grotesk({
   subsets: ["latin"],
   weight: ["500", "600"],
   style: ["normal", "italic"],
