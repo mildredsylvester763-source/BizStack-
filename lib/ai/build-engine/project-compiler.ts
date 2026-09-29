@@ -3,26 +3,26 @@ import type { WebsiteSpec, WebsitePageSpec } from "@/lib/ai/build-engine/types";
 type ProjectFile = { path: string; content: string; language: string };
 
 function pageComponent(page: WebsitePageSpec) {
-  return "import { SitePage } from \\"@/components/site-page\\";\\n" +
-    "const page = " + JSON.stringify(page) + ";\\n" +
-    "export default function Page(){ return <SitePage page={page} />; }\\n";
+  return "import { SitePage } from \"@/components/site-page\";\n" +
+    "const page = " + JSON.stringify(page) + ";\n" +
+    "export default function Page(){ return <SitePage page={page} />; }\n";
 }
 
 function sitePageComponent() {
   return [
-    "\\"use client\\";",
-    "import Link from \\"next/link\\";",
+    "\"use client\";",
+    "import Link from \"next/link\";",
     "type Section={id:string;type:string;heading?:string;body?:string;items?:Array<Record<string,unknown>>;button?:string;url?:string};",
     "type Page={title:string;seo:{title:string;description:string};sections:Section[]};",
     "function SectionView({section}:{section:Section}){",
     " const items=section.items||[];",
-    " if(section.type===\\"hero\\") return <section className=\\"hero\\"><div><span className=\\"eyebrow\\">BUILT WITH BIZSTACK</span><h1>{section.heading||\\"Your business, presented beautifully.\\"}</h1><p>{section.body}</p>{section.button&&<Link className=\\"button\\" href={section.url||\\"#contact\\"}>{section.button}</Link>}</div></section>;",
-    " if(section.type===\\"contact\\") return <section id=\\"contact\\" className=\\"section contact\\"><div><span className=\\"eyebrow\\">CONTACT</span><h2>{section.heading||\\"Lets work together.\\"}</h2><p>{section.body}</p></div><form onSubmit={(e)=>e.preventDefault()}><input required placeholder=\\"Your name\\"/><input required type=\\"email\\" placeholder=\\"Email address\\"/><textarea required placeholder=\\"How can we help?\\"/><button className=\\"button\\" type=\\"submit\\">Send enquiry</button></form></section>;",
-    " if([\\"services\\",\\"products\\",\\"features\\",\\"testimonials\\",\\"faq\\",\\"gallery\\"].includes(section.type)) return <section className=\\"section\\"><span className=\\"eyebrow\\">{section.type.toUpperCase()}</span><h2>{section.heading||section.type}</h2>{section.body&&<p className=\\"lead\\">{section.body}</p>}<div className=\\"grid\\">{items.map((item,i)=><article className=\\"item\\" key={i}><h3>{String(item.title||item.name||item.question||item.heading||\\"\\")}</h3><p>{String(item.description||item.body||item.answer||item.text||\\"\\")}</p>{item.price&&<strong>{String(item.price)}</strong>}</article>)}</div></section>;",
-    " return <section className=\\"section\\"><span className=\\"eyebrow\\">{section.type.toUpperCase()}</span><h2>{section.heading}</h2><p className=\\"lead\\">{section.body}</p>{section.button&&<Link className=\\"button\\" href={section.url||\\"#\\"}>{section.button}</Link>}</section>;",
+    " if(section.type===\"hero\") return <section className=\"hero\"><div><span className=\"eyebrow\">BUILT WITH BIZSTACK</span><h1>{section.heading||\"Your business, presented beautifully.\"}</h1><p>{section.body}</p>{section.button&&<Link className=\"button\" href={section.url||\"#contact\"}>{section.button}</Link>}</div></section>;",
+    " if(section.type===\"contact\") return <section id=\"contact\" className=\"section contact\"><div><span className=\"eyebrow\">CONTACT</span><h2>{section.heading||\"Lets work together.\"}</h2><p>{section.body}</p></div><form onSubmit={(e)=>e.preventDefault()}><input required placeholder=\"Your name\"/><input required type=\"email\" placeholder=\"Email address\"/><textarea required placeholder=\"How can we help?\"/><button className=\"button\" type=\"submit\">Send enquiry</button></form></section>;",
+    " if([\"services\",\"products\",\"features\",\"testimonials\",\"faq\",\"gallery\"].includes(section.type)) return <section className=\"section\"><span className=\"eyebrow\">{section.type.toUpperCase()}</span><h2>{section.heading||section.type}</h2>{section.body&&<p className=\"lead\">{section.body}</p>}<div className=\"grid\">{items.map((item,i)=><article className=\"item\" key={i}><h3>{String(item.title||item.name||item.question||item.heading||\"\")}</h3><p>{String(item.description||item.body||item.answer||item.text||\"\")}</p>{item.price&&<strong>{String(item.price)}</strong>}</article>)}</div></section>;",
+    " return <section className=\"section\"><span className=\"eyebrow\">{section.type.toUpperCase()}</span><h2>{section.heading}</h2><p className=\"lead\">{section.body}</p>{section.button&&<Link className=\"button\" href={section.url||\"#\"}>{section.button}</Link>}</section>;",
     "}",
     "export function SitePage({page}:{page:Page}){return <main>{page.sections.map(s=><SectionView section={s} key={s.id}/>)}</main>}",
-  ].join("\\n");
+  ].join("\n");
 }
 
 function globals(spec: WebsiteSpec) {
@@ -36,11 +36,11 @@ export function compileWebsiteToProject(spec: WebsiteSpec) {
   const files: ProjectFile[] = [
     {path:"package.json",language:"json",content:JSON.stringify({name:spec.subdomain||"bizstack-site",private:true,scripts:{dev:"next dev",build:"next build",start:"next start"},dependencies:{next:"14.2.15",react:"^18.3.1","react-dom":"^18.3.1"},devDependencies:{"@types/node":"^20.14.0","@types/react":"^18.3.0","@types/react-dom":"^18.3.0",typescript:"^5.5.3"}},null,2)},
     {path:"tsconfig.json",language:"json",content:JSON.stringify({compilerOptions:{target:"es5",lib:["dom","dom.iterable","esnext"],allowJs:false,skipLibCheck:true,strict:true,noEmit:true,esModuleInterop:true,module:"esnext",moduleResolution:"bundler",resolveJsonModule:true,isolatedModules:true,jsx:"preserve",incremental:true,plugins:[{name:"next"}]},include:["next-env.d.ts","**/*.ts","**/*.tsx",".next/types/**/*.ts"],exclude:["node_modules"]},null,2)},
-    {path:"next-env.d.ts",language:"typescript",content:"/// <reference types=\\"next\\" />\\n/// <reference types=\\"next/image-types/global\\" />\\n"},
-    {path:"next.config.mjs",language:"javascript",content:"const nextConfig={reactStrictMode:true};\\nexport default nextConfig;\\n"},
+    {path:"next-env.d.ts",language:"typescript",content:"/// <reference types=\"next\" />\n/// <reference types=\"next/image-types/global\" />\n"},
+    {path:"next.config.mjs",language:"javascript",content:"const nextConfig={reactStrictMode:true};\nexport default nextConfig;\n"},
     {path:"app/globals.css",language:"css",content:globals(spec)},
     {path:"components/site-page.tsx",language:"tsx",content:sitePageComponent()},
-    {path:"app/layout.tsx",language:"tsx",content:"import \\"./globals.css\\";\\nexport const metadata={title:"+JSON.stringify(spec.seo.siteTitle)+",description:"+JSON.stringify(spec.seo.description)+"};\\nexport default function RootLayout({children}:{children:React.ReactNode}){return <html lang=\\"en\\"><body>{children}</body></html>}\\n"}
+    {path:"app/layout.tsx",language:"tsx",content:"import \"./globals.css\";\nexport const metadata={title:"+JSON.stringify(spec.seo.siteTitle)+",description:"+JSON.stringify(spec.seo.description)+"};\nexport default function RootLayout({children}:{children:React.ReactNode}){return <html lang=\"en\"><body>{children}</body></html>}\n"}
   ];
   for(const page of spec.pages){
     const route=page.slug==="home"?"app/page.tsx":"app/"+page.slug+"/page.tsx";
