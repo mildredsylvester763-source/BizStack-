@@ -17,26 +17,57 @@ export default async function InvoicesPage() {
     .select("id,invoice_number,status,due_date,currency,total,paid_amount,created_at,customer:customers(name)")
     .eq("business_id",business.id).order("created_at",{ascending:false});
   const rows=invoices??[];
-  return <main className="min-h-screen bg-[#f4f1ea] text-[#151817]">
-    <header className="border-b border-black/10 bg-[#fbfaf7]/95 backdrop-blur sticky top-0 z-20"><div className="max-w-7xl mx-auto px-4 sm:px-6 py-5 flex items-center justify-between">
-      <Link href="/dashboard" className="font-display text-lg text-ink">{business.name}</Link>
-      <Link href="/dashboard" className="text-sm text-ink/45 hover:text-ink">Back to dashboard</Link>
-    </div></header>
-    <section className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-5 mb-8"><div><p className="text-[10px] uppercase tracking-[.2em] text-[#7c6f58] mb-2">Money in · Commercial Studio</p><h1 className="font-display text-4xl sm:text-5xl tracking-tight text-[#151817] mb-2">Invoices that know what happens next.</h1><p className="text-[#151817]/55 max-w-2xl">Quotes, balances, confirmed payments and customer communication stay connected to the same commercial record.</p></div>
-      <Link href="/dashboard/invoices/new" className="rounded-xl bg-[#151817] text-white px-5 py-3 text-sm font-medium shadow-[0_12px_30px_rgba(21,24,23,.16)]">Create invoice</Link></div>
-      {!rows.length?<div className="rounded-[28px] border border-black/10 bg-[#fffdf9] p-10 text-center shadow-[0_20px_70px_rgba(20,20,16,.06)]"><p className="text-[10px] uppercase tracking-[.18em] text-black/35">Commercial workspace</p><h2 className="font-display text-2xl mt-2">Your first invoice starts here.</h2><p className="text-sm text-black/45 mt-2 max-w-md mx-auto">Create a real invoice and keep its customer, delivery, payment and balance history together.</p><Link href="/dashboard/invoices/new" className="inline-flex mt-6 rounded-xl bg-[#183f38] text-white px-5 py-3 text-sm">Create first invoice</Link></div>:
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-5"><div className="rounded-2xl bg-[#183f38] text-white p-5"><p className="text-[10px] uppercase tracking-[.16em] text-white/45">Total billed</p><p className="font-display text-2xl mt-2">{rows.reduce((s,i)=>s+Number(i.total||0),0).toFixed(2)} {rows[0]?.currency||""}</p></div><div className="rounded-2xl bg-white border border-black/10 p-5"><p className="text-[10px] uppercase tracking-[.16em] text-black/35">Collected</p><p className="font-display text-2xl mt-2">{rows.reduce((s,i)=>s+Number(i.paid_amount||0),0).toFixed(2)} {rows[0]?.currency||""}</p></div><div className="rounded-2xl bg-white border border-black/10 p-5"><p className="text-[10px] uppercase tracking-[.16em] text-black/35">Outstanding</p><p className="font-display text-2xl mt-2">{rows.reduce((s,i)=>s+calculateOutstanding(Number(i.total||0),Number(i.paid_amount||0)),0).toFixed(2)} {rows[0]?.currency||""}</p></div><div className="rounded-2xl bg-[#fff8e9] border border-black/10 p-5"><p className="text-[10px] uppercase tracking-[.16em] text-black/35">Open records</p><p className="font-display text-2xl mt-2">{rows.filter(i=>i.status!=="paid").length}</p></div></div><div className="rounded-[28px] border border-black/10 bg-[#fffdf9] shadow-[0_24px_80px_rgba(20,20,16,.07)] overflow-hidden"><div className="hidden md:grid grid-cols-[120px_1fr_160px_190px_120px] gap-4 px-5 py-3 text-[10px] uppercase tracking-[.16em] text-black/35 border-b border-black/10"><span>Invoice</span><span>Customer</span><span>Total</span><span>Payment position</span><span>Status</span></div><div className="divide-y divide-black/10">{rows.map(inv=>{
-        const customer=inv.customer as unknown as {name:string}|null;
-        const total=Number(inv.total||0), paid=Number(inv.paid_amount||0), outstanding=calculateOutstanding(total,paid);
-        const displayStatus=displayInvoiceStatus(inv.status,inv.due_date);
-        return <Link key={inv.id} href={`/dashboard/invoices/${inv.id}`} className="group py-5 grid md:grid-cols-[120px_1fr_160px_190px_120px] gap-4 items-center hover:bg-[#f7f3eb] transition-colors px-5">
-          <span className="text-sm text-ink/50">{inv.invoice_number}</span><span className="text-ink">{customer?.name??"—"}</span>
-          <span className="text-sm text-ink/70">{formatMoney(total,inv.currency)}</span>
-          <span className="text-xs text-ink/55">{paid>0?formatMoney(paid,inv.currency)+" paid · ":""}{formatMoney(outstanding,inv.currency)} due</span>
-          <span className={`text-xs px-2.5 py-1 rounded-full text-center capitalize ${STATUS_STYLES[displayStatus]??"bg-ink/10 text-ink/60"}`}>{displayStatus.replace("_"," ")}</span>
-        </Link>;
-      })}</div></div>}
+  return <main className="min-h-screen bg-[#f3f0e8] text-[#171918]">
+    <header className="sticky top-0 z-30 border-b border-black/[.08] bg-[#f8f6f0]/90 backdrop-blur-xl">
+      <div className="max-w-[1480px] mx-auto px-4 sm:px-6 lg:px-8 h-[72px] flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Link href="/dashboard" className="font-display text-xl tracking-tight">{business.name}</Link>
+          <span className="hidden sm:inline-block h-5 w-px bg-black/10" />
+          <span className="hidden sm:inline text-[10px] uppercase tracking-[.2em] text-black/35">Commercial / Invoices</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <Link href="/dashboard" className="hidden sm:inline text-xs text-black/45 hover:text-black transition-colors">Dashboard</Link>
+          <Link href="/dashboard/invoices/new" className="inline-flex items-center gap-2 rounded-xl bg-[#171918] text-white px-4 py-2.5 text-xs font-medium shadow-[0_8px_24px_rgba(23,25,24,.14)] hover:-translate-y-px transition-transform"><span className="text-base leading-none">+</span> New invoice</Link>
+        </div>
+      </div>
+    </header>
+    <section className="max-w-[1480px] mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+      <div className="grid lg:grid-cols-[1fr_auto] gap-8 items-end mb-9">
+        <div><div className="flex items-center gap-2 mb-4"><span className="h-1.5 w-1.5 rounded-full bg-[#806f50]" /><span className="text-[10px] uppercase tracking-[.24em] text-[#806f50]">Money in</span></div>
+          <h1 className="font-display text-[42px] sm:text-[54px] leading-[.98] tracking-[-.035em] max-w-3xl">Invoices, without the clutter.</h1>
+          <p className="mt-4 text-[15px] leading-6 text-black/50 max-w-2xl">Every invoice is a commercial record: customer, work, payment position, delivery and what needs to happen next.</p>
+        </div>
+        <div className="lg:text-right"><p className="text-[10px] uppercase tracking-[.2em] text-black/30">Live workspace</p><p className="font-display text-xl mt-1">${rows.length} invoice{rows.length === 1 ? "" : "s"}</p></div>
+      </div>
+      {!rows.length ? (
+        <div className="rounded-[32px] border border-black/[.08] bg-[#fcfaf5] shadow-[0_28px_90px_rgba(25,24,20,.07)] overflow-hidden">
+          <div className="grid lg:grid-cols-[1.15fr_.85fr]">
+            <div className="p-7 sm:p-12 border-b lg:border-b-0 lg:border-r border-black/[.08]">
+              <span className="inline-flex rounded-full border border-black/10 bg-white px-3 py-1.5 text-[10px] uppercase tracking-[.16em] text-black/45">Commercial studio</span>
+              <h2 className="font-display text-3xl sm:text-4xl tracking-tight mt-6 max-w-xl">Turn a customer agreement into a clear financial record.</h2>
+              <p className="text-sm leading-6 text-black/50 mt-4 max-w-lg">Create the invoice first. Payment providers, delivery channels and verified payment events can attach to it later without changing the record itself.</p>
+              <Link href="/dashboard/invoices/new" className="inline-flex mt-8 rounded-xl bg-[#171918] text-white px-5 py-3 text-sm font-medium">Create your first invoice</Link>
+            </div>
+            <div className="p-7 sm:p-12 bg-[#f1eee5]"><p className="text-[10px] uppercase tracking-[.2em] text-black/35">The record follows</p><div className="mt-6 space-y-4">{["Customer relationship","Work and line items","Amount and balance","Delivery and payment","Receipt and history"].map((item, i) => (<div key={item} className="flex items-center gap-4"><span className="h-8 w-8 rounded-full border border-black/10 bg-white flex items-center justify-center text-[11px] text-black/45">{String(i + 1).padStart(2,"0")}</span><span className="text-sm text-black/65">{item}</span></div>))}</div></div>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-7">
+            {[["Billed", rows.reduce((s,i)=>s+Number(i.total||0),0), "primary"],["Collected", rows.reduce((s,i)=>s+Number(i.paid_amount||0),0), "light"],["Outstanding", rows.reduce((s,i)=>s+calculateOutstanding(Number(i.total||0),Number(i.paid_amount||0)),0), "light"],["Needs attention", rows.filter(i=>i.status!=="paid").length, "sand"]].map(([label,value,tone]) => (
+              <div key={String(label)} className={`rounded-[22px] border border-black/[.08] p-5 sm:p-6 ${tone==="primary" ? "bg-[#202725] text-white border-[#202725]" : tone==="sand" ? "bg-[#eee8da]" : "bg-[#fcfaf5]"}`}>
+                <p className={`text-[10px] uppercase tracking-[.18em] ${tone==="primary" ? "text-white/45" : "text-black/35"}`}>{label}</p>
+                <p className="font-display text-[25px] sm:text-[28px] tracking-tight mt-2">{label==="Needs attention" ? String(value) : formatMoney(Number(value), rows[0]?.currency || "")}</p>
+              </div>
+            ))}
+          </div>
+          <div className="rounded-[30px] border border-black/[.08] bg-[#fcfaf5] shadow-[0_24px_80px_rgba(25,24,20,.06)] overflow-hidden">
+            <div className="px-5 sm:px-7 py-5 border-b border-black/[.08] flex flex-col sm:flex-row sm:items-center justify-between gap-4"><div><p className="text-[10px] uppercase tracking-[.2em] text-black/30">Invoice register</p><p className="text-sm text-black/55 mt-1">A visual view of every commercial record.</p></div><div className="flex items-center gap-2"><span className="rounded-full border border-black/10 px-3 py-1.5 text-[10px] uppercase tracking-[.12em] text-black/40">All records</span><Link href="/dashboard/invoices/new" className="rounded-full bg-[#171918] text-white px-3.5 py-1.5 text-[11px]">Create</Link></div></div>
+            <div className="hidden lg:grid grid-cols-[130px_minmax(180px,1fr)_170px_230px_125px] gap-5 px-7 py-3 text-[9px] uppercase tracking-[.2em] text-black/30 border-b border-black/[.06]"><span>Record</span><span>Customer</span><span>Value</span><span>Payment position</span><span>State</span></div>
+            <div className="divide-y divide-black/[.07]">{rows.map(inv=>{const customer=inv.customer as unknown as {name:string}|null;const total=Number(inv.total||0),paid=Number(inv.paid_amount||0),outstanding=calculateOutstanding(total,paid);const displayStatus=displayInvoiceStatus(inv.status,inv.due_date);const progress=total>0?Math.min(100,(paid/total)*100):0;return <Link key={inv.id} href={`/dashboard/invoices/${inv.id}`} className="group block px-5 sm:px-7 py-5 hover:bg-[#f5f1e9] transition-colors"><div className="lg:grid lg:grid-cols-[130px_minmax(180px,1fr)_170px_230px_125px] lg:gap-5 lg:items-center"><div className="flex items-center justify-between lg:block"><span className="font-mono text-[11px] text-black/40">{inv.invoice_number}</span><span className="lg:hidden inline-flex rounded-full border border-black/10 px-2.5 py-1 text-[10px] capitalize text-black/55">{displayStatus.replace("_"," ")}</span></div><div className="mt-3 lg:mt-0 min-w-0"><p className="text-[15px] font-medium truncate">{customer?.name ?? "Unnamed customer"}</p><p className="text-xs text-black/35 mt-1">{inv.due_date ? `Due ${new Date(inv.due_date).toLocaleDateString()}` : "No due date"}</p></div><div className="mt-4 lg:mt-0"><p className="text-sm font-medium">{formatMoney(total,inv.currency)}</p><p className="text-[11px] text-black/35 mt-1">{paid ? `${formatMoney(paid,inv.currency)} collected` : "Nothing collected yet"}</p></div><div className="mt-4 lg:mt-0"><div className="flex items-center justify-between text-[11px] mb-2"><span className="text-black/45">{paid ? `${formatMoney(outstanding,inv.currency)} remaining` : "Awaiting payment"}</span><span className="text-black/30">{Math.round(progress)}%</span></div><div className="h-1.5 rounded-full bg-black/[.07] overflow-hidden"><div className="h-full rounded-full bg-[#6d746f] transition-all" style={{width:`${progress}%`}} /></div></div><div className="hidden lg:flex items-center justify-between gap-3"><span className="inline-flex rounded-full border border-black/10 bg-white/70 px-2.5 py-1 text-[10px] capitalize text-black/55">{displayStatus.replace("_"," ")}</span><span className="text-black/20 group-hover:text-black/55 transition-colors">↗</span></div></div></Link>})}</div>
+          </div>
+        </>
+      )}
     </section>
   </main>;
 }
