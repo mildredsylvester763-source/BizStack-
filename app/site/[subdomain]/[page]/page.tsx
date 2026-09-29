@@ -2,7 +2,8 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase-server";
 
-export default async function PublicPage({params}:{params:{subdomain:string;page:string}}){
+export default async function PublicPage(props:{params: Promise<{subdomain:string;page:string}>}) {
+ const params = await props.params;
  const supabase=createClient();
  const {data:site}=await supabase.from("websites").select("id,name,subdomain,status,settings").eq("subdomain",params.subdomain).eq("status","published").maybeSingle();
  if(!site)notFound();
