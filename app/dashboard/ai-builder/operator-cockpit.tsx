@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import VoiceInput from "./voice-input";
+import WebsiteWorkspace from "./website-workspace";
 
 type App={name:string;slug:string;category:string;description:string;icon_key:string;connected?:boolean;accounts?:any[]};
 type Msg={id?:string;role:"user"|"assistant"|"tool";content:string;metadata?:any};
@@ -256,7 +257,7 @@ export default function OperatorCockpit({
       const x=await r.json().catch(()=>({}));
       if(!r.ok)throw new Error(x.error||"Could not create project.");
       setProjectOpen(false);setNewProject({name:"",slug:"",projectType:"app",framework:"Next.js",runtime:"Node.js"});
-      const id=await loadProjects(x.project?.id);if(id){setTab("code");await loadFiles(id)}
+      const id=await loadProjects(x.project?.id);if(id){setTab(x.project?.project_type==="website"?"website":"code");await loadFiles(id)}
     }catch(e){setMessages(v=>[...v,{role:"assistant",content:e instanceof Error?e.message:"Project creation failed."}])}
     finally{setProjectCreating(false)}
   }
@@ -374,13 +375,13 @@ export default function OperatorCockpit({
     </div>
     <div className="px-3 py-2 border-b border-white/[.06] bg-[#0d0f13] flex items-center gap-2 overflow-x-auto">
       <span className="text-[8px] uppercase tracking-[.18em] text-white/20">Project</span>
-      <select value={projectId} onChange={e=>{setProjectId(e.target.value);setTab("code")}} className="min-w-[180px] bg-white/[.05] border border-white/[.07] rounded-lg px-2 py-1.5 text-[9px] outline-none"><option value="">No project attached</option>{projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select>
+      <select value={projectId} onChange={e=>{const next=e.target.value;setProjectId(next);const nextProject=projects.find(p=>p.id===next);setTab(nextProject?.project_type==="website"?"website":"code")}} className="min-w-[180px] bg-white/[.05] border border-white/[.07] rounded-lg px-2 py-1.5 text-[9px] outline-none"><option value="">No project attached</option>{projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select>
       {statusPills.map(x=><span key={x} className="px-2 py-1 rounded bg-white/[.04] text-[8px] text-white/25">{x}</span>)}{context.map(a=><button key={a.slug} onClick={()=>setContext(v=>v.filter(x=>x.slug!==a.slug))} className="px-2 py-1 rounded bg-indigo-400/10 text-[8px] text-indigo-200">@{a.name}</button>)}
     </div>
 
     <div className="grid xl:grid-cols-[390px_minmax(0,1fr)_270px] min-h-[calc(100vh-96px)]">
       <section className="bg-[#101217] border-r border-white/[.07] flex flex-col min-h-0">
-        <nav className="h-10 px-3 border-b border-white/[.06] flex items-center gap-1">{["chat","code","engineering","preview","terminal","run"].map(x=><button key={x} onClick={()=>setTab(x)} className={tab===x?"px-2.5 py-1.5 rounded bg-white/[.08] text-[9px]":"px-2.5 py-1.5 text-white/30 text-[9px]"}>{x}</button>)}</nav>
+        <nav className="h-10 px-3 border-b border-white/[.06] flex items-center gap-1">{["chat",...(project?.project_type==="website"?["website"]:[]),"code","engineering","preview","terminal","run"].map(x=><button key={x} onClick={()=>setTab(x)} className={tab===x?"px-2.5 py-1.5 rounded bg-white/[.08] text-[9px]":"px-2.5 py-1.5 text-white/30 text-[9px]"}>{x==="website"?"website":"x"}</button>)}</nav>
         <div className="flex-1 overflow-y-auto">
           {tab==="chat"&&<div className="p-4 space-y-5">
             {!messages.length&&<div className="pt-8"><div className="text-[8px] uppercase tracking-[.2em] text-white/20">Autonomous workspace</div><h2 className="text-3xl mt-2 tracking-tight">What should I handle?</h2><p className="text-[11px] text-white/35 leading-5 mt-3">Tell the Operator the outcome. It can now work against real project records and source files.</p><div className="grid grid-cols-2 gap-2 mt-5">{quickActions.map(x=><button key={x} onClick={()=>setInput(x)} className="text-left p-3 rounded-xl border border-white/[.07] text-[9px] text-white/45 hover:bg-white/[.04]">{x}</button>)}</div></div>}
@@ -388,7 +389,7 @@ export default function OperatorCockpit({
             {approval&&<div className="p-3 rounded-xl border border-amber-300/20 bg-amber-300/[.05]"><div className="text-[8px] text-amber-200 uppercase">Approval required</div><p className="text-[10px] mt-2">{approval.action}</p><button className="mt-3 bg-white text-black rounded-lg px-3 py-2 text-[9px]" onClick={async()=>{setBusy(true);try{const r=await fetch("/api/assistant/approve",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:approval.runId})});const x=await r.json().catch(()=>({}));setApproval(x.approval||null);setMessages(v=>[...v,{role:"assistant",content:x.message||"Approved action completed."}]);await loadProjects(projectId||undefined).catch(()=>null)}finally{setBusy(false)}}}>Approve</button></div>}
             {busy&&<div className="flex gap-3 items-center py-2"><div className="w-7 h-7 rounded-lg bg-indigo-400/10 flex items-center justify-center text-[8px] text-indigo-200 animate-pulse">B</div><div className="text-[9px] text-white/30">BizStack is working across the workspace…</div></div>}<div ref={end}/>
           </div>}
-          {tab==="code"&&<div className="h-full min-h-[620px] flex">
+          {tab==="website"&&<WebsiteWorkspace project={project} files={files} initialPreviewUrl={previewUrl} onPreviewUrlChange={setPreviewUrl} onAskAI={setInput} onCreateProject={()=>setProjectOpen(true)}/>}\n          {tab==="code"&&<div className="h-full min-h-[620px] flex">
             <div className="w-56 shrink-0 border-r border-white/[.06] bg-[#0f1115] overflow-y-auto"><div className="px-3 py-2 border-b border-white/[.05] text-[8px] uppercase tracking-[.15em] text-white/20">{project?.name||"No project"}</div>{!project&&<div className="p-3 text-[9px] text-white/25">Create or select a project to open its real source tree.</div>}{project&&files.map(f=><button key={f.path} onClick={()=>{setSelectedPath(f.path);setEditor(String(f.content??""));setFileDirty(false)}} className={selectedPath===f.path?"w-full text-left px-3 py-2 bg-white/[.07] text-[9px] text-white":"w-full text-left px-3 py-2 text-[9px] text-white/35 hover:bg-white/[.04]"}>{f.path}</button>)}{project&&files.length===0&&<div className="p-3 text-[9px] text-white/20">No source files yet. Ask the Operator to create the project files.</div>}</div>
             <div className="flex-1 flex flex-col min-w-0"><div className="h-10 px-3 border-b border-white/[.06] flex items-center gap-2"><span className="text-[9px] text-white/40 truncate">{selectedPath||"Select a file"}</span>{selectedFile&&<span className="text-[8px] text-white/15 ml-auto">v{selectedFile.version_no} · {selectedFile.content_sha?.slice(0,10)||"no checksum"}</span>}{fileDirty&&<span className="text-[8px] text-amber-200">unsaved</span>}<button onClick={()=>void snapshot()} disabled={!project||versioning||saving} className="ml-auto px-2.5 py-1.5 rounded-lg bg-indigo-400/10 text-[8px] text-indigo-200 disabled:opacity-20">Snapshot</button><button onClick={()=>void saveFile()} disabled={!project||!selectedPath||!fileDirty||saving} className="px-2.5 py-1.5 rounded-lg bg-white text-black text-[8px] disabled:opacity-20">{saving?"Saving…":"Save"}</button></div><textarea value={editor} onChange={e=>{setEditor(e.target.value);setFileDirty(true)}} spellCheck={false} disabled={!selectedFile} placeholder={project?"Select a source file":"Select a project"} className="flex-1 min-h-[570px] resize-none bg-[#0b0d11] px-4 py-4 font-mono text-[11px] leading-5 text-white/75 outline-none"/></div>
           </div>}
