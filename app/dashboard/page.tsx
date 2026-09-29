@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase-server";
 
 export default async function DashboardPage() {
- const supabase=createClient(); const {data:{user}}=await supabase.auth.getUser(); if(!user) redirect("/login");
+ const supabase=await createClient(); const {data:{user}}=await supabase.auth.getUser(); if(!user) redirect("/login");
  const {data:business}=await supabase.from("businesses").select("*").eq("owner_id",user.id).single(); if(!business) redirect("/onboarding");
  return <main className="min-h-screen bg-ledger"><header className="border-b border-rule bg-white"><div className="max-w-6xl mx-auto px-6 py-5 flex items-center justify-between">
   <div><p className="font-display text-lg text-ink">{business.name}</p><p className="text-xs text-ink/45">{business.industry} · {business.currency}</p></div>
