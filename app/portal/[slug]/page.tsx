@@ -10,6 +10,7 @@ type PublicPortalRecord = {
 };
 
 export default async function PublicPortal({params}:{params:{slug:string}}){
+ // Keep the public portal record typed at the Supabase boundary.
  const admin=createAdminClient();
  const {data:rawPortal}=await admin.from("customer_portals").select("id,name,slug,status,settings").eq("slug",params.slug).maybeSingle();
  const portal=rawPortal as PublicPortalRecord|null;
