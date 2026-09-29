@@ -94,7 +94,8 @@ export default function WebsiteDesignMode({
         </div>
 
         {tab === "select" && (
-          <div className="mt-3 space-y-2.5"> bg-cyan-300/[.035] p-3">
+          <div className="mt-3 space-y-2.5">
+            <div className="rounded-xl border border-cyan-300/[.1] bg-cyan-300/[.035] p-3">
             <div className="flex items-center gap-2">
               <span className="grid h-7 w-7 place-items-center rounded-lg bg-cyan-300/[.08] text-cyan-100 text-[9px]">⌁</span>
               <div className="min-w-0 flex-1">
@@ -112,9 +113,9 @@ export default function WebsiteDesignMode({
             </div>
 
             <div className="space-y-1.5">
-            <div className="text-[7px] uppercase tracking-[.16em] text-white/20 px-1">Page elements</div>
+              <div className="text-[7px] uppercase tracking-[.16em] text-white/20 px-1">Page elements</div>
             {!elements.length && <div className="rounded-xl border border-white/[.05] p-3 text-[8px] leading-4 text-white/22">No source element descriptors are available yet. Use Builder to inspect the page source.</div>}
-            {elements.map(item => (
+              {elements.map(item => (
               <button
                 key={item.label}
                 onClick={() => { setSelected(item); setTab("style"); }}
@@ -124,7 +125,8 @@ export default function WebsiteDesignMode({
                 <span className="ml-auto text-[7px] text-indigo-200/60">{item.count}</span>
                 <span className="text-white/15">›</span>
               </button>
-            ))}
+              ))}
+            </div>
           </div>
         )}
 
