@@ -51,6 +51,7 @@ export async function POST(request: Request) {
     const projectType = typeof body.projectType === "string" ? body.projectType : "app";
     const framework = typeof body.framework === "string" ? body.framework : null;
     const runtime = typeof body.runtime === "string" ? body.runtime : null;
+    const metadata = body.metadata && typeof body.metadata === "object" && !Array.isArray(body.metadata) ? body.metadata : {};
     if (!name || !slug) return NextResponse.json({ error: "Project name and slug are required." }, { status: 400 });
     if (!/^[a-z0-9][a-z0-9-]{1,62}$/.test(slug)) {
       return NextResponse.json({ error: "Project slug must use 2-63 lowercase letters, numbers, or hyphens." }, { status: 400 });
@@ -67,6 +68,7 @@ export async function POST(request: Request) {
         project_type: projectType,
         framework,
         runtime,
+        metadata,
         created_by: user.id,
       })
       .select("id,name,slug,project_type,status,default_branch,framework,runtime,metadata,created_by,created_at,updated_at")
