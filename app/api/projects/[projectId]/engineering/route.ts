@@ -80,9 +80,10 @@ function fallback(mode: EngineeringMode, files: any[], selectedPath?: string | n
   };
 }
 
-export async function POST(request: Request, context: { params: { projectId: string } }) {
+export async function POST(request: Request, context: { params: Promise<{ projectId: string }> }) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
+    const { projectId } = await context.params;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -94,7 +95,7 @@ export async function POST(request: Request, context: { params: { projectId: str
     const { data: project, error: projectError } = await supabase
       .from("ai_projects")
       .select("id,name,slug,business_id,status,framework,runtime,repository_name,default_branch,preview_url,production_url")
-      .eq("id", context.params.projectId)
+      .eq("id", projectId)
       .single();
 
     if (projectError || !project || project.status === "deleted") {
