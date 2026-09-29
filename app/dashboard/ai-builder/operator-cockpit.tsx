@@ -29,6 +29,25 @@ function languageFor(path:string){
   return ext==="ts"||ext==="tsx"?"typescript":ext==="js"||ext==="jsx"?"javascript":ext==="css"?"css":ext==="json"?"json":ext==="md"?"markdown":ext||"text";
 }
 
+function collectGeneratedAssets(toolResults:any[]|undefined){
+  const assets:any[]=[];
+  for(const item of toolResults||[]){
+    const output=item?.output;
+    const candidates=[
+      output?.asset,
+      ...(Array.isArray(output?.visualAssets?.generated)?output.visualAssets.generated:[]),
+      ...(Array.isArray(output?.result?.visualAssets?.generated)?output.result.visualAssets.generated:[])
+    ];
+    for(const asset of candidates){
+      if(asset?.public_url && !assets.some((x)=>x.id===asset.id)){
+        assets.push(asset);
+      }
+    }
+  }
+  return assets;
+}
+
+
 export default function OperatorCockpit({
   businessId,businessName,initialConversationId,initialMessages
 }:{businessId:string;businessName:string;initialConversationId:string|null;initialMessages:Msg[]}){
@@ -177,7 +196,8 @@ export default function OperatorCockpit({
       } else {
         if(x.conversationId)setConversationId(x.conversationId);
         if(x.approval)setApproval(x.approval);
-        setMessages(v=>[...v,{role:"assistant",content:x.message||"Done."}]);
+        const generatedAssets=collectGeneratedAssets(x.toolResults);
+        setMessages(v=>[...v,{role:"assistant",content:x.message||"Done.",metadata:{assets:generatedAssets}}]);
         await loadProjects(projectId||undefined).catch(()=>null);
         await loadFiles(projectId||"").catch(()=>null);
         await loadConversations().catch(()=>null);
@@ -363,7 +383,7 @@ export default function OperatorCockpit({
         <div className="flex-1 overflow-y-auto">
           {tab==="chat"&&<div className="p-4 space-y-5">
             {!messages.length&&<div className="pt-8"><div className="text-[8px] uppercase tracking-[.2em] text-white/20">Autonomous workspace</div><h2 className="text-3xl mt-2 tracking-tight">What should I handle?</h2><p className="text-[11px] text-white/35 leading-5 mt-3">Tell the Operator the outcome. It can now work against real project records and source files.</p><div className="grid grid-cols-2 gap-2 mt-5">{quickActions.map(x=><button key={x} onClick={()=>setInput(x)} className="text-left p-3 rounded-xl border border-white/[.07] text-[9px] text-white/45 hover:bg-white/[.04]">{x}</button>)}</div></div>}
-            {messages.map((m,i)=><div key={m.id||i} className="flex gap-3 items-start"><div className={"w-7 h-7 shrink-0 rounded-lg flex items-center justify-center text-[8px] font-semibold "+(m.role==="user"?"bg-white/[.08] text-white/55":"bg-indigo-400/10 text-indigo-200")}>{m.role==="user"?"You":"B"}</div><div className="min-w-0 flex-1"><div className="flex items-center gap-2 mb-1"><span className="text-[9px] text-white/35">{m.role==="user"?"You":"BizStack"}</span>{m.metadata?.ai_provider&&<span className="text-[7px] text-white/15">{String(m.metadata.ai_provider)}</span>}</div><div className="text-[12px] leading-6 text-white/72 whitespace-pre-wrap break-words">{m.content}</div></div></div>)}
+            {messages.map((m,i)=><div key={m.id||i} className="flex gap-3 items-start"><div className={"w-7 h-7 shrink-0 rounded-lg flex items-center justify-center text-[8px] font-semibold "+(m.role==="user"?"bg-white/[.08] text-white/55":"bg-indigo-400/10 text-indigo-200")}>{m.role==="user"?"You":"B"}</div><div className="min-w-0 flex-1"><div className="flex items-center gap-2 mb-1"><span className="text-[9px] text-white/35">{m.role==="user"?"You":"BizStack"}</span>{m.metadata?.ai_provider&&<span className="text-[7px] text-white/15">{String(m.metadata.ai_provider)}</span>}</div><div className="text-[12px] leading-6 text-white/72 whitespace-pre-wrap break-words">{m.content}</div>{Array.isArray(m.metadata?.assets)&&m.metadata.assets.length>0&&<div className="grid gap-2 mt-3 sm:grid-cols-2">{m.metadata.assets.map((asset:any)=><a key={asset.id||asset.public_url} href={asset.public_url} target="_blank" rel="noreferrer" className="group rounded-2xl overflow-hidden border border-white/[.08] bg-white/[.025]"><div className="aspect-[16/10] bg-white/[.03]"><img src={asset.public_url} alt={asset.alt_text||asset.name||"Generated website visual"} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.015]" loading="lazy"/></div><div className="px-3 py-2.5 flex items-center justify-between gap-2"><span className="text-[8px] text-white/50 truncate">{asset.name||"Generated visual"}</span><span className="text-[7px] text-indigo-200/70 shrink-0">bespoke</span></div></a>)}</div>}</div></div>)}
             {approval&&<div className="p-3 rounded-xl border border-amber-300/20 bg-amber-300/[.05]"><div className="text-[8px] text-amber-200 uppercase">Approval required</div><p className="text-[10px] mt-2">{approval.action}</p><button className="mt-3 bg-white text-black rounded-lg px-3 py-2 text-[9px]" onClick={async()=>{setBusy(true);try{const r=await fetch("/api/assistant/approve",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:approval.runId})});const x=await r.json().catch(()=>({}));setApproval(x.approval||null);setMessages(v=>[...v,{role:"assistant",content:x.message||"Approved action completed."}]);await loadProjects(projectId||undefined).catch(()=>null)}finally{setBusy(false)}}}>Approve</button></div>}
             {busy&&<div className="flex gap-3 items-center py-2"><div className="w-7 h-7 rounded-lg bg-indigo-400/10 flex items-center justify-center text-[8px] text-indigo-200 animate-pulse">B</div><div className="text-[9px] text-white/30">BizStack is working across the workspace…</div></div>}<div ref={end}/>
           </div>}
