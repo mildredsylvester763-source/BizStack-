@@ -9,6 +9,7 @@ import WebsiteDesignVariants from "./website-design-variants";
 import WebsiteSiteSystems from "./website-site-systems";
 import WebsiteReferenceStudio from "./website-reference-studio";
 import WebsiteComponentLibrary from "./website-component-library";
+import WebsiteProjectSettings from "./website-project-settings";
 
 type Project = {
   id: string;
@@ -522,6 +523,7 @@ export default function WebsiteWorkspace({
         {project && <WebsiteSiteSystems projectId={project.id} route={selectedRoute?.path || "/"} onAsk={onAskAI} />}
         {project && <WebsiteReferenceStudio projectId={project.id} onAsk={onAskAI} />}
         {project && <WebsiteComponentLibrary projectId={project.id} onAsk={onAskAI} />}
+        {project && <WebsiteProjectSettings project={project} onAsk={onAskAI} />}
 
         <div className="mt-3 rounded-2xl border border-white/[.06] bg-white/[.02] p-3">
           <div className="text-[8px] text-white/25">Change contract</div>
