@@ -6,6 +6,7 @@ import { runProductInventoryBuild } from "@/lib/ai/build-engine/operations-runti
 import { runSandboxCommand, sandboxConfigured, syncFiles } from "@/lib/sandbox/vercel";
 import { syncConnectorResource } from "@/lib/connectors/sync-runtime";
 import { executeRepair } from "@/lib/repair/engine";
+import { generateWebsiteAsset, imageGenerationConfigured, type WebsiteAssetKind } from "@/lib/ai/assets/generation";
 
 export type ToolDefinition = {
   toolKey: string;
@@ -37,7 +38,9 @@ export const TOOL_REGISTRY: ToolDefinition[] = [
   { toolKey: "communications.inbox", name: "Unified Communications Inbox", riskLevel: "low", permission: "read_integrations", description: "Read recent customer communications across connected channels such as WhatsApp, SMS and email without treating them as login/authentication.", inputSchema: { type: "object", properties: { channel: { type: "string" }, limit: { type: "number", minimum: 1, maximum: 100 } } } },
   { toolKey: "integrations.test", name: "Test Integration", riskLevel: "medium", permission: "write_integrations", description: "Verify a connected integration against its real provider API, update connection health, and record an auditable health-check event.", inputSchema: { type: "object", properties: { integration_id: { type: "string" } }, required: ["integration_id"] } },
   { toolKey: "integrations.sync", name: "Sync Connected Resource", riskLevel: "medium", permission: "write_integrations", description: "Run a governed sync for a connected custom connector resource and persist the external records, cursor, run evidence and errors.", inputSchema: { type: "object", properties: { integration_id: { type: "string" }, resource_key: { type: "string" } }, required: ["integration_id","resource_key"] } },
-  { toolKey: "website.build", name: "Build Website", riskLevel: "medium", permission: "build_websites", description: "Create or modify a real BizStack website from natural language, optionally compiling the same design into an editable software project.", inputSchema: { type: "object", properties: { prompt: { type: "string" }, website_id: { type: "string" }, project_id: { type: "string" }, publish: { type: "boolean" } }, required: ["prompt"] } },
+  { toolKey: "website.build", name: "Build Website", riskLevel: "medium", permission: "build_websites", description: "Create or modify a real BizStack website from natural language, optionally compiling the same design into an editable software project.", inputSchema: { type: "object", properties: { prompt: { type: "string" }, website_id: { type: "string" }, project_id: { type: "string" }, publish: { type: "boolean" }, generate_assets: { type: "boolean" } }, required: ["prompt"] } },
+  { toolKey: "website.assets.list", name: "Website Asset Library", riskLevel: "low", permission: "build_websites", description: "Inspect existing bespoke website visual assets so the builder can reuse the business identity instead of creating generic replacements.", inputSchema: { type: "object", properties: { website_id: { type: "string" }, project_id: { type: "string" }, kind: { type: "string" }, limit: { type: "number", minimum: 1, maximum: 50 } } } },
+  { toolKey: "website.asset.generate", name: "Generate Website Visual", riskLevel: "medium", permission: "build_websites", description: "Generate an original, business-specific image or brand asset and persist it into the BizStack website asset library. Never substitutes generic stock or copied brand visuals.", inputSchema: { type: "object", properties: { prompt: { type: "string" }, kind: { type: "string", enum: ["logo","hero","section_image","product_scene","background","illustration","og_image","favicon","custom"] }, website_id: { type: "string" }, project_id: { type: "string" }, build_run_id: { type: "string" }, name: { type: "string" }, alt_text: { type: "string" }, visual_direction: { type: "string" }, reference_context: { type: "string" } }, required: ["prompt","kind"] } },
   { toolKey: "website.live_data.configure", name: "Website Live Business Data", riskLevel: "medium", permission: "build_websites", description: "Configure a published website to read an allowlisted, non-sensitive slice of the business in near real time, such as public products, availability and business profile data. Private invoices, balances and customer records are never exposed by this surface.", inputSchema: { type: "object", properties: { website_id: { type: "string" }, enabled: { type: "boolean" }, sources: { type: "array", items: { type: "object" } } }, required: ["website_id","sources"] } },
   { toolKey: "events.create", name: "Create Business Event", riskLevel: "low", permission: "draft_actions", description: "Record an auditable internal action, recommendation or handoff.", inputSchema: { type: "object", properties: { event_type: { type: "string" }, summary: { type: "string" }, category: { type: "string" }, priority: { type: "string" }, action_type: { type: "string" } }, required: ["summary"] } },
   { toolKey: "projects.list", name: "Project Directory", riskLevel: "low", permission: "read_projects", description: "Inspect persistent software projects and their verified deployment state.", inputSchema: emptyObject() },
@@ -241,6 +244,49 @@ export async function executeTool(toolKey: string, input: Record<string, unknown
       mode: "auto_execute",
       publish: input.publish === true
     });
+  }
+
+  if (toolKey === "website.assets.list") {
+    const limit = Math.min(Math.max(Number(input.limit ?? 30), 1), 50);
+    let query = supabase.from("ai_website_assets")
+      .select("id,website_id,project_id,kind,name,public_url:storage_path,storage_path,mime_type,width,height,alt_text,model,status,metadata,created_at")
+      .eq("business_id", businessId)
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (input.website_id) query = query.eq("website_id", String(input.website_id));
+    if (input.project_id) query = query.eq("project_id", String(input.project_id));
+    if (input.kind) query = query.eq("kind", String(input.kind));
+    const { data, error } = await query;
+    if (error) throw error;
+    const assets = (data ?? []).map((asset: any) => {
+      const publicUrl = supabase.storage.from("bizstack-website-assets").getPublicUrl(String(asset.storage_path)).data.publicUrl;
+      return { ...asset, public_url: publicUrl };
+    });
+    return { configured: imageGenerationConfigured(), assets };
+  }
+
+  if (toolKey === "website.asset.generate") {
+    const prompt = String(input.prompt ?? "").trim();
+    const kind = String(input.kind ?? "").trim() as WebsiteAssetKind;
+    const allowed: WebsiteAssetKind[] = ["logo","hero","section_image","product_scene","background","illustration","og_image","favicon","custom"];
+    if (!prompt) throw new Error("A visual generation brief is required.");
+    if (!allowed.includes(kind)) throw new Error("Unsupported website visual asset kind.");
+    const asset = await generateWebsiteAsset({
+      supabase,
+      businessId,
+      userId,
+      websiteId: input.website_id ? String(input.website_id) : null,
+      projectId: input.project_id ? String(input.project_id) : context.projectId || null,
+      buildRunId: input.build_run_id ? String(input.build_run_id) : null,
+      kind,
+      name: input.name ? String(input.name) : undefined,
+      prompt,
+      altText: input.alt_text ? String(input.alt_text) : null,
+      visualDirection: input.visual_direction ? String(input.visual_direction) : null,
+      referenceContext: input.reference_context ? String(input.reference_context) : null
+    });
+    return { generated: true, asset };
   }
 
   if (toolKey === "website.live_data.configure") {
