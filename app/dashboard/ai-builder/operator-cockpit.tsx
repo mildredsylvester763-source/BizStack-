@@ -326,7 +326,9 @@ export default function OperatorCockpit({
   const statusPills=project?[project.framework||"framework undetected",project.runtime||"runtime unconfigured",project.repository_name?"repo linked":"local project",project.preview_url?"preview linked":"preview not published"]:[];
   const quickActions=project?["Inspect "+project.name,"Edit "+project.name+" source","Review current project","Plan the next feature"]:["Create a software project","Connect Google Drive","Find overdue invoices","Explain cash position"];
 
-  return <div className="min-h-screen bg-[#0b0d11] text-white"><div className="flex min-h-screen">
+  return (
+    <div className="min-h-screen bg-[#0b0d11] text-white">
+      <div className="flex min-h-screen">
     <aside className={(historyOpen?"fixed inset-y-0 left-0 z-50 flex":"hidden")+" xl:flex w-[250px] shrink-0 flex-col bg-[#0c0e12] border-r border-white/[.07]"}>
       <div className="h-12 px-3 border-b border-white/[.07] flex items-center gap-2">
         <button onClick={startNewConversation} className="flex-1 rounded-xl bg-white text-black px-3 py-2 text-[9px] font-medium">+ New chat</button>
