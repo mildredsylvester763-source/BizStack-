@@ -9,16 +9,31 @@ export type ProjectGraphNode = {
   evidence: string[];
 };
 
+export type ProjectGraphElement = {
+  id: string;
+  route: string;
+  source: string;
+  tag: string;
+  label: string;
+  line: number;
+  text: string;
+  className: string;
+  selectorHint: string;
+  evidence: string[];
+};
+
 export type ProjectGraph = {
   projectId: string;
   generatedAt: string;
   routes: RouteEntry[];
   nodes: ProjectGraphNode[];
+  elements: ProjectGraphElement[];
   edges: Array<{ from: string; to: string; reason: string }>;
   summary: {
     files: number;
     routes: number;
     components: number;
+    elements: number;
     apiSurfaces: number;
     styles: number;
     assets: number;
@@ -55,8 +70,49 @@ function hasAny(text: string, patterns: RegExp[]) {
   return patterns.some((pattern) => pattern.test(text));
 }
 
+function cleanInlineText(value: string) {
+  return value.replace(/\s+/g, " ").trim().slice(0, 180);
+}
+
+function extractElements(route: RouteEntry, source: string): ProjectGraphElement[] {
+  const lines = source.split("\n");
+  const pattern = /<([A-Za-z][A-Za-z0-9_.-]*)\b([^>]*)>/g;
+  const counts = new Map<string, number>();
+  const elements: ProjectGraphElement[] = [];
+
+  for (const match of source.matchAll(pattern)) {
+    const tag = String(match[1]);
+    if (/^(Fragment|React\.Fragment)$/.test(tag)) continue;
+    const index = match.index ?? 0;
+    const line = source.slice(0, index).split("\n").length;
+    const lower = tag.toLowerCase();
+    const occurrence = (counts.get(lower) || 0) + 1;
+    counts.set(lower, occurrence);
+    const attributes = String(match[2] || "");
+    const className = (attributes.match(/className\s*=\s*["'\{]([^"'\}\n]+)["'\}]/)?.[1] || "").trim().slice(0, 240);
+    const nearby = cleanInlineText((lines[line - 1] || "")).replace(/<[^>]+>/g, "").trim();
+    const label = tag.length <= 3 ? tag.toUpperCase() + " " + occurrence : tag + " " + occurrence;
+    elements.push({
+      id: "element:" + route.path + ":" + line + ":" + occurrence,
+      route: route.path,
+      source: route.source,
+      tag,
+      label,
+      line,
+      text: nearby,
+      className,
+      selectorHint: tag.toLowerCase() + "[source=\"" + route.source + "#L" + line + "\"]",
+      evidence: ["source-backed JSX opening tag at line " + line]
+    });
+    if (elements.length >= 160) break;
+  }
+
+  return elements;
+}
+
 export function buildProjectGraph(projectId: string, files: GraphFile[]): ProjectGraph {
   const nodes: ProjectGraphNode[] = [];
+  const elements: ProjectGraphElement[] = [];
   const edges: ProjectGraph["edges"] = [];
   const routes: RouteEntry[] = [];
   const seenRoutes = new Set<string>();
@@ -70,6 +126,10 @@ export function buildProjectGraph(projectId: string, files: GraphFile[]): Projec
       seenRoutes.add(route.path);
       routes.push(route);
       nodes.push({ id: "route:" + route.path, kind: "route", label: route.label, path, route: route.path, evidence: ["file-backed route: " + path] });
+      for (const element of extractElements(route, text)) {
+        elements.push(element);
+        edges.push({ from: "route:" + route.path, to: element.id, reason: "route contains source-backed element" });
+      }
     }
 
     const component = /(?:^|\/)components\//.test(path) || /\.(tsx|jsx)$/.test(path) && /export\s+(?:default\s+)?function\s+[A-Z]|const\s+[A-Z][A-Za-z0-9_]*\s*=/.test(text);
@@ -118,11 +178,13 @@ export function buildProjectGraph(projectId: string, files: GraphFile[]): Projec
     generatedAt: new Date().toISOString(),
     routes: routes.sort((a, b) => a.path.localeCompare(b.path)),
     nodes,
+    elements,
     edges,
     summary: {
       files: files.length,
       routes: routes.length,
       components: counts("component"),
+      elements: elements.length,
       apiSurfaces: counts("api"),
       styles: counts("style"),
       assets: counts("asset"),
