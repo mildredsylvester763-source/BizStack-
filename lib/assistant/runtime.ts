@@ -1,6 +1,11 @@
 import { createClient } from "@/lib/supabase-server";
 import { runBizStackModel, type BizStackModelMessage, type BizStackTool } from "@/lib/ai/providers/router";
 import { executeTool, getToolDefinition, TOOL_REGISTRY, type RuntimeContext } from "@/lib/agents/tool-registry";
+import {
+  attachmentReferences,
+  hydrateAttachmentContent,
+  linkAttachmentsToConversation
+} from "@/lib/ai/attachments";
 
 type Message = {
   role: "system" | "user" | "assistant" | "tool";
@@ -116,22 +121,46 @@ async function getOrCreateAgent(
 
 async function getConversationMessages(
   supabase: Awaited<ReturnType<typeof createClient>>,
+  businessId: string,
   conversationId: string
 ): Promise<ModelMessage[]> {
   const { data } = await supabase
     .from("ai_messages")
     .select("role,content,tool_name,tool_call_id,metadata")
     .eq("conversation_id", conversationId)
+    .eq("business_id", businessId)
     .order("created_at", { ascending: true })
     .limit(50);
 
-  return (data ?? []).map((row) => ({
-    role: row.role as ModelMessage["role"],
-    content: row.content,
-    tool_call_id: row.tool_call_id ?? undefined,
-    name: row.tool_name ?? undefined,
-    ...(Array.isArray(row.metadata?.tool_calls) ? { tool_calls: row.metadata.tool_calls } : {})
-  }));
+  const rows = data ?? [];
+  const attachmentIds = Array.from(new Set(
+    rows.flatMap((row) =>
+      row.role === "user" && Array.isArray(row.metadata?.attachments)
+        ? row.metadata.attachments.map((item: any) => String(item?.id || "")).filter(Boolean)
+        : []
+    )
+  )).slice(-12);
+
+  const hydratedEntries = await Promise.all(
+    attachmentIds.map(async (id) => [id, await hydrateAttachmentContent(supabase, businessId, [id])] as const)
+  );
+  const byAttachment = new Map(hydratedEntries.map(([id, value]) => [id, value.parts]));
+
+  return rows.map((row) => {
+    const ids = row.role === "user" && Array.isArray(row.metadata?.attachments)
+      ? row.metadata.attachments.map((item: any) => String(item?.id || "")).filter(Boolean)
+      : [];
+    const attachmentParts = ids.flatMap((id) => byAttachment.get(id) || []);
+    return {
+      role: row.role as ModelMessage["role"],
+      content: attachmentParts.length
+        ? [{ type: "text" as const, text: String(row.content || "") }, ...attachmentParts]
+        : row.content,
+      tool_call_id: row.tool_call_id ?? undefined,
+      name: row.tool_name ?? undefined,
+      ...(Array.isArray(row.metadata?.tool_calls) ? { tool_calls: row.metadata.tool_calls } : {})
+    };
+  });
 }
 
 function systemPrompt(business: { name: string; industry?: string | null; currency?: string | null }, projectId?: string | null) {
@@ -153,6 +182,8 @@ function systemPrompt(business: { name: string; industry?: string | null; curren
     "For website requests, treat the website as a living business surface connected to CRM, catalogue, booking, payment and communications where applicable.",
     "Website visual quality is part of the product, not decoration. Do not settle for generic gradients, placeholder boxes, stock-looking hero imagery or copied visual identities when a bespoke asset would improve the result. Inspect website.assets.list first when an existing brand asset may be reusable. For new visual needs, use website.asset.generate with a business-specific brief, and reuse the returned asset in the website/project rather than merely describing it. Preserve visual continuity across pages and redesigns.",
     "Voice transcripts may be imperfect. Interpret them naturally and verify critical numbers or identities before sensitive actions.",
+    "Attachments are first-class project and business inputs. When the user attaches an image, screenshot, document, PDF, spreadsheet or text file, inspect the supplied attachment content before answering or changing the project. Use extracted document/spreadsheet text and the actual image pixels where available. When an attachment is a design reference, treat it as visual direction, not permission to copy protected branding or assets.",
+    "When an attachment and a software project appear in the same turn, use the attachment as engineering evidence: derive the relevant content, map it to the existing project graph, and make real source-file changes through the governed project tools when the user asked for implementation. Do not describe an attachment-derived change as complete unless the relevant project tool actually performed it.",
     "Business name: " + business.name,
     "Industry: " + (business.industry || "not specified"),
     "Base currency: " + (business.currency || "not specified"),
@@ -421,7 +452,8 @@ export async function runUniversalAssistant({
   conversationId,
   input,
   clientMessageId,
-  projectId
+  projectId,
+  attachmentIds
 }: {
   userId: string;
   businessId?: string | null;
@@ -429,6 +461,7 @@ export async function runUniversalAssistant({
   input: string;
   clientMessageId?: string | null;
   projectId?: string | null;
+  attachmentIds?: string[];
 }) : Promise<OperatorResult> {
   const supabase = await createClient();
   const business = await getBusiness(supabase, userId, businessId);
@@ -460,18 +493,39 @@ export async function runUniversalAssistant({
 
   if (!conversationIdValue) throw new Error("Assistant conversation could not be established.");
 
+  const requestedAttachmentIds = Array.from(new Set((attachmentIds || []).filter(Boolean))).slice(0, 12);
+  await linkAttachmentsToConversation(
+    supabase,
+    business.id,
+    requestedAttachmentIds,
+    conversationIdValue,
+    projectId || null
+  );
+  const attachmentMeta = requestedAttachmentIds.length
+    ? await attachmentReferences(supabase, business.id, requestedAttachmentIds)
+    : [];
+
   await saveMessage(supabase, conversationIdValue, business.id, {
     role: "user",
-    content: input.trim()
+    content: input.trim(),
+    metadata: attachmentMeta.length ? { attachments: attachmentMeta } : {}
   }, clientMessageId ?? undefined);
 
-  const history = await getConversationMessages(supabase, conversationIdValue);
+  const history = await getConversationMessages(supabase, business.id, conversationIdValue);
   const messages: ModelMessage[] = [
     { role: "system", content: systemPrompt(business, projectId) },
     ...history
   ];
 
-  const runId = await createRun(supabase, business.id, agent.id, conversationIdValue, input, userId, projectId);
+  const runId = await createRun(
+    supabase,
+    business.id,
+    agent.id,
+    conversationIdValue,
+    input,
+    userId,
+    projectId
+  );
 
   try {
     return await executeOperatorTurn({
@@ -556,7 +610,7 @@ export async function approveOperatorRun({
     toolCallId
   });
 
-  const history = await getConversationMessages(supabase, run.conversation_id);
+  const history = await getConversationMessages(supabase, business.id, run.conversation_id);
   const agent = await getOrCreateAgent(supabase, business.id);
   await supabase.from("ai_agent_runs").update({ status: "running", approval_required: false }).eq("id", run.id).eq("business_id", business.id);
 
