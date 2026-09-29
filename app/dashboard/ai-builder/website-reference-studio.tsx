@@ -121,7 +121,7 @@ export default function WebsiteReferenceStudio({
                       <div className="text-[9px] text-white/55 truncate">{reference.name}</div>
                       <div className="text-[6px] uppercase tracking-[.14em] text-cyan-100/45 mt-1">{reference.kind} · {reference.source || "reference"}</div>
                     </div>
-                    <button onClick={() => onAsk("Use the saved reference design "" + reference.name + "" as visual implementation context. Preserve BizStack's own identity, do not copy the source, and show affected files and design-system changes before editing.")} className="shrink-0 rounded-lg bg-cyan-300/[.08] border border-cyan-300/[.1] px-2.5 py-1.5 text-[7px] text-cyan-100">
+                    <button onClick={() => onAsk("Use the saved reference design '" + reference.name + "' as visual implementation context. Preserve BizStack's own identity, do not copy the source, and show affected files and design-system changes before editing.")} className="shrink-0 rounded-lg bg-cyan-300/[.08] border border-cyan-300/[.1] px-2.5 py-1.5 text-[7px] text-cyan-100">
                       Use reference
                     </button>
                   </div>
