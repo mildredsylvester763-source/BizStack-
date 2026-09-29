@@ -173,7 +173,14 @@ export default function WebsiteWorkspace({
   const [focusMode, setFocusMode] = useState<"page" | "elements">("page");
   const [designModeOpen, setDesignModeOpen] = useState(false);
   const [blueprintOpen, setBlueprintOpen] = useState(false);
-  const [liveElement, setLiveElement] = useState<{ tag: string; text: string; selector: string; className: string; href: string } | null>(null);
+  const [liveElement, setLiveElement] = useState<{
+    tag: string;
+    text: string;
+    selector: string;
+    className: string;
+    href: string;
+    computed?: Record<string, string>;
+  } | null>(null);
   const [sourceGraph, setSourceGraph] = useState<{
     summary: { files: number; routes: number; components: number; elements: number; apiSurfaces: number; styles: number; assets: number; dataSurfaces: number; integrations: number };
     nodes: Array<{ id: string; kind: string; label: string; path: string; route?: string; evidence: string[] }>;
@@ -253,7 +260,10 @@ export default function WebsiteWorkspace({
         text: String(element.text || ""),
         selector: String(element.selector || ""),
         className: String(element.className || ""),
-        href: String(element.href || "")
+        href: String(element.href || ""),
+        computed: element.computed && typeof element.computed === "object"
+          ? Object.fromEntries(Object.entries(element.computed).map(([key, value]) => [key, String(value ?? "")]))
+          : undefined
       });
       setDesignModeOpen(true);
     };
