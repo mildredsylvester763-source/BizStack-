@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type Project = {
   id: string;
@@ -141,6 +141,35 @@ export default function WebsiteWorkspace({
   const [previewBusy, setPreviewBusy] = useState(false);
   const [previewError, setPreviewError] = useState("");
   const [focusMode, setFocusMode] = useState<"page" | "elements">("page");
+  const [sourceGraph, setSourceGraph] = useState<{
+    summary: { files: number; routes: number; components: number; apiSurfaces: number; styles: number; assets: number; dataSurfaces: number; integrations: number };
+    nodes: Array<{ id: string; kind: string; label: string; path: string; route?: string; evidence: string[] }>;
+  } | null>(null);
+  const [graphBusy, setGraphBusy] = useState(false);
+  const [graphError, setGraphError] = useState("");
+
+  useEffect(() => {
+    if (!project?.id) {
+      setSourceGraph(null);
+      return;
+    }
+    let cancelled = false;
+    setGraphBusy(true);
+    setGraphError("");
+    fetch("/api/projects/" + encodeURIComponent(project.id) + "/graph", { cache: "no-store" })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.error || "Project graph could not be loaded.");
+        if (!cancelled) setSourceGraph(payload.graph || null);
+      })
+      .catch((error) => {
+        if (!cancelled) setGraphError(error instanceof Error ? error.message : "Project graph could not be loaded.");
+      })
+      .finally(() => {
+        if (!cancelled) setGraphBusy(false);
+      });
+    return () => { cancelled = true; };
+  }, [project?.id]);
 
   const routes = useMemo(() => {
     const byRoute = new Map<string, RouteEntry>();
@@ -384,6 +413,23 @@ export default function WebsiteWorkspace({
           <div className="text-[10px] text-white/65 mt-1 break-all">{selectedRoute?.path || "/"}</div>
           <div className="text-[8px] text-white/20 mt-2">Source</div>
           <div className="text-[8px] text-indigo-200/60 mt-1 break-all">{selectedRoute?.source || "Project root"}</div>
+        </div>
+
+        <div className="mt-3 rounded-2xl border border-indigo-300/[.08] bg-indigo-300/[.025] p-3">
+          <div className="flex items-center justify-between"><div className="text-[8px] text-indigo-100/70">Source intelligence</div>{graphBusy && <div className="text-[6px] text-white/20">scanning…</div>}</div>
+          {graphError ? <div className="text-[7px] text-red-300/70 mt-2">{graphError}</div> : sourceGraph ? <>
+            <div className="grid grid-cols-2 gap-1.5 mt-2">
+              {[
+                ["Routes", sourceGraph.summary.routes],
+                ["Components", sourceGraph.summary.components],
+                ["API", sourceGraph.summary.apiSurfaces],
+                ["Data", sourceGraph.summary.dataSurfaces],
+                ["Integrations", sourceGraph.summary.integrations],
+                ["Assets", sourceGraph.summary.assets]
+              ].map(([label, value]) => <div key={String(label)} className="rounded-lg border border-white/[.05] bg-white/[.02] px-2 py-1.5"><div className="text-[6px] uppercase tracking-wider text-white/20">{label}</div><div className="text-[10px] text-white/60 mt-0.5">{String(value)}</div></div>)}
+            </div>
+            <div className="text-[7px] text-white/20 leading-4 mt-2">Computed from persisted project files. The agent can use this source-backed graph before making a change.</div>
+          </> : <div className="text-[7px] text-white/20 mt-2">No source graph yet.</div>}
         </div>
 
         <div className="mt-3 rounded-2xl border border-white/[.06] bg-white/[.02] p-3">
