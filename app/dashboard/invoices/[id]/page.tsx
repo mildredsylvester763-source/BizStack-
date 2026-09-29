@@ -115,9 +115,9 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
   return (
     <main className="min-h-screen bg-[#f3f0e8] text-[#151817]">
       <header className="border-b border-black/10 bg-[#f8f6f0]/90 backdrop-blur sticky top-0 z-20">
-        <div className="max-w-5xl mx-auto px-6 py-5 flex items-center justify-between">
-          <Link href="/dashboard/invoices" className="text-sm text-ink/50 hover:text-ink">← Back to invoices</Link>
-          <span className="text-xs uppercase tracking-[0.16em] text-ink/35">Invoice detail</span>
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
+          <Link href="/dashboard/invoices" className="inline-flex items-center gap-2 text-sm text-black/50 hover:text-black transition-colors">← <span className="hidden sm:inline">Back to invoices</span><span className="sm:hidden">Invoices</span></Link>
+          <div className="flex items-center gap-2"><span className="hidden sm:inline text-[10px] uppercase tracking-[.18em] text-black/30">Commercial record</span><span className="rounded-full border border-black/10 bg-white/70 px-2.5 py-1 text-[10px] font-mono text-black/45">{invoice.invoice_number}</span></div>
         </div>
       </header>
 
@@ -130,11 +130,21 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs px-3 py-1.5 rounded-full border border-black/10 bg-white/60 text-black/55 capitalize">{overdue ? "overdue" : invoice.status}</span>
-            <span className="text-sm text-ink/45">{invoice.currency}</span>
+            <span className="text-sm text-black/45">{invoice.currency}</span>
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-[1fr_300px] gap-5 mb-6"><div className="rounded-[24px] border border-black/10 bg-white p-5 sm:p-6 shadow-[0_18px_60px_rgba(20,20,16,.08)]"><div className="flex items-center justify-between gap-4"><div><p className="text-[10px] uppercase tracking-[.18em] text-black/35">Payment position</p><p className="font-display text-3xl mt-1">{money(outstanding, invoice.currency)} <span className="text-sm font-sans text-black/40">remaining</span></p></div><div className="text-right"><p className="text-[10px] uppercase tracking-[.18em] text-black/35">Collected</p><p className="text-sm mt-1">{money(paid, invoice.currency)}</p></div></div><div className="h-2 rounded-full bg-black/[.06] mt-5 overflow-hidden"><div className="h-full rounded-full bg-[#202725]" style={{width: total > 0 ? Math.min(100, paid / total * 100) + "%" : "0%"}} /></div><div className="flex justify-between mt-2 text-[11px] text-black/40"><span>0</span><span>{money(total, invoice.currency)} total</span></div></div><div className="rounded-[24px] border border-black/10 bg-[#202725] text-white p-5 shadow-[0_18px_60px_rgba(32,39,37,.14)]"><p className="text-[10px] uppercase tracking-[.18em] text-white/45">Payment rails</p><p className="font-display text-xl mt-2">{paymentReady ? "Provider connected" : "Manual payment ready"}</p><p className="text-xs text-white/55 mt-2 leading-5">{paymentReady ? "A payment provider is connected. Provider-specific initiation is capability-gated; BizStack will not show a fake payment button." : "No payment provider is verified yet. Confirmed bank, cash, transfer and other offline payments can still be recorded safely."}</p><a href="/dashboard/integrations" className="inline-block mt-4 rounded-xl bg-white/10 border border-white/10 px-3 py-2 text-xs">Manage connections</a></div></div><article className="bg-[#fffdf9] border border-black/10 shadow-[0_28px_90px_rgba(20,20,16,.10)] rounded-[28px] overflow-hidden">
+        <div className="mb-6 rounded-[22px] border border-black/[.08] bg-[#fcfaf5] px-4 sm:px-5 py-4 flex flex-wrap items-center justify-between gap-4">
+          <div className="min-w-0"><p className="text-[10px] uppercase tracking-[.18em] text-black/30">Customer</p><p className="text-sm font-medium mt-1 truncate">{customer?.name ?? "No customer"}</p></div>
+          <div className="flex flex-wrap items-center gap-2">
+            {mailHref && <a href={mailHref} className="rounded-xl border border-black/10 bg-white px-3 py-2 text-xs text-black/65 hover:bg-black/[.03]">Email</a>}
+            {whatsappHref && <a href={whatsappHref} target="_blank" rel="noreferrer" className="rounded-xl border border-black/10 bg-white px-3 py-2 text-xs text-black/65 hover:bg-black/[.03]">WhatsApp</a>}
+            {callHref && <a href={callHref} className="rounded-xl border border-black/10 bg-white px-3 py-2 text-xs text-black/65 hover:bg-black/[.03]">Call</a>}
+            <Link href="/dashboard/invoices" className="rounded-xl bg-[#171918] text-white px-3 py-2 text-xs">All invoices</Link>
+          </div>
+        </div>
+
+        <div className="grid lg:grid-cols-[1fr_300px] gap-5 mb-6"><div className="rounded-[24px] border border-black/10 bg-white p-5 sm:p-6 shadow-[0_18px_60px_rgba(20,20,16,.08)]"><div className="flex items-center justify-between gap-4"><div><p className="text-[10px] uppercase tracking-[.18em] text-black/35">Payment position</p><p className="font-display text-3xl mt-1">{money(outstanding, invoice.currency)} <span className="text-sm font-sans text-black/40">remaining</span></p></div><div className="text-right"><p className="text-[10px] uppercase tracking-[.18em] text-black/35">Collected</p><p className="text-sm mt-1">{money(paid, invoice.currency)}</p></div></div><div className="h-2 rounded-full bg-black/[.06] mt-5 overflow-hidden"><div className="h-full rounded-full bg-[#202725]" style={{width: total > 0 ? Math.min(100, paid / total * 100) + "%" : "0%"}} /></div><div className="flex justify-between mt-2 text-[11px] text-black/40"><span>0</span><span>{money(total, invoice.currency)} total</span></div></div><div className="rounded-[24px] border border-black/10 bg-[#202725] text-white p-5 shadow-[0_18px_60px_rgba(32,39,37,.14)]"><p className="text-[10px] uppercase tracking-[.18em] text-white/45">Payment rails</p><p className="font-display text-xl mt-2">{paymentReady ? "Provider connected" : "Manual payment ready"}</p><p className="text-xs text-white/55 mt-2 leading-5">{paymentReady ? "A payment provider is connected. Provider-specific initiation is capability-gated; BizStack will not show a fake payment button." : "No payment provider is verified yet. Confirmed bank, cash, transfer and other offline payments can still be recorded safely."}</p><a href="/dashboard/integrations" className="inline-block mt-4 rounded-xl bg-white/10 border border-white/10 px-3 py-2 text-xs">Manage connections</a></div></div><article id="invoice-document" className="bg-[#fffdf9] border border-black/10 shadow-[0_28px_90px_rgba(20,20,16,.10)] rounded-[28px] overflow-hidden">
           <div className="p-6 sm:p-9 border-b border-black/10 grid md:grid-cols-2 gap-8">
             <div>
               <p className="text-[11px] uppercase tracking-wider text-ink/35 mb-2">From</p>
@@ -189,15 +199,23 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
           )}
         </article>
 
-        <div className="mt-6 grid md:grid-cols-2 gap-3"><div className="rounded-2xl border border-black/10 bg-white p-4 text-xs"><span className="font-medium">Delivery:</span> {latestDelivery ? latestDelivery.status + (latestDelivery.provider ? " via " + latestDelivery.provider : "") + (latestDelivery.last_error ? " · " + latestDelivery.last_error : "") : "Not sent yet."}</div><div className="rounded-2xl border border-black/10 bg-white p-4 text-xs"><span className="font-medium">Payment provider:</span> {paymentReady ? "Connected" : "Not connected — offline recording remains available."}</div></div><div className="mt-3">{latestDelivery && <div className={"border border-rule bg-white p-3 text-xs " + (latestDelivery.status==="sent" ? "text-ink/65" : "text-ink/55")}><span className="font-medium">Delivery:</span> {latestDelivery.status}{latestDelivery.provider ? " via " + latestDelivery.provider : ""}{latestDelivery.last_error ? " · " + latestDelivery.last_error : ""}</div>}</div>
+        <div className="mt-6 grid md:grid-cols-3 gap-3">
+          <div className="rounded-[20px] border border-black/[.08] bg-[#fcfaf5] p-4"><p className="text-[9px] uppercase tracking-[.18em] text-black/30">Delivery</p><p className="text-sm font-medium mt-2 capitalize">{latestDelivery ? latestDelivery.status : "Not sent"}</p><p className="text-[11px] text-black/40 mt-1">{latestDelivery?.provider ? `via ${latestDelivery.provider}` : "No delivery channel recorded yet."}</p></div>
+          <div className="rounded-[20px] border border-black/[.08] bg-[#fcfaf5] p-4"><p className="text-[9px] uppercase tracking-[.18em] text-black/30">Payment provider</p><p className="text-sm font-medium mt-2">{paymentReady ? "Connected" : "Offline / manual"}</p><p className="text-[11px] text-black/40 mt-1">{paymentReady ? "Provider capability available." : "Confirmed offline payments remain recordable."}</p></div>
+          <div className="rounded-[20px] border border-black/[.08] bg-[#fcfaf5] p-4"><p className="text-[9px] uppercase tracking-[.18em] text-black/30">Document state</p><p className="text-sm font-medium mt-2 capitalize">{displayStatus.replace("_"," ")}</p><p className="text-[11px] text-black/40 mt-1">{invoice.issue_date ? `Issued ${new Date(invoice.issue_date).toLocaleDateString()}` : "Draft record"}</p></div>
+        </div>
 
-        <div className="flex flex-wrap gap-3 mt-3">
+        <div className="mt-6 rounded-[22px] border border-black/[.08] bg-[#202725] p-3 sm:p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"><div><p className="text-[9px] uppercase tracking-[.18em] text-white/40">Next action</p><p className="text-sm text-white mt-1">{invoice.status === "draft" ? "The invoice is ready for delivery." : outstanding > 0 ? "There is still a balance to collect." : "This invoice is fully settled."}</p></div><div className="text-[11px] text-white/45">{money(outstanding, invoice.currency)} remaining</div></div>
+        </div>
+
+        <div className="flex flex-wrap gap-3 mt-4">
           {invoice.status === "draft" && (
             <form action={markSent}>
               <input type="hidden" name="invoice_id" value={invoice.id} />
               <input type="hidden" name="business_id" value={business.id} />
               <input type="hidden" name="invoice_number" value={invoice.invoice_number} />
-              <button className="bg-[#171918] text-white px-5 py-2.5 text-sm font-medium hover:bg-[#202725]Deep transition-colors">Send invoice</button>
+              <button className="rounded-xl bg-[#171918] text-white px-5 py-2.5 text-sm font-medium hover:bg-[#202725] transition-colors">Send invoice</button>
             </form>
           )}
           {(invoice.status === "sent" || invoice.status === "partially_paid" || overdue) && Number(invoice.paid_amount || 0) < total && (
@@ -206,10 +224,10 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
               <label className="text-xs text-ink/55">Payment amount<input required name="amount" type="number" min="0.01" step="0.01" max={Math.max(0,total-Number(invoice.paid_amount||0)).toFixed(2)} defaultValue={Math.max(0,total-Number(invoice.paid_amount||0)).toFixed(2)} className="mt-1 block w-32 border border-rule px-2.5 py-2 text-sm" /></label>
               <label className="text-xs text-ink/55">Method<input name="method" placeholder="Bank transfer, cash..." className="mt-1 block w-40 border border-rule px-2.5 py-2 text-sm" /></label>
               <label className="text-xs text-ink/55">Reference<input name="reference" placeholder="Payment reference" className="mt-1 block w-40 border border-rule px-2.5 py-2 text-sm" /></label>
-              <button className="bg-[#202725] text-mist px-5 py-2.5 text-sm font-medium hover:bg-[#202725]Deep transition-colors">Record payment</button>
+              <button className="rounded-xl bg-[#202725] text-white px-5 py-2.5 text-sm font-medium hover:bg-[#151817] transition-colors">Record payment</button>
             </form>
           )}
-          <Link href="/dashboard/invoices" className="border border-rule px-5 py-2.5 text-sm text-ink/60 hover:text-ink">All invoices</Link>
+          <Link href="/dashboard/invoices" className="rounded-xl border border-black/10 bg-white px-5 py-2.5 text-sm text-black/60 hover:text-black transition-colors">All invoices</Link>
         </div>
       </section>
     </main>
