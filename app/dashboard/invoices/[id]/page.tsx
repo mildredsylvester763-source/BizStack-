@@ -103,8 +103,8 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
   const callHref = customer?.phone ? "tel:" + customer.phone : "";
 
   return (
-    <main className="min-h-screen bg-[#f4f1ea] text-[#151817]">
-      <header className="border-b border-black/10 bg-[#fbfaf7]/95 backdrop-blur sticky top-0 z-20">
+    <main className="min-h-screen bg-[#f3f0e8] text-[#151817]">
+      <header className="border-b border-black/10 bg-[#f8f6f0]/90 backdrop-blur sticky top-0 z-20">
         <div className="max-w-5xl mx-auto px-6 py-5 flex items-center justify-between">
           <Link href="/dashboard/invoices" className="text-sm text-ink/50 hover:text-ink">← Back to invoices</Link>
           <span className="text-xs uppercase tracking-[0.16em] text-ink/35">Invoice detail</span>
@@ -119,12 +119,12 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
             <p className="text-[#151817]/55 mt-3 max-w-2xl">{customer?.name ?? "No customer"} · {invoice.payment_terms} · {paid.toFixed(2)} {invoice.currency} received · {outstanding.toFixed(2)} {invoice.currency} remaining</p>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs px-3 py-1.5 rounded-full bg-ink/10 text-ink/65 capitalize">{overdue ? "overdue" : invoice.status}</span>
+            <span className="text-xs px-3 py-1.5 rounded-full border border-black/10 bg-white/60 text-black/55 capitalize">{overdue ? "overdue" : invoice.status}</span>
             <span className="text-sm text-ink/45">{invoice.currency}</span>
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-[1fr_300px] gap-5 mb-6"><div className="rounded-[24px] border border-black/10 bg-white p-5 sm:p-6 shadow-[0_18px_60px_rgba(20,20,16,.08)]"><div className="flex items-center justify-between gap-4"><div><p className="text-[10px] uppercase tracking-[.18em] text-black/35">Payment position</p><p className="font-display text-3xl mt-1">{money(outstanding, invoice.currency)} <span className="text-sm font-sans text-black/40">remaining</span></p></div><div className="text-right"><p className="text-[10px] uppercase tracking-[.18em] text-black/35">Collected</p><p className="text-sm mt-1">{money(paid, invoice.currency)}</p></div></div><div className="h-2 rounded-full bg-black/[.06] mt-5 overflow-hidden"><div className="h-full rounded-full bg-[#183f38]" style={{width: total > 0 ? Math.min(100, paid / total * 100) + "%" : "0%"}} /></div><div className="flex justify-between mt-2 text-[11px] text-black/40"><span>0</span><span>{money(total, invoice.currency)} total</span></div></div><div className="rounded-[24px] border border-black/10 bg-[#183f38] text-white p-5 shadow-[0_18px_60px_rgba(24,63,56,.18)]"><p className="text-[10px] uppercase tracking-[.18em] text-white/45">Payment rails</p><p className="font-display text-xl mt-2">{paymentReady ? "Provider connected" : "Manual payment ready"}</p><p className="text-xs text-white/55 mt-2 leading-5">{paymentReady ? "A payment provider is connected. Provider-specific initiation is capability-gated; BizStack will not show a fake payment button." : "No payment provider is verified yet. Confirmed bank, cash, transfer and other offline payments can still be recorded safely."}</p><a href="/dashboard/integrations" className="inline-block mt-4 rounded-xl bg-white/10 border border-white/10 px-3 py-2 text-xs">Manage connections</a></div></div><article className="bg-[#fffdf9] border border-black/10 shadow-[0_28px_90px_rgba(20,20,16,.10)] rounded-[28px] overflow-hidden">
+        <div className="grid lg:grid-cols-[1fr_300px] gap-5 mb-6"><div className="rounded-[24px] border border-black/10 bg-white p-5 sm:p-6 shadow-[0_18px_60px_rgba(20,20,16,.08)]"><div className="flex items-center justify-between gap-4"><div><p className="text-[10px] uppercase tracking-[.18em] text-black/35">Payment position</p><p className="font-display text-3xl mt-1">{money(outstanding, invoice.currency)} <span className="text-sm font-sans text-black/40">remaining</span></p></div><div className="text-right"><p className="text-[10px] uppercase tracking-[.18em] text-black/35">Collected</p><p className="text-sm mt-1">{money(paid, invoice.currency)}</p></div></div><div className="h-2 rounded-full bg-black/[.06] mt-5 overflow-hidden"><div className="h-full rounded-full bg-[#202725]" style={{width: total > 0 ? Math.min(100, paid / total * 100) + "%" : "0%"}} /></div><div className="flex justify-between mt-2 text-[11px] text-black/40"><span>0</span><span>{money(total, invoice.currency)} total</span></div></div><div className="rounded-[24px] border border-black/10 bg-[#202725] text-white p-5 shadow-[0_18px_60px_rgba(32,39,37,.14)]"><p className="text-[10px] uppercase tracking-[.18em] text-white/45">Payment rails</p><p className="font-display text-xl mt-2">{paymentReady ? "Provider connected" : "Manual payment ready"}</p><p className="text-xs text-white/55 mt-2 leading-5">{paymentReady ? "A payment provider is connected. Provider-specific initiation is capability-gated; BizStack will not show a fake payment button." : "No payment provider is verified yet. Confirmed bank, cash, transfer and other offline payments can still be recorded safely."}</p><a href="/dashboard/integrations" className="inline-block mt-4 rounded-xl bg-white/10 border border-white/10 px-3 py-2 text-xs">Manage connections</a></div></div><article className="bg-[#fffdf9] border border-black/10 shadow-[0_28px_90px_rgba(20,20,16,.10)] rounded-[28px] overflow-hidden">
           <div className="p-6 sm:p-9 border-b border-black/10 grid md:grid-cols-2 gap-8">
             <div>
               <p className="text-[11px] uppercase tracking-wider text-ink/35 mb-2">From</p>
@@ -187,7 +187,7 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
               <input type="hidden" name="invoice_id" value={invoice.id} />
               <input type="hidden" name="business_id" value={business.id} />
               <input type="hidden" name="invoice_number" value={invoice.invoice_number} />
-              <button className="bg-ink text-mist px-5 py-2.5 text-sm font-medium hover:bg-vaultDeep transition-colors">Send invoice</button>
+              <button className="bg-[#171918] text-white px-5 py-2.5 text-sm font-medium hover:bg-[#202725]Deep transition-colors">Send invoice</button>
             </form>
           )}
           {(invoice.status === "sent" || invoice.status === "partially_paid" || overdue) && Number(invoice.paid_amount || 0) < total && (
@@ -196,7 +196,7 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
               <label className="text-xs text-ink/55">Payment amount<input required name="amount" type="number" min="0.01" step="0.01" max={Math.max(0,total-Number(invoice.paid_amount||0)).toFixed(2)} defaultValue={Math.max(0,total-Number(invoice.paid_amount||0)).toFixed(2)} className="mt-1 block w-32 border border-rule px-2.5 py-2 text-sm" /></label>
               <label className="text-xs text-ink/55">Method<input name="method" placeholder="Bank transfer, cash..." className="mt-1 block w-40 border border-rule px-2.5 py-2 text-sm" /></label>
               <label className="text-xs text-ink/55">Reference<input name="reference" placeholder="Payment reference" className="mt-1 block w-40 border border-rule px-2.5 py-2 text-sm" /></label>
-              <button className="bg-vault text-mist px-5 py-2.5 text-sm font-medium hover:bg-vaultDeep transition-colors">Record payment</button>
+              <button className="bg-[#202725] text-mist px-5 py-2.5 text-sm font-medium hover:bg-[#202725]Deep transition-colors">Record payment</button>
             </form>
           )}
           <Link href="/dashboard/invoices" className="border border-rule px-5 py-2.5 text-sm text-ink/60 hover:text-ink">All invoices</Link>
