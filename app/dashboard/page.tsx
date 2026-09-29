@@ -3,8 +3,10 @@ import { createClient } from "@/lib/supabase-server";
 import { Card } from "@/components/ui/Card";
 import { calculateInvoiceTotal, isOverdue } from "@/lib/invoices";
 
+type ItemRow = { quantity: number; unit_price: number };
+
 export default async function DashboardHome() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user }
@@ -39,15 +41,23 @@ export default async function DashboardHome() {
 
   const invoiceRows = invoices ?? [];
   const totalInvoiced = invoiceRows.reduce(
-    (sum, inv) => sum + calculateInvoiceTotal((inv.invoice_items ?? []) as any),
+    (sum: number, inv: { invoice_items: ItemRow[] | null }) =>
+      sum + calculateInvoiceTotal(inv.invoice_items ?? []),
     0
   );
   const paidTotal = invoiceRows
-    .filter((inv) => inv.status === "paid")
-    .reduce((sum, inv) => sum + calculateInvoiceTotal((inv.invoice_items ?? []) as any), 0);
-  const overdueCount = invoiceRows.filter((inv) => isOverdue(inv.status, inv.due_date)).length;
+    .filter((inv: { status: string }) => inv.status === "paid")
+    .reduce(
+      (sum: number, inv: { invoice_items: ItemRow[] | null }) =>
+        sum + calculateInvoiceTotal(inv.invoice_items ?? []),
+      0
+    );
+  const overdueCount = invoiceRows.filter((inv: { status: string; due_date: string | null }) =>
+    isOverdue(inv.status, inv.due_date)
+  ).length;
   const lowStockCount = (products ?? []).filter(
-    (p) => p.low_stock_threshold !== null && p.stock_quantity <= p.low_stock_threshold
+    (p: { stock_quantity: number; low_stock_threshold: number | null }) =>
+      p.low_stock_threshold !== null && p.stock_quantity <= p.low_stock_threshold
   ).length;
 
   return (
@@ -92,7 +102,7 @@ export default async function DashboardHome() {
         {(events ?? []).length === 0 ? (
           <p className="text-sm text-textMuted p-5">Nothing yet — activity will show up here.</p>
         ) : (
-          (events ?? []).map((e) => (
+          (events ?? []).map((e: { id: string; summary: string; created_at: string }) => (
             <div key={e.id} className="p-4 flex items-center justify-between">
               <p className="text-sm text-text">{e.summary}</p>
               <span className="text-xs text-textMuted">

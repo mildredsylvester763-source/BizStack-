@@ -16,8 +16,8 @@ export async function createClient() {
           try {
             cookieStore.set({ name, value, ...options });
           } catch {
-            // Called from a Server Component with no write access — safe to ignore,
-            // the middleware below handles refreshing the session cookie instead.
+            // Called from a Server Component with no write access — safe to
+            // ignore, proxy.ts handles refreshing the session cookie instead.
           }
         },
         remove(name: string, options: CookieOptions) {
@@ -30,4 +30,4 @@ export async function createClient() {
       }
     }
   );
-    }
+}

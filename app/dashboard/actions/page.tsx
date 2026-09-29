@@ -8,7 +8,7 @@ type EventRow = { id: string; summary: string; evidence: Record<string, unknown>
 
 async function updateEventStatus(formData: FormData) {
   "use server";
-  const supabase = createClient();
+  const supabase = await createClient();
   await supabase.from("events").update({ status: formData.get("status") as string }).eq("id", formData.get("id") as string);
   revalidatePath("/dashboard/actions");
 }
@@ -44,7 +44,7 @@ function EventCard({ event }: { event: EventRow }) {
 }
 
 export default async function ActionCenterPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const { data: business } = await supabase.from("businesses").select("id, name").eq("owner_id", user.id).single();

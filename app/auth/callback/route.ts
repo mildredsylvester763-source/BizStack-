@@ -8,11 +8,7 @@ export async function GET(request: Request) {
   if (code) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
-
     if (!error) {
-      // /dashboard itself redirects to /onboarding if this business
-      // hasn't been set up yet, so this one destination covers both
-      // a brand-new signup and a returning login.
       return NextResponse.redirect(`${origin}/dashboard`);
     }
   }

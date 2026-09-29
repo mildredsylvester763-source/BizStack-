@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 
 async function addProduct(formData: FormData) {
   "use server";
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
   const { data: business } = await supabase.from("businesses").select("id").eq("owner_id", user.id).single();
@@ -28,7 +28,7 @@ async function addProduct(formData: FormData) {
 }
 
 export default async function ProductsPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const { data: business } = await supabase.from("businesses").select("id, name, currency").eq("owner_id", user.id).single();

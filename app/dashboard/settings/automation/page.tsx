@@ -17,7 +17,7 @@ const MODES = [
 
 async function updateMode(formData: FormData) {
   "use server";
-  const supabase = createClient();
+  const supabase = await createClient();
   await supabase.from("automation_settings").upsert(
     { business_id: formData.get("business_id") as string, action_type: formData.get("action_type") as string, mode: formData.get("mode") as string },
     { onConflict: "business_id,action_type" }
@@ -26,13 +26,13 @@ async function updateMode(formData: FormData) {
 }
 
 export default async function AutomationSettingsPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const { data: business } = await supabase.from("businesses").select("id, name").eq("owner_id", user.id).single();
   if (!business) redirect("/onboarding");
   const { data: settings } = await supabase.from("automation_settings").select("action_type, mode").eq("business_id", business.id);
-  const modeFor = (t: string) => settings?.find((s) => s.action_type === t)?.mode ?? "ask_first";
+  const modeFor = (t: string) => settings?.find((s: { action_type: string; mode: string }) => s.action_type === t)?.mode ?? "ask_first";
 
   return (
     <section className="max-w-3xl mx-auto px-6 py-10">

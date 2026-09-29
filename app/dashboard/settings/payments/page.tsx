@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 
 async function saveBankDetails(formData: FormData) {
   "use server";
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
   const { data: business } = await supabase.from("businesses").select("id").eq("owner_id", user.id).single();
@@ -21,7 +21,7 @@ async function saveBankDetails(formData: FormData) {
 }
 
 export default async function PaymentSettingsPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const { data: business } = await supabase

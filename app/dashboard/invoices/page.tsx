@@ -7,11 +7,12 @@ import { StatusPill } from "@/components/ui/StatusPill";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Card } from "@/components/ui/Card";
 
+type CustomerRef = { name: string } | null;
+type ItemRow = { quantity: number; unit_price: number };
+
 export default async function InvoicesPage() {
-  const supabase = createClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
   const { data: business } = await supabase
@@ -48,8 +49,8 @@ export default async function InvoicesPage() {
       ) : (
         <Card className="divide-y divide-line">
           {rows.map((inv) => {
-            const customer = inv.customer as unknown as { name: string } | null;
-            const items = (inv.invoice_items ?? []) as { quantity: number; unit_price: number }[];
+            const customer = inv.customer as unknown as CustomerRef;
+            const items = (inv.invoice_items ?? []) as ItemRow[];
             const total = calculateInvoiceTotal(items);
             const overdue = isOverdue(inv.status, inv.due_date);
             const displayStatus = overdue ? "overdue" : inv.status;

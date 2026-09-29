@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/Card";
 
 async function markSent(formData: FormData) {
   "use server";
-  const supabase = createClient();
+  const supabase = await createClient();
   const invoiceId = formData.get("invoice_id") as string;
   const businessId = formData.get("business_id") as string;
   const invoiceNumber = formData.get("invoice_number") as string;
@@ -26,7 +26,7 @@ async function markSent(formData: FormData) {
 
 async function markPaid(formData: FormData) {
   "use server";
-  const supabase = createClient();
+  const supabase = await createClient();
   const invoiceId = formData.get("invoice_id") as string;
   const businessId = formData.get("business_id") as string;
   const invoiceNumber = formData.get("invoice_number") as string;
@@ -47,11 +47,14 @@ async function markPaid(formData: FormData) {
   revalidatePath(`/dashboard/invoices/${invoiceId}`);
 }
 
-export default async function InvoiceDetailPage({ params }: { params: { id: string } }) {
-  const supabase = createClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+export default async function InvoiceDetailPage({
+  params
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
   const { data: business } = await supabase
@@ -68,7 +71,7 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
     .select(
       "id, invoice_number, status, due_date, currency, created_at, payment_methods, customer:customers(name, email, phone), invoice_items(id, description, quantity, unit_price)"
     )
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("business_id", business.id)
     .single();
   if (!invoice) redirect("/dashboard/invoices");
