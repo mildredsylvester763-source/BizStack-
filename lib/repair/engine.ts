@@ -151,7 +151,7 @@ async function requestPatch(input: {
 }
 
 async function snapshot(
-  supabase: ReturnType<typeof createClient>,
+  supabase: Awaited<ReturnType<typeof createClient>>,
   project: Record<string, any>,
   userId: string,
   message: string
@@ -193,7 +193,7 @@ async function snapshot(
 }
 
 async function restoreSnapshot(
-  supabase: ReturnType<typeof createClient>,
+  supabase: Awaited<ReturnType<typeof createClient>>,
   projectId: string,
   snapshotFiles: Array<any>,
   createdPaths: string[]
