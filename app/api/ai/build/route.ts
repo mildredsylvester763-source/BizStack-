@@ -101,7 +101,8 @@ export async function POST(request: Request) {
           websiteId:typeof body.websiteId==='string'?body.websiteId:null,
           projectId:typeof body.projectId==='string'?body.projectId:null,
           mode,
-          publish:Boolean(body.publish)
+          publish:Boolean(body.publish),
+          generateAssets: body.generateAssets !== false
         });
     return NextResponse.json(result);
   }catch(error){
