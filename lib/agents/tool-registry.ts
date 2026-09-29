@@ -39,6 +39,7 @@ export const TOOL_REGISTRY: ToolDefinition[] = [
   { toolKey: "integrations.test", name: "Test Integration", riskLevel: "medium", permission: "write_integrations", description: "Verify a connected integration against its real provider API, update connection health, and record an auditable health-check event.", inputSchema: { type: "object", properties: { integration_id: { type: "string" } }, required: ["integration_id"] } },
   { toolKey: "integrations.sync", name: "Sync Connected Resource", riskLevel: "medium", permission: "write_integrations", description: "Run a governed sync for a connected custom connector resource and persist the external records, cursor, run evidence and errors.", inputSchema: { type: "object", properties: { integration_id: { type: "string" }, resource_key: { type: "string" } }, required: ["integration_id","resource_key"] } },
   { toolKey: "website.build", name: "Build Website", riskLevel: "medium", permission: "build_websites", description: "Create or modify a real BizStack website from natural language, optionally compiling the same design into an editable software project.", inputSchema: { type: "object", properties: { prompt: { type: "string" }, website_id: { type: "string" }, project_id: { type: "string" }, publish: { type: "boolean" }, generate_assets: { type: "boolean" } }, required: ["prompt"] } },
+  { toolKey: "website.blueprint.generate", name: "Website Blueprint", riskLevel: "low", permission: "build_websites", description: "Generate and persist a source-aware website sitemap, page structure, user flows, design direction and engineering dependencies without changing project source files.", inputSchema: { type: "object", properties: { project_id: { type: "string" }, brief: { type: "string" } }, required: ["project_id","brief"] } },
   { toolKey: "website.assets.list", name: "Website Asset Library", riskLevel: "low", permission: "build_websites", description: "Inspect existing bespoke website visual assets so the builder can reuse the business identity instead of creating generic replacements.", inputSchema: { type: "object", properties: { website_id: { type: "string" }, project_id: { type: "string" }, kind: { type: "string" }, limit: { type: "number", minimum: 1, maximum: 50 } } } },
   { toolKey: "website.asset.generate", name: "Generate Website Visual", riskLevel: "medium", permission: "build_websites", description: "Generate an original, business-specific image or brand asset and persist it into the BizStack website asset library. Never substitutes generic stock or copied brand visuals.", inputSchema: { type: "object", properties: { prompt: { type: "string" }, kind: { type: "string", enum: ["logo","hero","section_image","product_scene","background","illustration","og_image","favicon","custom"] }, website_id: { type: "string" }, project_id: { type: "string" }, build_run_id: { type: "string" }, name: { type: "string" }, alt_text: { type: "string" }, visual_direction: { type: "string" }, reference_context: { type: "string" } }, required: ["prompt","kind"] } },
   { toolKey: "website.live_data.configure", name: "Website Live Business Data", riskLevel: "medium", permission: "build_websites", description: "Configure a published website to read an allowlisted, non-sensitive slice of the business in near real time, such as public products, availability and business profile data. Private invoices, balances and customer records are never exposed by this surface.", inputSchema: { type: "object", properties: { website_id: { type: "string" }, enabled: { type: "boolean" }, sources: { type: "array", items: { type: "object" } } }, required: ["website_id","sources"] } },
@@ -230,6 +231,20 @@ export async function executeTool(toolKey: string, input: Record<string, unknown
     const resourceKey = String(input.resource_key ?? "").trim();
     if (!integrationId || !resourceKey) throw new Error("integration_id and resource_key are required.");
     return await syncConnectorResource({ supabase, businessId, integrationId, resourceKey });
+  }
+
+  if (toolKey === "website.blueprint.generate") {
+    const projectId = String(input.project_id ?? "").trim();
+    const brief = String(input.brief ?? "").trim();
+    if (!projectId || !brief) throw new Error("project_id and brief are required.");
+    const response = await fetch(new URL("/api/projects/" + encodeURIComponent(projectId) + "/blueprint", process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ brief })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || "Website blueprint generation failed.");
+    return payload;
   }
 
   if (toolKey === "website.build") {
