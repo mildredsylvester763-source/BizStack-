@@ -78,6 +78,13 @@ export default async function CustomerProfilePage({
               </div>
             </div>
 
+            <div className="flex flex-wrap gap-2 mt-6">
+              {customer.email && <a href={"mailto:" + customer.email} className="rounded-xl bg-ink text-mist px-3 py-2 text-xs hover:opacity-90">Email customer</a>}
+              {customer.phone && <a href={"tel:" + customer.phone} className="rounded-xl border border-rule bg-white px-3 py-2 text-xs text-ink/65 hover:text-ink">Call</a>}
+              {customer.phone && <a href={"https://wa.me/" + String(customer.phone).replace(/\D/g, "")} target="_blank" rel="noreferrer" className="rounded-xl border border-rule bg-white px-3 py-2 text-xs text-ink/65 hover:text-ink">WhatsApp</a>}
+              <Link href={"/dashboard/invoices?customer=" + customer.id} className="rounded-xl border border-rule bg-white px-3 py-2 text-xs text-ink/65 hover:text-ink">View customer invoices</Link>
+            </div>
+
             <div className="grid sm:grid-cols-2 gap-3 mt-6">
               <div className="border border-rule p-4">
                 <p className="text-xs text-ink/40">Email</p>
