@@ -28,7 +28,7 @@ export async function GET(request: Request) {
     .from("ai_conversations")
     .select("id,title,last_message_at,created_at,updated_at")
     .eq("business_id", business.id)
-    .order("last_message_at", { ascending: false, nullsFirst: false })
+    .order("last_message_at", { ascending: false })
     .limit(limit);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
