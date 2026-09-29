@@ -46,7 +46,7 @@ function classifyFailure(text: string) {
 
 export async function GET(request: NextRequest, context: { params: Promise<{ projectId: string }> }) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
