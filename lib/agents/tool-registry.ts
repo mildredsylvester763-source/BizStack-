@@ -78,7 +78,7 @@ export function buildPlan(input: string): { toolKey: string; input: Record<strin
 }
 
 export type RuntimeContext = {
-  supabase: ReturnType<typeof createClient>;
+  supabase: Awaited<ReturnType<typeof createClient>>;
   businessId: string;
   userId: string;
   projectId?: string | null;
