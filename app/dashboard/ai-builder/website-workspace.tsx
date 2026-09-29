@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import WebsiteMobileToolbar from "./website-mobile-toolbar";
 import WebsiteDesignMode from "./website-design-mode";
 import WebsiteBlueprint from "./website-blueprint";
+import WebsiteDesignSystem from "./website-design-system";
 
 type Project = {
   id: string;
@@ -490,6 +491,8 @@ export default function WebsiteWorkspace({
             {routes.length > 8 && <div className="text-[7px] text-white/15 px-2">+ {routes.length - 8} more</div>}
           </div>
         </div>
+
+        {project && <WebsiteDesignSystem projectId={project.id} onAsk={onAskAI} />}
 
         <div className="mt-3 rounded-2xl border border-white/[.06] bg-white/[.02] p-3">
           <div className="text-[8px] text-white/25">Change contract</div>
