@@ -75,7 +75,7 @@ export default function OperatorCockpit({
   async function loadConversations(){
     setHistoryBusy(true);
     try{
-      const r=await fetch("/api/assistant/conversations?limit=80",{cache:"no-store"});
+      const r=await fetch("/api/assistant/conversations?limit=80&projectId="+encodeURIComponent(projectId||""),{cache:"no-store"});
       const x=await r.json().catch(()=>({}));
       if(!r.ok)throw new Error(x.error||"Conversation history could not be loaded.");
       setConversations((x.conversations||[]) as Conversation[]);
@@ -88,7 +88,7 @@ export default function OperatorCockpit({
     if(id===conversationId||conversationBusy)return;
     setConversationBusy(true);
     try{
-      const r=await fetch("/api/assistant/conversations?conversationId="+encodeURIComponent(id)+"&limit=80",{cache:"no-store"});
+      const r=await fetch("/api/assistant/conversations?conversationId="+encodeURIComponent(id)+"&limit=80&projectId="+encodeURIComponent(projectId||""),{cache:"no-store"});
       const x=await r.json().catch(()=>({}));
       if(!r.ok)throw new Error(x.error||"Conversation could not be opened.");
       setConversationId(id);
