@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase-server';
 import { buildPlan, countWebsiteRequirements } from '@/lib/ai/build-engine/capabilities';
 import { generateWebsiteSpec } from '@/lib/ai/build-engine/provider';
+import { compileWebsiteToProject } from '@/lib/ai/build-engine/project-compiler';
 import type { BuildContext, BuildMode, WebsiteSpec } from '@/lib/ai/build-engine/types';
 import { runSandboxCommand, sandboxConfigured, syncFiles } from '@/lib/sandbox/vercel';
 
