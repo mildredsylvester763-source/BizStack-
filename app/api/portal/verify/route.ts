@@ -6,6 +6,14 @@ export const runtime = "nodejs";
 
 function hash(value: string) { return crypto.createHash("sha256").update(value).digest("hex"); }
 
+type PortalAccessRequestRecord = {
+  id:string;
+  portal_id:string;
+  customer_id:string;
+  expires_at:string;
+  consumed_at:string|null;
+};
+
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const token = String(body?.token || "").trim();
@@ -13,12 +21,13 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient();
   const now = new Date().toISOString();
-  const { data: request } = await admin.from("customer_portal_access_requests")
+  const { data: rawRequest } = await admin.from("customer_portal_access_requests")
     .select("id,portal_id,customer_id,expires_at,consumed_at")
     .eq("token_hash", hash(token))
     .is("consumed_at", null)
     .gt("expires_at", now)
     .maybeSingle();
+  const request = rawRequest as PortalAccessRequestRecord|null;
 
   if (!request) return NextResponse.json({ error: "That secure access link is invalid or has expired." }, { status: 401 });
 
