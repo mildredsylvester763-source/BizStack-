@@ -6,7 +6,7 @@ import ActivityFeed, { type ActivityEvent } from "./activity-feed";
 export const dynamic = "force-dynamic";
 
 export default async function ActivityPage() {
-  const supabase = await await createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
