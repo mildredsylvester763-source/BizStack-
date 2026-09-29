@@ -15,7 +15,7 @@ export async function GET(
   context: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -47,7 +47,7 @@ export async function PUT(
   context: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -108,7 +108,7 @@ export async function DELETE(
   context: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
