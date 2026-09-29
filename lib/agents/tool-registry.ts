@@ -469,7 +469,7 @@ export async function executeTool(toolKey: string, input: Record<string, unknown
       sourcePath = match?.[1]?.replace(/[.)]+$/, "") || "";
     }
     if (!sourcePath) {
-      const pageCandidate = (files ?? []).find((file: any) => /(^|\\/)page\\.(tsx|ts|jsx|js)$/.test(String(file.path)));
+      const pageCandidate = (files ?? []).find((file: any) => /(^|\/)page\.(tsx|ts|jsx|js)$/.test(String(file.path)));
       sourcePath = pageCandidate?.path ? String(pageCandidate.path) : "";
     }
 
