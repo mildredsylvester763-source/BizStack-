@@ -127,7 +127,7 @@ export default function WebsiteSiteSystems({
           </div>
 
           <div className="mt-2 flex gap-2">
-            <button onClick={() => onAsk("Use the saved " + active + " website system as source-backed implementation context. Show affected files, dependencies and verification steps before changing anything.")} className="flex-1 rounded-xl bg-indigo-300/[.08] border border-indigo-300/[.1] px-3 py-2 text-[7px] text-indigo-100">Use in build</button>
+            <button onClick={() => onAsk(active === "seo" ? "Apply the saved SEO/AEO website system to the current " + route + " page and site metadata. Use real source, preserve existing behavior, checkpoint before changes, and verify the build." : "Use the saved " + active + " website system as source-backed implementation context. Show affected files, dependencies and verification steps before changing anything.")} className="flex-1 rounded-xl bg-indigo-300/[.08] border border-indigo-300/[.1] px-3 py-2 text-[7px] text-indigo-100">{active === "seo" ? "Apply SEO/AEO" : "Use in build"}</button>
             <button onClick={() => void generate(active)} disabled={busy} className="rounded-xl border border-white/[.06] px-3 py-2 text-[7px] text-white/35 disabled:opacity-30">{busy ? "…" : "Regenerate"}</button>
           </div>
           {error && <div className="mt-2 text-[7px] text-red-300/70">{error}</div>}
