@@ -307,7 +307,7 @@ export default function WebsiteWorkspace({
 
   return (
     <div className="min-h-[680px] flex flex-col lg:flex-row bg-[#090b0f] text-white">
-      <WebsiteMobileToolbar route={selectedRoute?.path || "/"} routes={routes.map(item => ({path:item.path,label:item.label}))} device={device} onRoute={setRoute} onDevice={setDevice} onAsk={onAskAI} onBlueprint={() => setBlueprintOpen(true)} />
+      <WebsiteMobileToolbar route={selectedRoute?.path || "/"} routes={routes.map(item => ({path:item.path,label:item.label}))} device={device} onRoute={setRoute} onDevice={setDevice} onAsk={onAskAI} onBlueprint={() => setBlueprintOpen(true)} onDesignMode={() => setDesignModeOpen(true)} />
       <aside className="hidden lg:flex w-[220px] shrink-0 border-r border-white/[.06] bg-[#0d0f13] flex-col">
         <div className="px-3 py-3 border-b border-white/[.06]">
           <div className="text-[8px] uppercase tracking-[.18em] text-white/20">Website Creator</div>
@@ -531,6 +531,31 @@ export default function WebsiteWorkspace({
           </button>
         </div>
       </aside>
+      {designModeOpen && (
+        <div className="lg:hidden fixed inset-0 z-[75] bg-black/70 backdrop-blur-[3px]">
+          <button aria-label="Close Design Mode" onClick={() => setDesignModeOpen(false)} className="absolute inset-0" />
+          <div className="absolute inset-x-0 bottom-0 max-h-[88vh] overflow-y-auto rounded-t-[26px] border-t border-white/[.1] bg-[#0b0e13] shadow-[0_-30px_100px_rgba(0,0,0,.5)] p-3">
+            <div className="flex items-center gap-2 px-1 pb-3">
+              <div className="h-1 w-10 rounded-full bg-white/15 mx-auto absolute left-1/2 -translate-x-1/2 top-2" />
+              <div className="min-w-0 flex-1 pt-2">
+                <div className="text-[8px] uppercase tracking-[.18em] text-indigo-100/55">Design Mode</div>
+                <div className="text-[7px] text-white/22 truncate mt-0.5">{selectedRoute?.path || "/"} · {selectedRoute?.source || "source-backed page"}</div>
+              </div>
+              <button onClick={() => setDesignModeOpen(false)} className="h-8 w-8 rounded-xl border border-white/[.08] bg-white/[.04] text-white/35">×</button>
+            </div>
+            <WebsiteDesignMode
+              route={selectedRoute?.path || "/"}
+              source={selectedRoute?.source || ""}
+              elements={elementMap}
+              liveElement={liveElement}
+              onEnableLive={() => onAskAI("Enable live selection for this website preview. Install the BizStack Design Mode bridge into the real project source, preserve the existing application behavior, checkpoint before changes, and verify the project build after installation.")}
+              onAsk={onAskAI}
+            />
+            {project && <WebsiteDesignSystem projectId={project.id} onAsk={onAskAI} />}
+            {project && <WebsiteDesignVariants projectId={project.id} route={selectedRoute?.path || "/"} onAsk={onAskAI} />}
+          </div>
+        </div>
+      )}
       {blueprintOpen && project && (
         <div className="fixed inset-0 z-[70] bg-black/70 backdrop-blur-[4px] p-2 sm:p-4 lg:p-7">
           <div className="relative h-full w-full max-w-[1500px] mx-auto overflow-hidden rounded-[24px] border border-white/[.1] bg-[#090b0e] shadow-[0_30px_120px_rgba(0,0,0,.55)]">
