@@ -43,6 +43,7 @@ export default function OperatorCockpit({
   const [projectOpen,setProjectOpen]=useState(false),[newProject,setNewProject]=useState({name:"",slug:"",projectType:"app",framework:"Next.js",runtime:"Node.js"}),[projectCreating,setProjectCreating]=useState(false);
   const [engineeringMode,setEngineeringMode]=useState<EngineeringMode>("plan"),[engineeringOutput,setEngineeringOutput]=useState(""),[engineeringBusy,setEngineeringBusy]=useState(false),[engineeringProvider,setEngineeringProvider]=useState("");
   const [shipBusy,setShipBusy]=useState(false),[shipStatus,setShipStatus]=useState("");
+  const [versions,setVersions]=useState<any[]>([]),[versionsBusy,setVersionsBusy]=useState(false),[restoringVersion,setRestoringVersion]=useState(false);
   const project=useMemo(()=>projects.find(p=>p.id===projectId)||null,[projects,projectId]);
   const selectedFile=useMemo(()=>files.find(f=>f.path===selectedPath)||null,[files,selectedPath]);
   const shownApps=useMemo(()=>apps.filter(a=>(a.name+" "+a.category+" "+a.description).toLowerCase().includes(query.toLowerCase())),[apps,query]);
@@ -77,6 +78,18 @@ export default function OperatorCockpit({
 
   useEffect(()=>{void loadProjects().catch(e=>setMessages(v=>[...v,{role:"assistant",content:e.message||"Project workspace could not be loaded."}]))},[businessId]);
   useEffect(()=>{void loadFiles(projectId).catch(e=>setMessages(v=>[...v,{role:"assistant",content:e.message||"Project files could not be loaded."}]))},[projectId]);
+  async function loadVersions(id:string){
+    if(!id){setVersions([]);return}
+    setVersionsBusy(true);
+    try{
+      const r=await fetch("/api/projects/"+encodeURIComponent(id)+"/versions",{cache:"no-store"});
+      const x=await r.json().catch(()=>({}));
+      if(!r.ok)throw new Error(x.error||"Could not load project checkpoints.");
+      setVersions(x.versions||[]);
+    }catch(e){setMessages(v=>[...v,{role:"assistant",content:e instanceof Error?e.message:"Checkpoint history could not be loaded."}])}
+    finally{setVersionsBusy(false)}
+  }
+  useEffect(()=>{void loadVersions(projectId)},[projectId]);
   useEffect(()=>{if(selectedFile&&!fileDirty)setEditor(String(selectedFile.content??""))},[selectedFile,fileDirty]);
 
   useEffect(()=>{
@@ -153,6 +166,21 @@ export default function OperatorCockpit({
       setMessages(v=>[...v,{role:"assistant",content:"Saved a persistent project version "+String(x.version?.version_no??"")+"."}]);
     }catch(e){setMessages(v=>[...v,{role:"assistant",content:e instanceof Error?e.message:"Version snapshot failed."}])}
     finally{setVersioning(false)}
+  }
+
+  async function restoreVersion(versionId:string){
+    if(!project||restoringVersion)return;
+    setRestoringVersion(true);
+    try{
+      const r=await fetch("/api/projects/"+encodeURIComponent(project.id)+"/versions",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({restoreVersionId:versionId,message:"Restore checkpoint"})});
+      const x=await r.json().catch(()=>({}));
+      if(!r.ok)throw new Error(x.error||"Could not restore checkpoint.");
+      await loadFiles(project.id);
+      await loadVersions(project.id);
+      setMessages(v=>[...v,{role:"assistant",content:"Restored checkpoint v"+String(x.restoredFrom??"")+" into the project source. Existing runtime and deployment state was not changed by the restore."}]);
+      setTab("code");
+    }catch(e){setMessages(v=>[...v,{role:"assistant",content:e instanceof Error?e.message:"Checkpoint restore failed."}])}
+    finally{setRestoringVersion(false)}
   }
 
   async function createProject(){
