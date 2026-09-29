@@ -144,12 +144,39 @@ export default function WebsiteWorkspace({
   const [previewError, setPreviewError] = useState("");
   const [focusMode, setFocusMode] = useState<"page" | "elements">("page");
   const [designModeOpen, setDesignModeOpen] = useState(false);
+  const [liveElement, setLiveElement] = useState<{ tag: string; text: string; selector: string; className: string; href: string } | null>(null);
   const [sourceGraph, setSourceGraph] = useState<{
     summary: { files: number; routes: number; components: number; apiSurfaces: number; styles: number; assets: number; dataSurfaces: number; integrations: number };
     nodes: Array<{ id: string; kind: string; label: string; path: string; route?: string; evidence: string[] }>;
   } | null>(null);
   const [graphBusy, setGraphBusy] = useState(false);
   const [graphError, setGraphError] = useState("");
+
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (!event.data || event.data.source !== "bizstack-design-bridge") return;
+      if (event.data.type !== "bizstack-design-select") return;
+      if (!basePreviewUrl) return;
+      try {
+        const allowedOrigin = new URL(basePreviewUrl).origin;
+        if (event.origin !== allowedOrigin) return;
+      } catch {
+        return;
+      }
+      const element = event.data.element;
+      if (!element || typeof element !== "object") return;
+      setLiveElement({
+        tag: String(element.tag || "element"),
+        text: String(element.text || ""),
+        selector: String(element.selector || ""),
+        className: String(element.className || ""),
+        href: String(element.href || "")
+      });
+      setDesignModeOpen(true);
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [basePreviewUrl]);
 
   useEffect(() => {
     if (!project?.id) {
@@ -193,12 +220,13 @@ export default function WebsiteWorkspace({
   const basePreviewUrl = initialPreviewUrl || project?.preview_url || "";
   const deviceSpec = DEVICES[device];
 
-  function buildRouteUrl(base: string, routePath: string) {
+  function buildRouteUrl(base: string, routePath: string, designMode = false) {
     if (!base) return "";
     try {
       const url = new URL(base);
       url.pathname = routePath || "/";
       url.search = "";
+      if (designMode) url.searchParams.set("bizstackDesignMode", "1");
       url.hash = "";
       return url.toString();
     } catch {
@@ -249,7 +277,7 @@ export default function WebsiteWorkspace({
     );
   }
 
-  const previewUrl = buildRouteUrl(basePreviewUrl, selectedRoute?.path || "/");
+  const previewUrl = buildRouteUrl(basePreviewUrl, selectedRoute?.path || "/", designModeOpen);
 
   return (
     <div className="min-h-[680px] flex flex-col lg:flex-row bg-[#090b0f] text-white">
@@ -417,7 +445,7 @@ export default function WebsiteWorkspace({
         </div>
         {designModeOpen && (
           <div className="mt-3">
-            <WebsiteDesignMode route={selectedRoute?.path || "/"} source={selectedRoute?.source || ""} elements={elementMap} onAsk={onAskAI} />
+            <WebsiteDesignMode route={selectedRoute?.path || "/"} source={selectedRoute?.source || ""} elements={elementMap} liveElement={liveElement} onEnableLive={() => onAskAI("Enable live selection for this website preview. Install the BizStack Design Mode bridge into the real project source, preserve the existing application behavior, checkpoint before changes, and verify the project build after installation.")} onAsk={onAskAI} />
           </div>
         )}
         <div className="rounded-2xl border border-white/[.06] bg-white/[.02] p-3 mt-2">
