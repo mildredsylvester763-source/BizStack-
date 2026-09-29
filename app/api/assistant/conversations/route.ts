@@ -44,11 +44,12 @@ export async function GET(request: Request) {
   if (!belongsToBusiness) {
     const { data: existing } = await supabase
       .from("ai_conversations")
-      .select("id")
+      .select("id,metadata")
       .eq("id", conversationId)
       .eq("business_id", business.id)
       .maybeSingle();
-    if (!existing) return NextResponse.json({ error: "Conversation not found." }, { status: 404 });
+    const existingProjectId = typeof existing?.metadata?.project_id === "string" ? existing.metadata.project_id : null;
+    if (!existing || (projectId && existingProjectId !== projectId)) return NextResponse.json({ error: "Conversation not found." }, { status: 404 });
   }
 
   const { data: messages, error: messagesError } = await supabase
