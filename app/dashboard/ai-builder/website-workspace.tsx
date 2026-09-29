@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import WebsiteMobileToolbar from "./website-mobile-toolbar";
 
 type Project = {
   id: string;
@@ -249,8 +250,9 @@ export default function WebsiteWorkspace({
   const previewUrl = buildRouteUrl(basePreviewUrl, selectedRoute?.path || "/");
 
   return (
-    <div className="min-h-[680px] flex bg-[#090b0f] text-white">
-      <aside className="w-[220px] shrink-0 border-r border-white/[.06] bg-[#0d0f13] flex flex-col">
+    <div className="min-h-[680px] flex flex-col lg:flex-row bg-[#090b0f] text-white">
+      <WebsiteMobileToolbar route={selectedRoute?.path || "/"} routes={routes.map(item => ({path:item.path,label:item.label}))} device={device} onRoute={setRoute} onDevice={setDevice} onAsk={onAskAI} />
+      <aside className="hidden lg:flex w-[220px] shrink-0 border-r border-white/[.06] bg-[#0d0f13] flex-col">
         <div className="px-3 py-3 border-b border-white/[.06]">
           <div className="text-[8px] uppercase tracking-[.18em] text-white/20">Website Creator</div>
           <div className="text-[10px] text-white/60 mt-1 truncate">{project.name}</div>
@@ -406,7 +408,7 @@ export default function WebsiteWorkspace({
         </div>
       </section>
 
-      <aside className="w-[250px] shrink-0 border-l border-white/[.06] bg-[#0d0f13] p-3 overflow-y-auto">
+      <aside className="hidden lg:block w-[250px] shrink-0 border-l border-white/[.06] bg-[#0d0f13] p-3 overflow-y-auto">
         <div className="text-[8px] uppercase tracking-[.18em] text-white/20">Page context</div>
         <div className="rounded-2xl border border-white/[.06] bg-white/[.02] p-3 mt-2">
           <div className="text-[8px] text-white/25">Route</div>
