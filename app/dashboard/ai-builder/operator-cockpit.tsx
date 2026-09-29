@@ -436,7 +436,20 @@ export default function OperatorCockpit({
 
     <div className="grid xl:grid-cols-[390px_minmax(0,1fr)_270px] min-h-[calc(100vh-96px)]">
       <section className="bg-[#101217] border-r border-white/[.07] flex flex-col min-h-0">
-        <nav className="h-10 px-3 border-b border-white/[.06] flex items-center gap-1">{["chat",...(project?.project_type==="website"?["website"]:[]),"code","engineering","preview","terminal","run"].map(x=><button key={x} onClick={()=>setTab(x)} className={tab===x?"px-2.5 py-1.5 rounded bg-white/[.08] text-[9px]":"px-2.5 py-1.5 text-white/30 text-[9px]"}>{x==="website"?"website":"x"}</button>)}</nav>
+        <nav className="h-11 px-3 border-b border-white/[.06] flex items-center gap-2">
+          <div className="md:hidden flex-1">
+            <select value={tab} onChange={e => setTab(e.target.value)} className="w-full rounded-xl border border-white/[.07] bg-white/[.04] px-3 py-2 text-[8px] text-white/55 outline-none">
+              {["chat",...(project?.project_type==="website"?["website"]:[]),"code","engineering","preview","terminal","run"].map(x => <option key={x} value={x}>{x === "website" ? "Website Creator" : x === "chat" ? "AI Chat" : x[0].toUpperCase() + x.slice(1)}</option>)}
+            </select>
+          </div>
+          <div className="hidden md:flex items-center gap-1 overflow-x-auto">
+            {["chat",...(project?.project_type==="website"?["website"]:[]),"code","engineering","preview","terminal","run"].map(x => (
+              <button key={x} onClick={() => setTab(x)} className={tab===x ? "px-3 py-1.5 rounded-xl bg-white/[.08] text-[8px] text-white/70" : "px-3 py-1.5 rounded-xl text-white/25 text-[8px] hover:bg-white/[.03]"}>
+                {x === "website" ? "Website" : x === "chat" ? "Chat" : x[0].toUpperCase() + x.slice(1)}
+              </button>
+            ))}
+          </div>
+        </nav>
         <div className="flex-1 overflow-y-auto">
           {tab==="chat"&&<div className="p-4 space-y-5">
             {!messages.length&&<div className="pt-8"><div className="text-[8px] uppercase tracking-[.2em] text-white/20">Autonomous workspace</div><h2 className="text-3xl mt-2 tracking-tight">What should I handle?</h2><p className="text-[11px] text-white/35 leading-5 mt-3">Tell the Operator the outcome. It can now work against real project records and source files.</p><div className="grid grid-cols-2 gap-2 mt-5">{quickActions.map(x=><button key={x} onClick={()=>setInput(x)} className="text-left p-3 rounded-xl border border-white/[.07] text-[9px] text-white/45 hover:bg-white/[.04]">{x}</button>)}</div></div>}
