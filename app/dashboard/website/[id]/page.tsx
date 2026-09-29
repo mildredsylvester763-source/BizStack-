@@ -85,7 +85,9 @@ async function publishWebsite(formData:FormData){
   revalidatePath("/site");
 }
 
-export default async function WebsiteEditor({params,searchParams}:{params:{id:string},searchParams:{page?:string}}){
+export default async function WebsiteEditor(props:{params: Promise<{id:string}>,searchParams: Promise<{page?:string}>}) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const {supabase,business}=await ownerContext();
   const {data:site}=await supabase.from("websites").select("id,name,status,subdomain,custom_domain,current_version,settings").eq("id",params.id).eq("business_id",business.id).single();
   if(!site) notFound();
