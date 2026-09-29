@@ -155,22 +155,22 @@ export default function NewInvoicePage() {
   }
 
   return (
-    <main className="min-h-screen bg-ledger">
-      <header className="border-b border-rule bg-white">
+    <main className="min-h-screen bg-[#f4f1ea] text-[#151817]">
+      <header className="border-b border-black/10 bg-[#fbfaf7]/95 backdrop-blur sticky top-0 z-20">
         <div className="max-w-5xl mx-auto px-6 py-5 flex items-center justify-between">
           <Link href="/dashboard/invoices" className="text-sm text-ink/50 hover:text-ink">← Back to invoices</Link>
           <span className="text-xs uppercase tracking-[0.16em] text-ink/35">Invoice builder</span>
         </div>
       </header>
 
-      <section className="max-w-5xl mx-auto px-6 py-10">
-        <div className="mb-8">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+        <div className="mb-8"><div className="inline-flex items-center gap-2 rounded-full bg-[#183f38] text-white px-3 py-1.5 text-[10px] uppercase tracking-[.16em] mb-4">BizStack · Commercial Studio</div>
           <p className="text-xs uppercase tracking-[0.18em] text-vault mb-2">Money in</p>
           <h1 className="font-display text-4xl text-ink">Create a professional invoice</h1>
           <p className="text-ink/55 mt-2 max-w-2xl">Capture the full commercial context now so the invoice can later power payments, reminders, accounting, customer history and AI workflows.</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="grid xl:grid-cols-[minmax(0,1fr)_360px] gap-6 items-start"><div className="space-y-6">
           <section className="bg-white border border-rule p-6">
             <h2 className="font-display text-xl text-ink mb-5">Invoice details</h2>
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
