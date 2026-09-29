@@ -92,6 +92,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Portal email delivery is unavailable." }, { status: 503 });
   }
 
-  await admin.from("customer_portal_events").insert({ portal_id: portal.id, customer_id: customer.id, event_type: "access_requested", metadata: { channel: "email" } });
+  const accessEvent = { portal_id: portal.id, customer_id: customer.id, event_type: "access_requested", metadata: { channel: "email" } };
+  await (admin.from("customer_portal_events") as any).insert(accessEvent);
   return NextResponse.json({ message: "If that email is registered for this portal, a secure access link has been sent." });
 }
