@@ -133,13 +133,13 @@ async function getConversationMessages(
     .limit(50);
 
   const rows = data ?? [];
-  const attachmentIds = Array.from(new Set(
+  const attachmentIds: string[] = Array.from(new Set(
     rows.flatMap((row) =>
       row.role === "user" && Array.isArray(row.metadata?.attachments)
         ? row.metadata.attachments.map((item: any) => String(item?.id || "")).filter(Boolean)
         : []
     )
-  )).slice(-12);
+  )).slice(-12) as string[];
 
   const hydratedEntries = await Promise.all(
     attachmentIds.map(async (id) => [id, await hydrateAttachmentContent(supabase, businessId, [id])] as const)
