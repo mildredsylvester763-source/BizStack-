@@ -147,54 +147,54 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
         <div className="grid lg:grid-cols-[1fr_300px] gap-5 mb-6"><div className="rounded-[24px] border border-black/10 bg-white p-5 sm:p-6 shadow-[0_18px_60px_rgba(20,20,16,.08)]"><div className="flex items-center justify-between gap-4"><div><p className="text-[10px] uppercase tracking-[.18em] text-black/35">Payment position</p><p className="font-display text-3xl mt-1">{money(outstanding, invoice.currency)} <span className="text-sm font-sans text-black/40">remaining</span></p></div><div className="text-right"><p className="text-[10px] uppercase tracking-[.18em] text-black/35">Collected</p><p className="text-sm mt-1">{money(paid, invoice.currency)}</p></div></div><div className="h-2 rounded-full bg-black/[.06] mt-5 overflow-hidden"><div className="h-full rounded-full bg-[#202725]" style={{width: total > 0 ? Math.min(100, paid / total * 100) + "%" : "0%"}} /></div><div className="flex justify-between mt-2 text-[11px] text-black/40"><span>0</span><span>{money(total, invoice.currency)} total</span></div></div><div className="rounded-[24px] border border-black/10 bg-[#202725] text-white p-5 shadow-[0_18px_60px_rgba(32,39,37,.14)]"><p className="text-[10px] uppercase tracking-[.18em] text-white/45">Payment rails</p><p className="font-display text-xl mt-2">{paymentReady ? "Provider connected" : "Manual payment ready"}</p><p className="text-xs text-white/55 mt-2 leading-5">{paymentReady ? "A payment provider is connected. Provider-specific initiation is capability-gated; BizStack will not show a fake payment button." : "No payment provider is verified yet. Confirmed bank, cash, transfer and other offline payments can still be recorded safely."}</p><a href="/dashboard/integrations" className="inline-block mt-4 rounded-xl bg-white/10 border border-white/10 px-3 py-2 text-xs">Manage connections</a></div></div><article id="invoice-document" className="bg-[#fffdf9] border border-black/10 shadow-[0_28px_90px_rgba(20,20,16,.10)] rounded-[28px] overflow-hidden">
           <div className="p-6 sm:p-9 border-b border-black/10 grid md:grid-cols-2 gap-8">
             <div>
-              <p className="text-[11px] uppercase tracking-wider text-ink/35 mb-2">From</p>
-              <p className="font-medium text-ink">{business.name}</p>
-              {business.address && <p className="text-sm text-ink/55 whitespace-pre-line mt-1">{business.address}</p>}
-              {business.contact_email && <p className="text-sm text-ink/55 mt-1">{business.contact_email}</p>}
-              {business.contact_phone && <p className="text-sm text-ink/55">{business.contact_phone}</p>}
+              <p className="text-[11px] uppercase tracking-wider text-black/35 mb-2">From</p>
+              <p className="font-medium text-[#171918]">{business.name}</p>
+              {business.address && <p className="text-sm text-black/55 whitespace-pre-line mt-1">{business.address}</p>}
+              {business.contact_email && <p className="text-sm text-black/55 mt-1">{business.contact_email}</p>}
+              {business.contact_phone && <p className="text-sm text-black/55">{business.contact_phone}</p>}
             </div>
             <div className="md:text-right">
-              <p className="text-[11px] uppercase tracking-wider text-ink/35 mb-2">Bill to</p>
-              <p className="font-medium text-ink">{customer?.name ?? "—"}</p>
-              {customer?.email && <p className="text-sm text-ink/55 mt-1">{customer.email}</p>}
-              {customer?.phone && <p className="text-sm text-ink/55">{customer.phone}</p>}
+              <p className="text-[11px] uppercase tracking-wider text-black/35 mb-2">Bill to</p>
+              <p className="font-medium text-[#171918]">{customer?.name ?? "—"}</p>
+              {customer?.email && <p className="text-sm text-black/55 mt-1">{customer.email}</p>}
+              {customer?.phone && <p className="text-sm text-black/55">{customer.phone}</p>}
             </div>
           </div>
 
           <div className="p-6 sm:p-9 border-b border-black/10 grid grid-cols-2 md:grid-cols-4 gap-6">
-            <div><p className="text-[11px] uppercase tracking-wider text-ink/35">Issue date</p><p className="text-sm text-ink mt-1">{invoice.issue_date ? new Date(invoice.issue_date).toLocaleDateString() : "—"}</p></div>
-            <div><p className="text-[11px] uppercase tracking-wider text-ink/35">Due date</p><p className="text-sm text-ink mt-1">{invoice.due_date ? new Date(invoice.due_date).toLocaleDateString() : "—"}</p></div>
-            <div><p className="text-[11px] uppercase tracking-wider text-ink/35">Reference</p><p className="text-sm text-ink mt-1">{invoiceSettings.show_reference ? (invoice.reference || "—") : "—"}</p></div>
-            <div><p className="text-[11px] uppercase tracking-wider text-ink/35">Purchase order</p><p className="text-sm text-ink mt-1">{invoiceSettings.show_purchase_order ? (invoice.purchase_order || "—") : "—"}</p></div>
+            <div><p className="text-[11px] uppercase tracking-wider text-black/35">Issue date</p><p className="text-sm text-[#171918] mt-1">{invoice.issue_date ? new Date(invoice.issue_date).toLocaleDateString() : "—"}</p></div>
+            <div><p className="text-[11px] uppercase tracking-wider text-black/35">Due date</p><p className="text-sm text-[#171918] mt-1">{invoice.due_date ? new Date(invoice.due_date).toLocaleDateString() : "—"}</p></div>
+            <div><p className="text-[11px] uppercase tracking-wider text-black/35">Reference</p><p className="text-sm text-[#171918] mt-1">{invoiceSettings.show_reference ? (invoice.reference || "—") : "—"}</p></div>
+            <div><p className="text-[11px] uppercase tracking-wider text-black/35">Purchase order</p><p className="text-sm text-[#171918] mt-1">{invoiceSettings.show_purchase_order ? (invoice.purchase_order || "—") : "—"}</p></div>
           </div>
 
           <div className="p-6 sm:p-9">
-            <div className="hidden md:grid grid-cols-[1fr_90px_140px_150px] gap-4 text-[11px] uppercase tracking-wider text-ink/35 pb-3 border-b border-rule">
+            <div className="hidden md:grid grid-cols-[1fr_90px_140px_150px] gap-4 text-[11px] uppercase tracking-wider text-black/35 pb-3 border-b border-black/[.08]">
               <span>Description</span><span>Qty</span><span>Unit price</span><span className="text-right">Amount</span>
             </div>
             <div className="divide-y divide-rule">
               {items.map(item => (
                 <div key={item.id} className="grid md:grid-cols-[1fr_90px_140px_150px] gap-4 py-4 text-sm">
-                  <span className="text-ink">{item.description}</span>
-                  <span className="text-ink/60">{item.quantity}</span>
-                  <span className="text-ink/60">{money(item.unit_price, invoice.currency)}</span>
-                  <span className="text-right text-ink font-medium">{money(item.quantity * item.unit_price, invoice.currency)}</span>
+                  <span className="text-[#171918]">{item.description}</span>
+                  <span className="text-black/60">{item.quantity}</span>
+                  <span className="text-black/60">{money(item.unit_price, invoice.currency)}</span>
+                  <span className="text-right text-[#171918] font-medium">{money(item.quantity * item.unit_price, invoice.currency)}</span>
                 </div>
               ))}
             </div>
 
             <div className="mt-8 ml-auto max-w-sm space-y-3 text-sm">
-              <div className="flex justify-between"><span className="text-ink/55">Subtotal</span><span>{money(subtotal, invoice.currency)}</span></div>
-              {invoiceSettings.show_discount && discount > 0 && <div className="flex justify-between"><span className="text-ink/55">Discount</span><span>-{money(discount, invoice.currency)}</span></div>}
-              {invoiceSettings.show_tax && Boolean(invoice.tax_enabled) && Number(invoice.tax_amount) > 0 && <div className="flex justify-between"><span className="text-ink/55">{invoice.tax_name || "Tax"} ({Number(invoice.tax_rate).toFixed(2)}%)</span><span>{money(tax, invoice.currency)}</span></div>}
-              <div className="border-t border-ink pt-4 flex justify-between items-end"><span className="text-ink/60">Total</span><span className="font-display text-2xl text-ink">{money(total, invoice.currency)}</span></div>
+              <div className="flex justify-between"><span className="text-black/55">Subtotal</span><span>{money(subtotal, invoice.currency)}</span></div>
+              {invoiceSettings.show_discount && discount > 0 && <div className="flex justify-between"><span className="text-black/55">Discount</span><span>-{money(discount, invoice.currency)}</span></div>}
+              {invoiceSettings.show_tax && Boolean(invoice.tax_enabled) && Number(invoice.tax_amount) > 0 && <div className="flex justify-between"><span className="text-black/55">{invoice.tax_name || "Tax"} ({Number(invoice.tax_rate).toFixed(2)}%)</span><span>{money(tax, invoice.currency)}</span></div>}
+              <div className="border-t border-ink pt-4 flex justify-between items-end"><span className="text-black/60">Total</span><span className="font-display text-2xl text-[#171918]">{money(total, invoice.currency)}</span></div>
             </div>
           </div>
 
           {((invoiceSettings.show_notes && invoice.notes) || (invoiceSettings.show_terms && invoice.terms_and_conditions)) && (
-            <div className="p-8 border-t border-rule grid md:grid-cols-2 gap-8">
-              {invoiceSettings.show_notes && invoice.notes && <div><p className="text-[11px] uppercase tracking-wider text-ink/35 mb-2">Note</p><p className="text-sm text-ink/65 whitespace-pre-line">{invoice.notes}</p></div>}
-              {invoiceSettings.show_terms && invoice.terms_and_conditions && <div><p className="text-[11px] uppercase tracking-wider text-ink/35 mb-2">Terms & conditions</p><p className="text-sm text-ink/65 whitespace-pre-line">{invoice.terms_and_conditions}</p></div>}
+            <div className="p-8 border-t border-black/[.08] grid md:grid-cols-2 gap-8">
+              {invoiceSettings.show_notes && invoice.notes && <div><p className="text-[11px] uppercase tracking-wider text-black/35 mb-2">Note</p><p className="text-sm text-black/65 whitespace-pre-line">{invoice.notes}</p></div>}
+              {invoiceSettings.show_terms && invoice.terms_and_conditions && <div><p className="text-[11px] uppercase tracking-wider text-black/35 mb-2">Terms & conditions</p><p className="text-sm text-black/65 whitespace-pre-line">{invoice.terms_and_conditions}</p></div>}
             </div>
           )}
         </article>
@@ -219,11 +219,11 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
             </form>
           )}
           {(invoice.status === "sent" || invoice.status === "partially_paid" || overdue) && Number(invoice.paid_amount || 0) < total && (
-            <form action={recordPayment} className="flex flex-wrap items-end gap-2 border border-rule bg-white p-3">
+            <form action={recordPayment} className="flex flex-wrap items-end gap-2 border border-black/[.08] bg-white p-3">
               <input type="hidden" name="invoice_id" value={invoice.id} />
-              <label className="text-xs text-ink/55">Payment amount<input required name="amount" type="number" min="0.01" step="0.01" max={Math.max(0,total-Number(invoice.paid_amount||0)).toFixed(2)} defaultValue={Math.max(0,total-Number(invoice.paid_amount||0)).toFixed(2)} className="mt-1 block w-32 border border-rule px-2.5 py-2 text-sm" /></label>
-              <label className="text-xs text-ink/55">Method<input name="method" placeholder="Bank transfer, cash..." className="mt-1 block w-40 border border-rule px-2.5 py-2 text-sm" /></label>
-              <label className="text-xs text-ink/55">Reference<input name="reference" placeholder="Payment reference" className="mt-1 block w-40 border border-rule px-2.5 py-2 text-sm" /></label>
+              <label className="text-xs text-black/55">Payment amount<input required name="amount" type="number" min="0.01" step="0.01" max={Math.max(0,total-Number(invoice.paid_amount||0)).toFixed(2)} defaultValue={Math.max(0,total-Number(invoice.paid_amount||0)).toFixed(2)} className="mt-1 block w-32 border border-black/[.08] px-2.5 py-2 text-sm" /></label>
+              <label className="text-xs text-black/55">Method<input name="method" placeholder="Bank transfer, cash..." className="mt-1 block w-40 border border-black/[.08] px-2.5 py-2 text-sm" /></label>
+              <label className="text-xs text-black/55">Reference<input name="reference" placeholder="Payment reference" className="mt-1 block w-40 border border-black/[.08] px-2.5 py-2 text-sm" /></label>
               <button className="rounded-xl bg-[#202725] text-white px-5 py-2.5 text-sm font-medium hover:bg-[#151817] transition-colors">Record payment</button>
             </form>
           )}
