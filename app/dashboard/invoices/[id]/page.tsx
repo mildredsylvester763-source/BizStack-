@@ -56,7 +56,9 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
 
   const { data: business } = await supabase
     .from("businesses")
-    .select("id, name, address, contact_email, contact_phone")
+    .select(
+      "id, name, address, contact_email, contact_phone, bank_name, bank_account_name, bank_account_number"
+    )
     .eq("owner_id", user.id)
     .single();
   if (!business) redirect("/onboarding");
@@ -64,17 +66,27 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
   const { data: invoice } = await supabase
     .from("invoices")
     .select(
-      "id, invoice_number, status, due_date, currency, created_at, customer:customers(name, email, phone), invoice_items(id, description, quantity, unit_price)"
+      "id, invoice_number, status, due_date, currency, created_at, payment_methods, customer:customers(name, email, phone), invoice_items(id, description, quantity, unit_price)"
     )
     .eq("id", params.id)
     .eq("business_id", business.id)
     .single();
   if (!invoice) redirect("/dashboard/invoices");
 
-  const customer = invoice.customer as unknown as { name: string; email: string | null; phone: string | null } | null;
-  const items = (invoice.invoice_items ?? []) as { id: string; description: string; quantity: number; unit_price: number }[];
+  const customer = invoice.customer as unknown as {
+    name: string;
+    email: string | null;
+    phone: string | null;
+  } | null;
+  const items = (invoice.invoice_items ?? []) as {
+    id: string;
+    description: string;
+    quantity: number;
+    unit_price: number;
+  }[];
   const total = calculateInvoiceTotal(items);
   const overdue = isOverdue(invoice.status, invoice.due_date);
+  const methods = invoice.payment_methods ?? [];
 
   if (overdue) {
     const { data: existing } = await supabase
@@ -105,6 +117,11 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
 
   const displayStatus = overdue ? "overdue" : invoice.status;
 
+  const qrPayload = encodeURIComponent(
+    `Pay ${total.toFixed(2)} ${invoice.currency} to ${business.name} — Invoice ${invoice.invoice_number}`
+  );
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${qrPayload}`;
+
   return (
     <section className="max-w-3xl mx-auto px-6 py-10">
       <div className="flex items-center justify-between mb-6">
@@ -128,17 +145,21 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
               <input type="hidden" name="total" value={total.toFixed(2)} />
               <input type="hidden" name="currency" value={invoice.currency} />
               <input type="hidden" name="customer_name" value={customer?.name ?? "a customer"} />
-              <Button type="submit" variant="secondary">Mark as paid</Button>
+              <Button type="submit" variant="secondary">
+                Mark as paid
+              </Button>
             </form>
           )}
         </div>
       </div>
 
-      <Card className="p-8">
+      <Card className="p-8 mb-6">
         <div className="flex items-start justify-between border-b border-line pb-6 mb-6">
           <div>
             <p className="font-display text-xl text-text">{business.name}</p>
-            {business.address && <p className="text-sm text-textMuted mt-1 max-w-xs">{business.address}</p>}
+            {business.address && (
+              <p className="text-sm text-textMuted mt-1 max-w-xs">{business.address}</p>
+            )}
             <p className="text-sm text-textMuted mt-1">
               {[business.contact_email, business.contact_phone].filter(Boolean).join(" · ")}
             </p>
@@ -154,7 +175,9 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
                 Due {new Date(invoice.due_date).toLocaleDateString()}
               </p>
             )}
-            <div className="mt-2"><StatusPill status={displayStatus} /></div>
+            <div className="mt-2">
+              <StatusPill status={displayStatus} />
+            </div>
           </div>
         </div>
 
@@ -177,7 +200,9 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
               <span className="text-text">{item.description}</span>
               <span className="text-right text-textMuted">{item.quantity}</span>
               <span className="text-right text-textMuted">{item.unit_price.toFixed(2)}</span>
-              <span className="text-right text-text">{(item.quantity * item.unit_price).toFixed(2)}</span>
+              <span className="text-right text-text">
+                {(item.quantity * item.unit_price).toFixed(2)}
+              </span>
             </div>
           ))}
         </div>
@@ -186,11 +211,53 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
           <div className="w-48">
             <div className="flex justify-between font-display text-xl text-text border-t border-line pt-3">
               <span>Total</span>
-              <span>{total.toFixed(2)} {invoice.currency}</span>
+              <span>
+                {total.toFixed(2)} {invoice.currency}
+              </span>
             </div>
           </div>
         </div>
       </Card>
+
+      {methods.length > 0 && (
+        <Card className="p-6">
+          <p className="text-sm text-textMuted mb-4">How to pay</p>
+          <div className="grid sm:grid-cols-2 gap-4">
+            {methods.includes("bank_transfer") && (
+              <div className="border border-line rounded-lg p-4">
+                <p className="text-sm text-text font-medium mb-2">Bank transfer</p>
+                {business.bank_name ? (
+                  <div className="text-sm text-textMuted space-y-0.5">
+                    <p>{business.bank_name}</p>
+                    <p>{business.bank_account_name}</p>
+                    <p className="text-text">{business.bank_account_number}</p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-textMuted">
+                    Bank details not set yet —{" "}
+                    <Link href="/dashboard/settings/payments" className="text-primary underline">
+                      add them
+                    </Link>
+                    .
+                  </p>
+                )}
+              </div>
+            )}
+            {methods.includes("qr") && (
+              <div className="border border-line rounded-lg p-4 flex flex-col items-center text-center">
+                <p className="text-sm text-text font-medium mb-2">Scan to pay</p>
+                <img src={qrUrl} alt="Payment QR code" width={140} height={140} className="rounded" />
+              </div>
+            )}
+            {methods.includes("card") && (
+              <div className="border border-line rounded-lg p-4">
+                <p className="text-sm text-text font-medium mb-2">Card payment</p>
+                <p className="text-sm text-textMuted">Coming soon — not connected to a processor yet.</p>
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
     </section>
   );
 }
