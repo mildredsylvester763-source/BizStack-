@@ -33,7 +33,6 @@ export default function WebsiteDesignMode({
   const [text, setText] = useState("");
 
   const target = selected || elements[0] || null;
-  const liveTarget = liveElement ? { label: liveElement.tag.toUpperCase() + " element", count: 1, prompt: "the selected " + liveElement.tag + " at " + liveElement.selector } : null;
 
   const tabs = useMemo(() => [
     ["select", "Select"],
