@@ -3,32 +3,18 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 }
 
 body {
-  background-color: #EEF1EE;
-  color: #12182B;
+  background-color: #0A0E1C;
+  color: #E7E9F5;
+  background-image:
+    radial-gradient(circle at 15% 0%, rgba(91,110,245,0.12), transparent 40%),
+    radial-gradient(circle at 85% 20%, rgba(139,92,246,0.10), transparent 40%);
+  background-attachment: fixed;
 }
 
-.bg-ledger {
-  background-image: linear-gradient(rgba(18,24,43,0.045) 1px, transparent 1px);
-  background-size: 100% 28px;
-}
-
-/* BizStack Builder visual language: compact navigation, confident typography, and restrained color depth. */
-.bizstack-builder {
-  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
-  text-rendering: optimizeLegibility;
-}
-.bizstack-builder button,
-.bizstack-builder input,
-.bizstack-builder textarea,
-.bizstack-builder select {
-  font-family: inherit;
-}
-.bizstack-builder ::selection {
-  background: rgba(129, 140, 248, .28);
-  color: #fff;
+::selection {
+  background: rgba(91,110,245,0.35);
 }

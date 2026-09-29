@@ -1,18 +1,107 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase-server";
-import DashboardMobileMenu from "./dashboard-mobile-menu";
+import { Card } from "@/components/ui/Card";
+import { calculateInvoiceTotal, isOverdue } from "@/lib/invoices";
 
-export default async function DashboardPage() {
- const supabase=await createClient(); const {data:{user}}=await supabase.auth.getUser(); if(!user) redirect("/login");
- const {data:business}=await supabase.from("businesses").select("*").eq("owner_id",user.id).single(); if(!business) redirect("/onboarding");
- return <main className="min-h-screen bg-ledger"><header className="border-b border-rule bg-white"><div className="max-w-6xl mx-auto px-6 py-5 flex items-center justify-between">
-  <div className="min-w-0"><p className="font-display text-lg text-ink truncate">{business.name}</p><p className="text-xs text-ink/45 truncate">{business.industry} · {business.currency}</p></div>
-  <DashboardMobileMenu businessName={business.name} />
-  <nav className="hidden sm:flex items-center gap-1 text-sm"><Link href="/dashboard/customers" className="text-ink/65 hover:text-ink px-3 py-2">Customers</Link><Link href="/dashboard/invoices" className="text-ink/65 hover:text-ink px-3 py-2">Invoices</Link><Link href="/dashboard/money" className="text-ink/65 hover:text-ink px-3 py-2">Money</Link><Link href="/dashboard/integrations" className="text-ink/65 hover:text-ink px-3 py-2">Integrations</Link><Link href="/dashboard/website" className="text-ink/65 hover:text-ink px-3 py-2">Website</Link><Link href="/dashboard/ai-builder" className="text-ink/65 hover:text-ink px-3 py-2">AI Builder</Link><Link href="/dashboard/quotes" className="text-ink/65 hover:text-ink px-3 py-2">Quotes</Link><Link href="/dashboard/marketplace" className="text-ink/65 hover:text-ink px-3 py-2">Marketplace</Link><Link href="/dashboard/broadcasts" className="text-ink/65 hover:text-ink px-3 py-2">Broadcasts</Link><Link href="/dashboard/finance-api" className="text-ink/65 hover:text-ink px-3 py-2">Finance API</Link><Link href="/dashboard/product-studio" className="text-ink/65 hover:text-ink px-3 py-2">Product Studio</Link><Link href="/dashboard/cash-sales" className="text-ink/65 hover:text-ink px-3 py-2">Cash Sales</Link><Link href="/dashboard/currencies" className="text-ink/65 hover:text-ink px-3 py-2">Currencies</Link><Link href="/dashboard/suppliers" className="text-ink/65 hover:text-ink px-3 py-2">Suppliers</Link><Link href="/dashboard/commissions" className="text-ink/65 hover:text-ink px-3 py-2">Commissions</Link><Link href="/dashboard/documents" className="text-ink/65 hover:text-ink px-3 py-2">AI Docs</Link><Link href="/dashboard/portal" className="text-ink/65 hover:text-ink px-3 py-2">Portal</Link><Link href="/dashboard/identity" className="text-ink/65 hover:text-ink px-3 py-2">Trust</Link><Link href="/dashboard/billing" className="text-ink/65 hover:text-ink px-3 py-2">Plans</Link><Link href="/dashboard/actions" className="text-ink/65 hover:text-ink px-3 py-2">Action Center</Link><Link href="/dashboard/settings/automation" className="text-ink/65 hover:text-ink px-3 py-2">Automation</Link></nav>
-  <form action="/auth/sign-out" method="post"><button className="text-sm text-ink/45 hover:text-ink px-3 py-2">Sign out</button></form>
- </div></header>
- <section className="max-w-6xl mx-auto px-6 py-16"><p className="text-xs uppercase tracking-[0.16em] text-vault font-medium mb-2">Business workspace</p><h1 className="font-display text-3xl text-ink mb-2">Your business at a glance.</h1><p className="text-ink/65 max-w-lg leading-relaxed">Customers, invoices, money, integrations and automation live here. The technical foundation stays underneath the product instead of in your way.</p>
- <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-4 gap-px bg-rule border border-rule max-w-5xl"><Link href="/dashboard/customers" className="bg-white p-6 hover:bg-mist transition-colors"><h3 className="font-display text-lg text-ink mb-1">Customers</h3><p className="text-sm text-ink/60">Relationships, contacts and money owed.</p></Link><Link href="/dashboard/invoices" className="bg-white p-6 hover:bg-mist transition-colors"><h3 className="font-display text-lg text-ink mb-1">Invoices</h3><p className="text-sm text-ink/60">Commercial records and payment status.</p></Link><Link href="/dashboard/money" className="bg-white p-6 hover:bg-mist transition-colors"><h3 className="font-display text-lg text-ink mb-1">Money</h3><p className="text-sm text-ink/60">Cash movement, receivables and reserves.</p></Link><Link href="/dashboard/integrations" className="bg-white p-6 hover:bg-mist transition-colors"><h3 className="font-display text-lg text-ink mb-1">Connections</h3><p className="text-sm text-ink/60">Connect banks, payment systems and business data later.</p></Link><Link href="/dashboard/website" className="bg-white p-6 hover:bg-mist transition-colors"><h3 className="font-display text-lg text-ink mb-1">Website</h3><p className="text-sm text-ink/60">Build and publish a business website when you are ready.</p></Link><Link href="/dashboard/ai-builder" className="bg-white p-6 hover:bg-mist transition-colors"><h3 className="font-display text-lg text-ink mb-1">AI Builder</h3><p className="text-sm text-ink/60">Turn natural-language requests into durable business operations.</p></Link><Link href="/dashboard/quotes" className="bg-white p-6 hover:bg-mist transition-colors"><h3 className="font-display text-lg text-ink mb-1">Quotes</h3><p className="text-sm text-ink/60">Build, track and convert customer quotes into invoices.</p></Link><Link href="/dashboard/cash-sales" className="bg-white p-6 hover:bg-mist transition-colors"><h3 className="font-display text-lg text-ink mb-1">Cash Sales</h3><p className="text-sm text-ink/60">Run a daily register, sell from real stock and reconcile the drawer.</p></Link><Link href="/dashboard/currencies" className="bg-white p-6 hover:bg-mist transition-colors"><h3 className="font-display text-lg text-ink mb-1">Multi-Currency</h3><p className="text-sm text-ink/60">Maintain FX rates and audit native versus base-currency values.</p></Link><Link href="/dashboard/suppliers" className="bg-white p-6 hover:bg-mist transition-colors"><h3 className="font-display text-lg text-ink mb-1">Suppliers</h3><p className="text-sm text-ink/60">Track supplier costs and get alerts when procurement prices rise.</p></Link><Link href="/dashboard/commissions" className="bg-white p-6 hover:bg-mist transition-colors"><h3 className="font-display text-lg text-ink mb-1">Commissions</h3><p className="text-sm text-ink/60">Track agent earnings, payable commissions and payout batches.</p></Link><Link href="/dashboard/documents" className="bg-white p-6 hover:bg-mist transition-colors"><h3 className="font-display text-lg text-ink mb-1">AI Documents</h3><p className="text-sm text-ink/60">Generate and review business plans, grant drafts and funding packs.</p></Link><Link href="/dashboard/portal" className="bg-white p-6 hover:bg-mist transition-colors"><h3 className="font-display text-lg text-ink mb-1">Customer Portal</h3><p className="text-sm text-ink/60">Publish a secure customer space for invoices, documents, orders and account access.</p></Link></div>
- </section></main>;
+export default async function DashboardHome() {
+  const supabase = createClient();
+
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data: business } = await supabase
+    .from("businesses")
+    .select("id, name, currency")
+    .eq("owner_id", user.id)
+    .single();
+  if (!business) redirect("/onboarding");
+
+  const [{ data: invoices }, { data: customers }, { data: products }, { data: events }] =
+    await Promise.all([
+      supabase
+        .from("invoices")
+        .select("id, status, due_date, currency, invoice_items(quantity, unit_price)")
+        .eq("business_id", business.id),
+      supabase.from("customers").select("id").eq("business_id", business.id),
+      supabase
+        .from("products")
+        .select("id, stock_quantity, low_stock_threshold")
+        .eq("business_id", business.id),
+      supabase
+        .from("events")
+        .select("id, summary, created_at")
+        .eq("business_id", business.id)
+        .order("created_at", { ascending: false })
+        .limit(6)
+    ]);
+
+  const invoiceRows = invoices ?? [];
+  const totalInvoiced = invoiceRows.reduce(
+    (sum, inv) => sum + calculateInvoiceTotal((inv.invoice_items ?? []) as any),
+    0
+  );
+  const paidTotal = invoiceRows
+    .filter((inv) => inv.status === "paid")
+    .reduce((sum, inv) => sum + calculateInvoiceTotal((inv.invoice_items ?? []) as any), 0);
+  const overdueCount = invoiceRows.filter((inv) => isOverdue(inv.status, inv.due_date)).length;
+  const lowStockCount = (products ?? []).filter(
+    (p) => p.low_stock_threshold !== null && p.stock_quantity <= p.low_stock_threshold
+  ).length;
+
+  return (
+    <section className="max-w-6xl mx-auto px-6 py-10">
+      <h1 className="font-display text-2xl text-text mb-1">Overview</h1>
+      <p className="text-textMuted mb-8">{business.name}</p>
+
+      <div className="grid sm:grid-cols-4 gap-4 mb-10">
+        <Card className="p-5">
+          <p className="text-xs text-textMuted mb-1">Total invoiced</p>
+          <p className="font-display text-2xl text-text">
+            {totalInvoiced.toFixed(2)} {business.currency}
+          </p>
+        </Card>
+        <Card className="p-5">
+          <p className="text-xs text-textMuted mb-1">Collected</p>
+          <p className="font-display text-2xl text-success">
+            {paidTotal.toFixed(2)} {business.currency}
+          </p>
+        </Card>
+        <Card className="p-5">
+          <p className="text-xs text-textMuted mb-1">Overdue invoices</p>
+          <p className="font-display text-2xl text-danger">{overdueCount}</p>
+        </Card>
+        <Card className="p-5">
+          <p className="text-xs text-textMuted mb-1">Customers</p>
+          <p className="font-display text-2xl text-text">{(customers ?? []).length}</p>
+        </Card>
+      </div>
+
+      {lowStockCount > 0 && (
+        <Card className="p-4 mb-8 border-warning/40 bg-warning/5">
+          <p className="text-sm text-warning">
+            {lowStockCount} product{lowStockCount > 1 ? "s" : ""} running low on stock —
+            check the Action Center.
+          </p>
+        </Card>
+      )}
+
+      <h2 className="text-sm text-textMuted font-medium mb-3">Recent activity</h2>
+      <Card className="divide-y divide-line">
+        {(events ?? []).length === 0 ? (
+          <p className="text-sm text-textMuted p-5">Nothing yet — activity will show up here.</p>
+        ) : (
+          (events ?? []).map((e) => (
+            <div key={e.id} className="p-4 flex items-center justify-between">
+              <p className="text-sm text-text">{e.summary}</p>
+              <span className="text-xs text-textMuted">
+                {new Date(e.created_at).toLocaleDateString()}
+              </span>
+            </div>
+          ))
+        )}
+      </Card>
+    </section>
+  );
 }

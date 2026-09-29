@@ -1,530 +1,78 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase-server";
-import { decideAgentApproval, type ApprovalDecision } from "@/lib/agents/approvals";
-import { decideBuildApproval, type BuildApprovalDecision } from "@/lib/ai/build-engine/approvals";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
 
-type EventRow = {
-  id: string;
-  event_type: string;
-  summary: string;
-  evidence: Record<string, unknown>;
-  status: string;
-  created_at: string;
-  priority: string | null;
-  category: string | null;
-  action_type: string | null;
-  due_at: string | null;
-  assigned_to: string | null;
-  resolved_at: string | null;
-};
-
-
-
-type BuildApproval = {
-  id: string;
-  build_run_id: string;
-  requested_action: string;
-  reason: string;
-  status: string;
-  target_type: string | null;
-  target_id: string | null;
-  proposed_payload: Record<string, unknown>;
-  created_at: string;
-};
-type AgentApproval = {
-  id: string;
-  requested_action: string;
-  risk_level: string;
-  reason: string;
-  status: string;
-  proposed_payload: Record<string, unknown>;
-  created_at: string;
-};
+type EventRow = { id: string; summary: string; evidence: Record<string, unknown>; status: string; created_at: string };
 
 async function updateEventStatus(formData: FormData) {
   "use server";
-  const supabase = await createClient();
-  const id = String(formData.get("id") || "");
-  const status = String(formData.get("status") || "");
-
-  if (!id || !["auto_handled", "dismissed"].includes(status)) return;
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: business } = await supabase
-    .from("businesses")
-    .select("id")
-    .eq("owner_id", user.id)
-    .single();
-
-  if (!business) redirect("/onboarding");
-
-  await supabase
-    .from("events")
-    .update({ status, resolved_at: new Date().toISOString() })
-    .eq("id", id)
-    .eq("business_id", business.id);
-
+  const supabase = createClient();
+  await supabase.from("events").update({ status: formData.get("status") as string }).eq("id", formData.get("id") as string);
   revalidatePath("/dashboard/actions");
-  revalidatePath("/dashboard/activity");
-}
-
-async function decideAgentApprovalAction(formData: FormData) {
-  "use server";
-  const approvalId = String(formData.get("approval_id") || "");
-  const rawDecision = String(formData.get("decision") || "approve");
-  const decision: ApprovalDecision = rawDecision === "reject" ? "reject" : "approve";
-
-  if (!approvalId) return;
-
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: business } = await supabase
-    .from("businesses")
-    .select("id")
-    .eq("owner_id", user.id)
-    .single();
-
-  if (!business) redirect("/onboarding");
-
-  await decideAgentApproval({
-    approvalId,
-    businessId: business.id,
-    userId: user.id,
-    decision
-  });
-
-  revalidatePath("/dashboard/actions");
-  revalidatePath("/dashboard/activity");
-}
-
-
-
-async function decideBuildApprovalAction(formData: FormData) {
-  "use server";
-  const approvalId = String(formData.get("build_approval_id") || "");
-  const rawDecision = String(formData.get("decision") || "approve");
-  const decision: BuildApprovalDecision = rawDecision === "reject" ? "reject" : "approve";
-  if (!approvalId) return;
-
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: business } = await supabase
-    .from("businesses")
-    .select("id")
-    .eq("owner_id", user.id)
-    .single();
-
-  if (!business) redirect("/onboarding");
-
-  await decideBuildApproval({
-    approvalId,
-    businessId: business.id,
-    userId: user.id,
-    decision
-  });
-
-  revalidatePath("/dashboard/actions");
-  revalidatePath("/dashboard/activity");
-  revalidatePath("/dashboard/website");
-}
-
-function label(value: string | null | undefined) {
-  return (value || "general")
-    .replace(/[._-]+/g, " ")
-    .replace(/\b\w/g, c => c.toUpperCase());
-}
-
-function isOverdue(e: EventRow) {
-  return Boolean(e.due_at && new Date(e.due_at).getTime() < Date.now() && !e.resolved_at);
-}
-
-function isAction(e: EventRow) {
-  return e.status === "needs_approval" ||
-    e.priority === "critical" ||
-    e.priority === "high" ||
-    isOverdue(e) ||
-    Boolean(e.action_type);
-}
-
-function EvidencePanel({ event }: { event: EventRow }) {
-  const evidence = event.evidence && typeof event.evidence === "object" ? event.evidence : {};
-  const entries = Object.entries(evidence).filter(([, value]) => value !== null && value !== undefined && value !== "");
-
-  return (
-    <details className="mt-4 border-t border-rule pt-3">
-      <summary className="cursor-pointer text-sm text-vault hover:text-vaultDeep">Show evidence</summary>
-      <div className="mt-4 space-y-3">
-        <div className="bg-mist border border-rule p-4">
-          <p className="text-xs uppercase tracking-[0.14em] text-vault mb-2">Why this appeared</p>
-          <p className="text-sm text-ink/70 leading-relaxed">{event.summary}</p>
-        </div>
-        {entries.length ? (
-          <div className="grid sm:grid-cols-2 gap-3">
-            {entries.map(([key, value]) => (
-              <div key={key} className="border border-rule p-3 bg-white">
-                <p className="text-[11px] uppercase tracking-[0.12em] text-ink/40">{label(key)}</p>
-                <p className="text-sm text-ink mt-1 break-words">
-                  {typeof value === "object" ? JSON.stringify(value) : String(value)}
-                </p>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-ink/45">No additional evidence was attached to this event.</p>
-        )}
-      </div>
-    </details>
-  );
 }
 
 function EventCard({ event }: { event: EventRow }) {
-  const overdue = isOverdue(event);
-
+  const hasEvidence = event.evidence && Object.keys(event.evidence).length > 0;
   return (
-    <div className="bg-white border border-rule p-5">
-      <div className="flex flex-wrap items-center gap-2 mb-2">
-        <span className="text-xs text-vault">{label(event.category)}</span>
-        {event.priority && event.priority !== "normal" && (
-          <span className="text-[11px] px-2 py-0.5 bg-alert/10 text-alert">{label(event.priority)}</span>
-        )}
-        {overdue && <span className="text-[11px] px-2 py-0.5 bg-alert/10 text-alert">Overdue</span>}
-        {event.action_type && (
-          <span className="text-[11px] px-2 py-0.5 bg-mist text-ink/55">{label(event.action_type)}</span>
-        )}
-      </div>
-
-      <p className="text-sm text-ink leading-relaxed">{event.summary}</p>
-      <p className="text-xs text-ink/40 mt-2">{new Date(event.created_at).toLocaleString()}</p>
-      <EvidencePanel event={event} />
-
+    <Card className="p-5">
+      <p className="text-text text-sm leading-relaxed">{event.summary}</p>
+      <p className="text-xs text-textMuted mt-1.5">{new Date(event.created_at).toLocaleString()}</p>
+      {hasEvidence && (
+        <details className="mt-3">
+          <summary className="text-xs text-primary cursor-pointer">Show evidence</summary>
+          <pre className="mt-2 bg-bg border border-line rounded-lg p-3 text-xs text-textMuted overflow-x-auto">{JSON.stringify(event.evidence, null, 2)}</pre>
+        </details>
+      )}
       {event.status === "needs_approval" && (
         <div className="mt-4 flex gap-2">
           <form action={updateEventStatus}>
             <input type="hidden" name="id" value={event.id} />
             <input type="hidden" name="status" value="auto_handled" />
-            <button className="bg-ink text-mist text-sm px-4 py-2 hover:bg-vaultDeep transition-colors">Approve</button>
+            <Button type="submit">Approve</Button>
           </form>
           <form action={updateEventStatus}>
             <input type="hidden" name="id" value={event.id} />
             <input type="hidden" name="status" value="dismissed" />
-            <button className="border border-rule text-ink/70 text-sm px-4 py-2 hover:bg-mist transition-colors">Dismiss</button>
+            <Button type="submit" variant="outline">Dismiss</Button>
           </form>
         </div>
       )}
-    </div>
-  );
-}
-
-
-function BuildApprovalCard({ approval }: { approval: BuildApproval }) {
-  const payload = approval.proposed_payload && typeof approval.proposed_payload === "object" ? approval.proposed_payload : {};
-  const metrics = payload.metrics && typeof payload.metrics === "object" ? payload.metrics as Record<string, unknown> : {};
-
-  return (
-    <div className="bg-white border border-vault/30 p-5">
-      <div className="flex flex-wrap items-center gap-2 mb-2">
-        <span className="text-xs text-vault">AI build approval</span>
-        <span className="text-[11px] px-2 py-0.5 bg-alert/10 text-alert">Publish</span>
-      </div>
-      <p className="text-sm font-medium text-ink">{approval.requested_action}</p>
-      <p className="text-sm text-ink/65 mt-2 leading-relaxed">{approval.reason}</p>
-      {Object.keys(metrics).length > 0 && (
-        <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {Object.entries(metrics).map(([key, value]) => (
-            <div key={key} className="border border-rule bg-mist p-3">
-              <p className="text-[10px] uppercase tracking-[.12em] text-ink/40">{label(key)}</p>
-              <p className="text-sm text-ink mt-1">{String(value)}</p>
-            </div>
-          ))}
-        </div>
-      )}
-      <details className="mt-4">
-        <summary className="cursor-pointer text-sm text-vault">Show build request</summary>
-        <pre className="mt-3 text-xs text-ink/60 whitespace-pre-wrap border border-rule bg-white p-3 overflow-x-auto">{JSON.stringify(payload, null, 2)}</pre>
-      </details>
-      <div className="mt-5 flex flex-wrap gap-2">
-        <form action={decideBuildApprovalAction}>
-          <input type="hidden" name="build_approval_id" value={approval.id} />
-          <input type="hidden" name="decision" value="approve" />
-          <button className="bg-ink text-mist text-sm px-4 py-2 hover:bg-vaultDeep transition-colors">Approve & publish</button>
-        </form>
-        <form action={decideBuildApprovalAction}>
-          <input type="hidden" name="build_approval_id" value={approval.id} />
-          <input type="hidden" name="decision" value="reject" />
-          <button className="border border-rule text-ink/70 text-sm px-4 py-2 hover:bg-mist transition-colors">Reject</button>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-function AgentApprovalCard({ approval }: { approval: AgentApproval }) {
-  const payload = approval.proposed_payload && typeof approval.proposed_payload === "object"
-    ? approval.proposed_payload
-    : {};
-  const toolKey = String(payload.tool_key ?? "restricted action");
-  const input = payload.input && typeof payload.input === "object" ? payload.input : {};
-
-  return (
-    <div className="bg-white border border-vault/30 p-5">
-      <div className="flex flex-wrap items-center gap-2 mb-2">
-        <span className="text-xs text-vault">AI agent approval</span>
-        <span className="text-[11px] px-2 py-0.5 bg-alert/10 text-alert">{label(approval.risk_level)} risk</span>
-      </div>
-
-      <p className="text-sm font-medium text-ink">{approval.requested_action}</p>
-      <p className="text-sm text-ink/65 mt-2 leading-relaxed">{approval.reason}</p>
-
-      <div className="mt-4 grid sm:grid-cols-2 gap-3">
-        <div className="border border-rule p-3 bg-mist">
-          <p className="text-[11px] uppercase tracking-[0.12em] text-ink/40">Tool</p>
-          <p className="text-sm text-ink mt-1">{toolKey}</p>
-        </div>
-        <div className="border border-rule p-3 bg-mist">
-          <p className="text-[11px] uppercase tracking-[0.12em] text-ink/40">Requested</p>
-          <p className="text-sm text-ink mt-1">{new Date(approval.created_at).toLocaleString()}</p>
-        </div>
-      </div>
-
-      <details className="mt-4">
-        <summary className="cursor-pointer text-sm text-vault">Show proposed input</summary>
-        <pre className="mt-3 text-xs text-ink/60 whitespace-pre-wrap border border-rule bg-white p-3 overflow-x-auto">
-          {JSON.stringify(input, null, 2)}
-        </pre>
-      </details>
-
-      <div className="mt-5 flex flex-wrap gap-2">
-        <form action={decideAgentApprovalAction}>
-          <input type="hidden" name="approval_id" value={approval.id} />
-          <input type="hidden" name="decision" value="approve" />
-          <button className="bg-ink text-mist text-sm px-4 py-2 hover:bg-vaultDeep transition-colors">
-            Approve & execute
-          </button>
-        </form>
-        <form action={decideAgentApprovalAction}>
-          <input type="hidden" name="approval_id" value={approval.id} />
-          <input type="hidden" name="decision" value="reject" />
-          <button className="border border-rule text-ink/70 text-sm px-4 py-2 hover:bg-mist transition-colors">
-            Reject
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-function ActivityGroup({ events }: { events: EventRow[] }) {
-  const first = events[0];
-
-  if (events.length === 1) return <EventCard event={first} />;
-
-  return (
-    <div className="bg-white border border-rule p-5">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <p className="text-xs uppercase tracking-[0.14em] text-vault mb-1">Grouped activity</p>
-          <p className="text-sm text-ink">{events.length} {label(first.event_type).toLowerCase()} events</p>
-          <p className="text-xs text-ink/45 mt-1">Latest: {first.summary}</p>
-        </div>
-        <span className="text-2xl font-display text-ink/35">{events.length}</span>
-      </div>
-      <p className="text-xs text-ink/40 mt-3">Showing one summary instead of flooding your Action Center.</p>
-    </div>
+    </Card>
   );
 }
 
 export default async function ActionCenterPage() {
-  const supabase = await createClient();
+  const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-
-  const { data: business } = await supabase
-    .from("businesses")
-    .select("id,name")
-    .eq("owner_id", user.id)
-    .single();
-
+  const { data: business } = await supabase.from("businesses").select("id, name").eq("owner_id", user.id).single();
   if (!business) redirect("/onboarding");
-
-  const [{ data: events }, { data: agentApprovalRows }, { data: buildApprovalRows }] = await Promise.all([
-    supabase
-      .from("events")
-      .select("id,event_type,summary,evidence,status,created_at,priority,category,action_type,due_at,assigned_to,resolved_at")
-      .eq("business_id", business.id)
-      .order("created_at", { ascending: false })
-      .limit(500),
-    supabase
-      .from("ai_agent_approvals")
-      .select("id,requested_action,risk_level,reason,status,proposed_payload,created_at")
-      .eq("business_id", business.id)
-      .eq("status", "pending")
-      .order("created_at", { ascending: false })
-      .limit(100),
-    supabase
-      .from("ai_build_approvals")
-      .select("id,build_run_id,requested_action,reason,status,target_type,target_id,proposed_payload,created_at")
-      .eq("business_id", business.id)
-      .eq("status", "pending")
-      .order("created_at", { ascending: false })
-      .limit(100)
-  ]);
-
+  const { data: events } = await supabase.from("events").select("*").eq("business_id", business.id).order("created_at", { ascending: false });
   const all = (events ?? []) as EventRow[];
-  const agentApprovals = (agentApprovalRows ?? []) as AgentApproval[];
-  const buildApprovals = (buildApprovalRows ?? []) as BuildApproval[];
-  const agentApprovalEventIds = new Set(
-    all
-      .filter(event => event.event_type === "agent.approval_requested")
-      .map(event => event.id)
-  );
-
-  const regularApprovalEvents = all.filter(
-    event =>
-      !agentApprovalEventIds.has(event.id) &&
-      event.event_type !== "ai.build.approval_requested" &&
-      event.status === "needs_approval"
-  );
-
-  const active = all
-    .filter(isAction)
-    .filter(e => e.status !== "auto_handled" && e.status !== "dismissed")
-    .filter(e => e.event_type !== "agent.approval_requested" && e.event_type !== "ai.build.approval_requested");
-
-  const critical = active.filter(e => e.status !== "needs_approval" && (e.priority === "critical" || e.priority === "high"));
-  const attention = active.filter(
-    e => e.status !== "needs_approval" &&
-      !critical.includes(e) &&
-      (isOverdue(e) || e.category === "money" || e.category === "integrations" || e.action_type === "review")
-  );
-  const recommendations = active.filter(
-    e => e.status !== "needs_approval" &&
-      !critical.includes(e) &&
-      !attention.includes(e) &&
-      (e.action_type === "recommendation" || e.action_type === "recommended")
-  );
-  const handled = all.filter(e => e.status === "auto_handled");
-  const routine = all.filter(
-    e => !isAction(e) &&
-      e.status !== "auto_handled" &&
-      e.status !== "dismissed" &&
-      e.event_type !== "agent.approval_requested"
-  );
-
-  const grouped = Array.from(
-    routine.reduce((map, event) => {
-      const key = event.event_type + "|" + new Date(event.created_at).toISOString().slice(0, 10);
-      const list = map.get(key) ?? [];
-      list.push(event);
-      map.set(key, list);
-      return map;
-    }, new Map<string, EventRow[]>()).values()
-  );
-
-  const needsApprovalCount = agentApprovals.length + buildApprovals.length + regularApprovalEvents.length;
+  const needsApproval = all.filter((e) => e.status === "needs_approval");
+  const autoHandled = all.filter((e) => e.status === "auto_handled");
+  const info = all.filter((e) => e.status === "info");
 
   return (
-    <main className="min-h-screen bg-ledger">
-      <header className="border-b border-rule bg-white">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-5 flex items-center justify-between">
-          <Link href="/dashboard" className="font-display text-lg text-ink">{business.name}</Link>
-          <div className="flex items-center gap-4">
-            <Link href="/dashboard/activity" className="text-sm text-ink/50 hover:text-ink">Full timeline</Link>
-            <Link href="/dashboard/extensions" className="text-sm text-vault hover:text-vaultDeep">Platform & AI</Link>
-            <Link href="/dashboard" className="text-sm text-ink/45 hover:text-ink">Dashboard</Link>
-          </div>
+    <section className="max-w-4xl mx-auto px-6 py-10">
+      <h1 className="font-display text-2xl text-text mb-1">Action Center</h1>
+      <p className="text-textMuted mb-8">What BizStack noticed, recommends, and already handled.</p>
+      <div className="space-y-8">
+        <div>
+          <h2 className="text-sm text-warning font-medium mb-3">Needs your approval</h2>
+          {needsApproval.length === 0 ? <p className="text-sm text-textMuted">Nothing waiting on you.</p> : <div className="space-y-3">{needsApproval.map((e) => <EventCard key={e.id} event={e} />)}</div>}
         </div>
-      </header>
-
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
-          <div>
-            <p className="text-xs uppercase tracking-[0.16em] text-vault font-medium mb-2">Operational inbox</p>
-            <h1 className="font-display text-3xl text-ink mb-1">Action Center</h1>
-            <p className="text-ink/60">Only work that needs attention rises here. Everything else stays in the business timeline.</p>
-          </div>
-          <Link href="/dashboard/activity" className="border border-rule bg-white px-4 py-2 text-sm text-ink/65 hover:text-ink">View activity</Link>
+        <div>
+          <h2 className="text-sm text-success font-medium mb-3">Already handled</h2>
+          {autoHandled.length === 0 ? <p className="text-sm text-textMuted">Nothing handled yet.</p> : <div className="space-y-3">{autoHandled.map((e) => <EventCard key={e.id} event={e} />)}</div>}
         </div>
-
-        <div className="grid sm:grid-cols-4 gap-3 mb-8">
-          <div className="bg-white border border-rule p-4"><p className="text-xs text-ink/45">Needs approval</p><p className="text-2xl font-display text-alert mt-1">{needsApprovalCount}</p></div>
-          <div className="bg-white border border-rule p-4"><p className="text-xs text-ink/45">Critical / high</p><p className="text-2xl font-display text-alert mt-1">{critical.length}</p></div>
-          <div className="bg-white border border-rule p-4"><p className="text-xs text-ink/45">Needs attention</p><p className="text-2xl font-display text-ink mt-1">{attention.length}</p></div>
-          <div className="bg-white border border-rule p-4"><p className="text-xs text-ink/45">Recommendations</p><p className="text-2xl font-display text-vault mt-1">{recommendations.length}</p></div>
+        <div>
+          <h2 className="text-sm text-textMuted font-medium mb-3">Recent activity</h2>
+          {info.length === 0 ? <p className="text-sm text-textMuted">No activity yet.</p> : <div className="space-y-3">{info.map((e) => <EventCard key={e.id} event={e} />)}</div>}
         </div>
-
-        <div className="mb-8 bg-white border border-rule p-5">
-          <p className="text-xs uppercase tracking-[0.16em] text-vault font-medium mb-2">How this works</p>
-          <p className="text-sm text-ink/65 leading-relaxed">
-            Events are the raw source of truth. The Action Center turns those events and agent approval requests into decisions, exceptions and approvals.
-            Routine events are grouped, while the complete source timeline remains available separately.
-          </p>
-        </div>
-
-        <div className="space-y-10">
-          <section>
-            <h2 className="text-sm text-alert font-medium mb-3">AI build approvals</h2>
-            {buildApprovals.length ? (
-              <div className="space-y-3">{buildApprovals.map(approval => <BuildApprovalCard key={approval.id} approval={approval} />)}</div>
-            ) : (
-              <p className="text-sm text-ink/40">No AI builds are waiting to be published.</p>
-            )}
-          </section>
-
-          <section>
-            <h2 className="text-sm text-alert font-medium mb-3">AI agent approvals</h2>
-            {agentApprovals.length ? (
-              <div className="space-y-3">{agentApprovals.map(approval => <AgentApprovalCard key={approval.id} approval={approval} />)}</div>
-            ) : (
-              <p className="text-sm text-ink/40">No AI agent actions are waiting for approval.</p>
-            )}
-          </section>
-
-          <section>
-            <h2 className="text-sm text-alert font-medium mb-3">Other approvals</h2>
-            {regularApprovalEvents.length ? (
-              <div className="space-y-3">{regularApprovalEvents.map(e => <EventCard key={e.id} event={e} />)}</div>
-            ) : (
-              <p className="text-sm text-ink/40">Nothing else waiting on you.</p>
-            )}
-          </section>
-
-          <section>
-            <h2 className="text-sm text-alert font-medium mb-3">Critical and high priority</h2>
-            {critical.length ? <div className="space-y-3">{critical.map(e => <EventCard key={e.id} event={e} />)}</div> : <p className="text-sm text-ink/40">No critical or high-priority work.</p>}
-          </section>
-
-          <section>
-            <h2 className="text-sm text-ink font-medium mb-3">Needs attention</h2>
-            {attention.length ? <div className="space-y-3">{attention.map(e => <EventCard key={e.id} event={e} />)}</div> : <p className="text-sm text-ink/40">Nothing currently needs attention.</p>}
-          </section>
-
-          <section>
-            <h2 className="text-sm text-vault font-medium mb-3">Recommendations</h2>
-            {recommendations.length ? <div className="space-y-3">{recommendations.map(e => <EventCard key={e.id} event={e} />)}</div> : <p className="text-sm text-ink/40">No recommendations yet.</p>}
-          </section>
-
-          <section>
-            <div className="flex items-center justify-between gap-4 mb-3">
-              <h2 className="text-sm text-ink/50 font-medium">Routine activity</h2>
-              <Link href="/dashboard/activity" className="text-xs text-vault hover:text-vaultDeep">Open full timeline</Link>
-            </div>
-            {grouped.length ? <div className="space-y-3">{grouped.map(group => <ActivityGroup key={group[0].id} events={group} />)}</div> : <p className="text-sm text-ink/40">No routine activity to summarize.</p>}
-          </section>
-
-          <section>
-            <h2 className="text-sm text-vault font-medium mb-3">Already handled</h2>
-            {handled.length ? <p className="text-sm text-ink/50">{handled.length} automated or approved action{handled.length === 1 ? "" : "s"} completed. <Link href="/dashboard/activity" className="text-vault hover:text-vaultDeep">View the timeline.</Link></p> : <p className="text-sm text-ink/40">Nothing handled yet.</p>}
-          </section>
-        </div>
-      </section>
-    </main>
+      </div>
+    </section>
   );
 }

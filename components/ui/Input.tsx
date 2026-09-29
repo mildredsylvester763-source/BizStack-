@@ -9,14 +9,14 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     return (
       <div>
         {label && (
-          <label htmlFor={id} className="block text-sm text-ink/70 mb-1.5">
+          <label htmlFor={id} className="block text-sm text-textMuted mb-1.5">
             {label}
           </label>
         )}
         <input
           ref={ref}
           id={id}
-          className={`w-full border border-rule px-4 py-2.5 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-vault/25 focus:border-vault transition-shadow ${className}`}
+          className={`w-full rounded-lg border border-line px-4 py-2.5 bg-surface text-sm text-text placeholder:text-textMuted/60 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-shadow ${className}`}
           {...props}
         />
       </div>

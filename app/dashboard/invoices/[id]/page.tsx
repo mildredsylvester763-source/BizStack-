@@ -2,234 +2,195 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase-server";
-import { sendEmail } from "@/lib/integrations/providers";
-
-const STATUS_STYLES: Record<string,string> = {
-  draft:"bg-[#eceae5] text-[#5e5b55] border-[#d9d6ce]",
-  sent:"bg-[#e8eef4] text-[#31536f] border-[#cbd9e5]",
-  partially_paid:"bg-[#f8edc8] text-[#7b611c] border-[#ead89b]",
-  paid:"bg-[#dcefe2] text-[#2f6b43] border-[#b9dcc5]",
-  overdue:"bg-[#f7dddd] text-[#a04444] border-[#e8bcbc]"
-};
-const STATUS_DOTS: Record<string,string> = {draft:"bg-[#8b887f]",sent:"bg-[#52799a]",partially_paid:"bg-[#c49a35]",paid:"bg-[#4f9965]",overdue:"bg-[#c95c5c]"};
+import { calculateInvoiceTotal, isOverdue } from "@/lib/invoices";
+import { Button } from "@/components/ui/Button";
+import { StatusPill } from "@/components/ui/StatusPill";
+import { Card } from "@/components/ui/Card";
 
 async function markSent(formData: FormData) {
   "use server";
-  const supabase = await createClient();
-  const invoiceId = String(formData.get("invoice_id") || "");
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-  const { data: business } = await supabase.from("businesses").select("id").eq("owner_id", user.id).single();
-  if (!business) redirect("/onboarding");
-  const { data: job, error } = await supabase.rpc("queue_invoice_email", { p_invoice_id: invoiceId });
-  if (error) throw new Error("Unable to queue invoice delivery: " + error.message);
-  const { data: delivery } = await supabase.from("communication_delivery_jobs").select("id,recipient,subject,body,idempotency_key,communication_id").eq("id",job).eq("business_id",business.id).single();
-  if (delivery) {
-    const result = await sendEmail({to:delivery.recipient,subject:delivery.subject||undefined,body:delivery.body||"",metadata:{idempotencyKey:delivery.idempotency_key}});
-    if (result.ok) {
-      const now=new Date().toISOString();
-      await supabase.from("communication_delivery_jobs").update({status:"sent",provider:result.provider,provider_status:"accepted",provider_message_id:result.messageId||null,response_metadata:result.response||{},sent_at:now,last_error:null}).eq("id",delivery.id).eq("business_id",business.id);
-      await supabase.from("communication_messages").update({status:"sent",provider_message_id:result.messageId||null,sent_at:now,error_message:null}).eq("id",delivery.communication_id);
-      await supabase.from("invoices").update({status:"sent"}).eq("id",invoiceId).eq("business_id",business.id).eq("status","draft");
-    } else {
-      await supabase.from("communication_delivery_jobs").update({status:"queued",provider:result.provider,provider_status:"provider_required_or_error",last_error:result.error,response_metadata:result.response||{}}).eq("id",delivery.id).eq("business_id",business.id);
-      await supabase.from("communication_messages").update({status:"queued",error_message:result.error}).eq("id",delivery.communication_id);
-    }
-  }
-  revalidatePath(`/dashboard/invoices/${invoiceId}`);
-  revalidatePath("/dashboard/invoices");
-  revalidatePath("/dashboard/activity");
-  revalidatePath("/dashboard/actions");
-}
-
-async function recordPayment(formData: FormData) {
-  "use server";
-  const supabase = await createClient();
-  const invoiceId = String(formData.get("invoice_id") || "");
-  const amount = Number(formData.get("amount"));
-  const method = String(formData.get("method") || "").trim() || null;
-  const reference = String(formData.get("reference") || "").trim() || null;
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-  const { data: business } = await supabase.from("businesses").select("id").eq("owner_id", user.id).single();
-  if (!business) redirect("/onboarding");
-  if (!Number.isFinite(amount) || amount <= 0) throw new Error("Enter a valid payment amount.");
-  const { error } = await supabase.rpc("record_invoice_payment", {
-    p_invoice_id: invoiceId,
-    p_amount: Number(amount.toFixed(2)),
-    p_method: method,
-    p_reference: reference,
-    p_payment_date: new Date().toISOString()
+  const supabase = createClient();
+  const invoiceId = formData.get("invoice_id") as string;
+  const businessId = formData.get("business_id") as string;
+  const invoiceNumber = formData.get("invoice_number") as string;
+  await supabase.from("invoices").update({ status: "sent" }).eq("id", invoiceId);
+  await supabase.from("events").insert({
+    business_id: businessId,
+    event_type: "invoice.sent",
+    summary: `Invoice ${invoiceNumber} marked as sent`,
+    evidence: { invoice_id: invoiceId },
+    status: "info"
   });
-  if (error) throw new Error("Unable to record payment: " + error.message);
-  revalidatePath("/dashboard/invoices/" + invoiceId);
-  revalidatePath("/dashboard/invoices");
-  revalidatePath("/dashboard/money");
-  revalidatePath("/dashboard/customers");
-  revalidatePath("/dashboard/actions");
-  revalidatePath("/dashboard/activity");
-}
-function money(value: number, currency: string) {
-  return `${value.toFixed(2)} ${currency}`;
+  revalidatePath(`/dashboard/invoices/${invoiceId}`);
 }
 
-export default async function InvoiceDetailPage(props: { params: Promise<{ id: string }> }) {
-  const params = await props.params;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+async function markPaid(formData: FormData) {
+  "use server";
+  const supabase = createClient();
+  const invoiceId = formData.get("invoice_id") as string;
+  const businessId = formData.get("business_id") as string;
+  const invoiceNumber = formData.get("invoice_number") as string;
+  const total = formData.get("total") as string;
+  const currency = formData.get("currency") as string;
+  const customerName = formData.get("customer_name") as string;
+  await supabase
+    .from("invoices")
+    .update({ status: "paid", paid_at: new Date().toISOString() })
+    .eq("id", invoiceId);
+  await supabase.from("events").insert({
+    business_id: businessId,
+    event_type: "invoice.paid",
+    summary: `${total} ${currency} received from ${customerName} for invoice ${invoiceNumber}`,
+    evidence: { invoice_id: invoiceId, total, currency },
+    status: "info"
+  });
+  revalidatePath(`/dashboard/invoices/${invoiceId}`);
+}
+
+export default async function InvoiceDetailPage({ params }: { params: { id: string } }) {
+  const supabase = createClient();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
   const { data: business } = await supabase
     .from("businesses")
-    .select("id, name, address, contact_email, contact_phone, currency")
+    .select("id, name, address, contact_email, contact_phone")
     .eq("owner_id", user.id)
     .single();
   if (!business) redirect("/onboarding");
 
   const { data: invoice } = await supabase
     .from("invoices")
-    .select("id, invoice_number, status, issue_date, due_date, payment_terms, reference, purchase_order, notes, terms_and_conditions, discount_type, discount_value, tax_enabled, tax_name, tax_treatment, tax_jurisdiction, tax_registration_number, tax_rate, subtotal, discount_amount, tax_amount, total, paid_amount, currency, created_at, paid_at, customer:customers(name, email, phone), invoice_items(id, description, quantity, unit_price)")
+    .select(
+      "id, invoice_number, status, due_date, currency, created_at, customer:customers(name, email, phone), invoice_items(id, description, quantity, unit_price)"
+    )
     .eq("id", params.id)
     .eq("business_id", business.id)
     .single();
-
   if (!invoice) redirect("/dashboard/invoices");
-  const [{ data: businessSettings }, { data: paymentIntegrations }] = await Promise.all([supabase.from("business_settings").select("invoice_settings").eq("business_id", business.id).maybeSingle(), supabase.from("integrations").select("id,display_name,category,status,connection_type").eq("business_id", business.id).eq("category", "payments").order("created_at", { ascending: false })]);
-  const invoiceSettings = { show_tax: true, show_discount: true, show_reference: true, show_purchase_order: true, show_notes: true, show_terms: true, ...(businessSettings?.invoice_settings ?? {}) };
+
   const customer = invoice.customer as unknown as { name: string; email: string | null; phone: string | null } | null;
   const items = (invoice.invoice_items ?? []) as { id: string; description: string; quantity: number; unit_price: number }[];
-  const subtotal = Number(invoice.subtotal ?? items.reduce((s, i) => s + i.quantity * i.unit_price, 0));
-  const discount = Number(invoice.discount_amount ?? 0);
-  const tax = Number(invoice.tax_amount ?? 0);
-  const total = Number(invoice.total ?? Math.max(0, subtotal - discount + tax));
-  const { data: latestDelivery } = await supabase.from("communication_delivery_jobs").select("id,status,provider,provider_status,last_error,sent_at,created_at").eq("business_id",business.id).eq("entity_type","invoice").eq("entity_id",invoice.id).order("created_at",{ascending:false}).limit(1).maybeSingle();
-  const overdue = invoice.status !== "draft" && invoice.status !== "paid" && !!invoice.due_date && new Date(invoice.due_date + "T23:59:59") < new Date();
-  const paid = Number(invoice.paid_amount || 0);
-  const outstanding = Math.max(0, total - paid);
-  const displayStatus = overdue ? "overdue" : (paid >= total && total > 0 ? "paid" : (paid > 0 ? "partially_paid" : invoice.status));
-  const paymentReady = (paymentIntegrations ?? []).some((item: { status?: string }) => item.status === "connected");
-  const whatsappHref = customer?.phone ? "https://wa.me/" + customer.phone.replace(/\D/g, "") : "";
-  const mailHref = customer?.email ? "mailto:" + customer.email + "?subject=" + encodeURIComponent("Invoice " + invoice.invoice_number + " from " + business.name) : "";
-  const callHref = customer?.phone ? "tel:" + customer.phone : "";
+  const total = calculateInvoiceTotal(items);
+  const overdue = isOverdue(invoice.status, invoice.due_date);
+
+  if (overdue) {
+    const { data: existing } = await supabase
+      .from("events")
+      .select("id")
+      .eq("business_id", business.id)
+      .eq("event_type", "payment.overdue")
+      .contains("evidence", { invoice_id: invoice.id });
+    if (!existing || existing.length === 0) {
+      const { data: setting } = await supabase
+        .from("automation_settings")
+        .select("mode")
+        .eq("business_id", business.id)
+        .eq("action_type", "send_payment_reminder")
+        .maybeSingle();
+      const autoExecute = (setting?.mode ?? "ask_first") === "auto_execute";
+      await supabase.from("events").insert({
+        business_id: business.id,
+        event_type: "payment.overdue",
+        summary: autoExecute
+          ? `Invoice ${invoice.invoice_number} is overdue — reminder would be sent automatically`
+          : `Invoice ${invoice.invoice_number} is overdue and needs your decision on a reminder`,
+        evidence: { invoice_id: invoice.id },
+        status: autoExecute ? "auto_handled" : "needs_approval"
+      });
+    }
+  }
+
+  const displayStatus = overdue ? "overdue" : invoice.status;
 
   return (
-    <main className="min-h-screen bg-[#f3f0e8] text-[#151817]">
-      <header className="border-b border-black/10 bg-[#f8f6f0]/90 backdrop-blur sticky top-0 z-20">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
-          <Link href="/dashboard/invoices" className="inline-flex items-center gap-2 text-sm text-black/50 hover:text-black transition-colors">← <span className="hidden sm:inline">Back to invoices</span><span className="sm:hidden">Invoices</span></Link>
-          <div className="flex items-center gap-2"><span className="hidden sm:inline text-[10px] uppercase tracking-[.18em] text-black/30">Commercial record</span><span className="rounded-full border border-black/10 bg-white/70 px-2.5 py-1 text-[10px] font-mono text-black/45">{invoice.invoice_number}</span></div>
-        </div>
-      </header>
-
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
-        <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-6 mb-8">
-          <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-[#7c6f58] mb-2">{business.name}</p>
-            <div className="flex flex-wrap items-center gap-2 mb-3"><span className="inline-flex rounded-full bg-[#151817] text-white px-3 py-1.5 text-[11px] uppercase tracking-[.12em]">Invoice {invoice.invoice_number}</span><span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs capitalize ${STATUS_STYLES[displayStatus] || STATUS_STYLES.draft}`}><i className={`h-1.5 w-1.5 rounded-full ${STATUS_DOTS[displayStatus] || STATUS_DOTS.draft}`} />{displayStatus === "partially_paid" ? "Partial" : displayStatus.replace("_"," ")}</span></div><h1 className="font-display text-4xl sm:text-5xl tracking-tight text-[#151817]">A commercial record that is ready to move money.</h1>
-            <p className="text-[#151817]/55 mt-3 max-w-2xl">{customer?.name ?? "No customer"} · {invoice.payment_terms} · {paid.toFixed(2)} {invoice.currency} received · {outstanding.toFixed(2)} {invoice.currency} remaining</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs px-3 py-1.5 rounded-full border border-black/10 bg-white/60 text-black/55 capitalize">{overdue ? "overdue" : invoice.status}</span>
-            <span className="text-sm text-black/45">{invoice.currency}</span>
-          </div>
-        </div>
-
-        <div className="mb-6 rounded-[22px] border border-black/[.08] bg-[#fcfaf5] px-4 sm:px-5 py-4 flex flex-wrap items-center justify-between gap-4">
-          <div className="min-w-0"><p className="text-[10px] uppercase tracking-[.18em] text-black/30">Customer</p><p className="text-sm font-medium mt-1 truncate">{customer?.name ?? "No customer"}</p></div>
-          <div className="flex flex-wrap items-center gap-2">
-            {mailHref && <a href={mailHref} className="rounded-xl border border-black/10 bg-white px-3 py-2 text-xs text-black/65 hover:bg-black/[.03]">Email</a>}
-            {whatsappHref && <a href={whatsappHref} target="_blank" rel="noreferrer" className="rounded-xl border border-black/10 bg-white px-3 py-2 text-xs text-black/65 hover:bg-black/[.03]">WhatsApp</a>}
-            {callHref && <a href={callHref} className="rounded-xl border border-black/10 bg-white px-3 py-2 text-xs text-black/65 hover:bg-black/[.03]">Call</a>}
-            <Link href="/dashboard/invoices" className="rounded-xl bg-[#171918] text-white px-3 py-2 text-xs">All invoices</Link>
-          </div>
-        </div>
-
-        <div className="grid lg:grid-cols-[1fr_300px] gap-5 mb-6"><div className="rounded-[24px] border border-black/10 bg-white p-5 sm:p-6 shadow-[0_18px_60px_rgba(20,20,16,.08)]"><div className="flex items-center justify-between gap-4"><div><p className="text-[10px] uppercase tracking-[.18em] text-black/35">Payment position</p><p className="font-display text-3xl mt-1">{money(outstanding, invoice.currency)} <span className="text-sm font-sans text-black/40">remaining</span></p></div><div className="text-right"><p className="text-[10px] uppercase tracking-[.18em] text-black/35">Collected</p><p className="text-sm mt-1">{money(paid, invoice.currency)}</p></div></div><div className="h-2 rounded-full bg-black/[.06] mt-5 overflow-hidden"><div className="h-full rounded-full bg-[#202725]" style={{width: total > 0 ? Math.min(100, paid / total * 100) + "%" : "0%"}} /></div><div className="flex justify-between mt-2 text-[11px] text-black/40"><span>0</span><span>{money(total, invoice.currency)} total</span></div></div><div className="rounded-[24px] border border-black/10 bg-[#202725] text-white p-5 shadow-[0_18px_60px_rgba(32,39,37,.14)]"><p className="text-[10px] uppercase tracking-[.18em] text-white/45">Payment rails</p><p className="font-display text-xl mt-2">{paymentReady ? "Provider connected" : "Manual payment ready"}</p><p className="text-xs text-white/55 mt-2 leading-5">{paymentReady ? "A payment provider is connected. Provider-specific initiation is capability-gated; BizStack will not show a fake payment button." : "No payment provider is verified yet. Confirmed bank, cash, transfer and other offline payments can still be recorded safely."}</p><a href="/dashboard/integrations" className="inline-block mt-4 rounded-xl bg-white/10 border border-white/10 px-3 py-2 text-xs">Manage connections</a></div></div><article id="invoice-document" className="bg-[#fffdf9] border border-black/10 shadow-[0_28px_90px_rgba(20,20,16,.10)] rounded-[28px] overflow-hidden">
-          <div className="p-6 sm:p-9 border-b border-black/10 grid md:grid-cols-2 gap-8">
-            <div>
-              <p className="text-[11px] uppercase tracking-wider text-black/35 mb-2">From</p>
-              <p className="font-medium text-[#171918]">{business.name}</p>
-              {business.address && <p className="text-sm text-black/55 whitespace-pre-line mt-1">{business.address}</p>}
-              {business.contact_email && <p className="text-sm text-black/55 mt-1">{business.contact_email}</p>}
-              {business.contact_phone && <p className="text-sm text-black/55">{business.contact_phone}</p>}
-            </div>
-            <div className="md:text-right">
-              <p className="text-[11px] uppercase tracking-wider text-black/35 mb-2">Bill to</p>
-              <p className="font-medium text-[#171918]">{customer?.name ?? "—"}</p>
-              {customer?.email && <p className="text-sm text-black/55 mt-1">{customer.email}</p>}
-              {customer?.phone && <p className="text-sm text-black/55">{customer.phone}</p>}
-            </div>
-          </div>
-
-          <div className="p-6 sm:p-9 border-b border-black/10 grid grid-cols-2 md:grid-cols-4 gap-6">
-            <div><p className="text-[11px] uppercase tracking-wider text-black/35">Issue date</p><p className="text-sm text-[#171918] mt-1">{invoice.issue_date ? new Date(invoice.issue_date).toLocaleDateString() : "—"}</p></div>
-            <div><p className="text-[11px] uppercase tracking-wider text-black/35">Due date</p><p className="text-sm text-[#171918] mt-1">{invoice.due_date ? new Date(invoice.due_date).toLocaleDateString() : "—"}</p></div>
-            <div><p className="text-[11px] uppercase tracking-wider text-black/35">Reference</p><p className="text-sm text-[#171918] mt-1">{invoiceSettings.show_reference ? (invoice.reference || "—") : "—"}</p></div>
-            <div><p className="text-[11px] uppercase tracking-wider text-black/35">Purchase order</p><p className="text-sm text-[#171918] mt-1">{invoiceSettings.show_purchase_order ? (invoice.purchase_order || "—") : "—"}</p></div>
-          </div>
-
-          <div className="p-6 sm:p-9">
-            <div className="hidden md:grid grid-cols-[1fr_90px_140px_150px] gap-4 text-[11px] uppercase tracking-wider text-black/35 pb-3 border-b border-black/[.08]">
-              <span>Description</span><span>Qty</span><span>Unit price</span><span className="text-right">Amount</span>
-            </div>
-            <div className="divide-y divide-rule">
-              {items.map(item => (
-                <div key={item.id} className="grid md:grid-cols-[1fr_90px_140px_150px] gap-4 py-4 text-sm">
-                  <span className="text-[#171918]">{item.description}</span>
-                  <span className="text-black/60">{item.quantity}</span>
-                  <span className="text-black/60">{money(item.unit_price, invoice.currency)}</span>
-                  <span className="text-right text-[#171918] font-medium">{money(item.quantity * item.unit_price, invoice.currency)}</span>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-8 ml-auto max-w-sm space-y-3 text-sm">
-              <div className="flex justify-between"><span className="text-black/55">Subtotal</span><span>{money(subtotal, invoice.currency)}</span></div>
-              {invoiceSettings.show_discount && discount > 0 && <div className="flex justify-between"><span className="text-black/55">Discount</span><span>-{money(discount, invoice.currency)}</span></div>}
-              {invoiceSettings.show_tax && Boolean(invoice.tax_enabled) && Number(invoice.tax_amount) > 0 && <div className="flex justify-between"><span className="text-black/55">{invoice.tax_name || "Tax"} ({Number(invoice.tax_rate).toFixed(2)}%)</span><span>{money(tax, invoice.currency)}</span></div>}
-              <div className="border-t border-ink pt-4 flex justify-between items-end"><span className="text-black/60">Total</span><span className="font-display text-2xl text-[#171918]">{money(total, invoice.currency)}</span></div>
-            </div>
-          </div>
-
-          {((invoiceSettings.show_notes && invoice.notes) || (invoiceSettings.show_terms && invoice.terms_and_conditions)) && (
-            <div className="p-8 border-t border-black/[.08] grid md:grid-cols-2 gap-8">
-              {invoiceSettings.show_notes && invoice.notes && <div><p className="text-[11px] uppercase tracking-wider text-black/35 mb-2">Note</p><p className="text-sm text-black/65 whitespace-pre-line">{invoice.notes}</p></div>}
-              {invoiceSettings.show_terms && invoice.terms_and_conditions && <div><p className="text-[11px] uppercase tracking-wider text-black/35 mb-2">Terms & conditions</p><p className="text-sm text-black/65 whitespace-pre-line">{invoice.terms_and_conditions}</p></div>}
-            </div>
-          )}
-        </article>
-
-        <div className="mt-6 grid md:grid-cols-3 gap-3">
-          <div className="rounded-[20px] border border-black/[.08] bg-[#fcfaf5] p-4"><p className="text-[9px] uppercase tracking-[.18em] text-black/30">Delivery</p><p className="text-sm font-medium mt-2 capitalize">{latestDelivery ? latestDelivery.status : "Not sent"}</p><p className="text-[11px] text-black/40 mt-1">{latestDelivery?.provider ? `via ${latestDelivery.provider}` : "No delivery channel recorded yet."}</p></div>
-          <div className="rounded-[20px] border border-black/[.08] bg-[#fcfaf5] p-4"><p className="text-[9px] uppercase tracking-[.18em] text-black/30">Payment provider</p><p className="text-sm font-medium mt-2">{paymentReady ? "Connected" : "Offline / manual"}</p><p className="text-[11px] text-black/40 mt-1">{paymentReady ? "Provider capability available." : "Confirmed offline payments remain recordable."}</p></div>
-          <div className="rounded-[20px] border border-black/[.08] bg-[#fcfaf5] p-4"><p className="text-[9px] uppercase tracking-[.18em] text-black/30">Document state</p><p className="text-sm font-medium mt-2 capitalize">{displayStatus.replace("_"," ")}</p><p className="text-[11px] text-black/40 mt-1">{invoice.issue_date ? `Issued ${new Date(invoice.issue_date).toLocaleDateString()}` : "Draft record"}</p></div>
-        </div>
-
-        <div className="mt-6 rounded-[22px] border border-black/[.08] bg-[#202725] p-3 sm:p-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"><div><p className="text-[9px] uppercase tracking-[.18em] text-white/40">Next action</p><p className="text-sm text-white mt-1">{invoice.status === "draft" ? "The invoice is ready for delivery." : outstanding > 0 ? "There is still a balance to collect." : "This invoice is fully settled."}</p></div><div className="text-[11px] text-white/45">{money(outstanding, invoice.currency)} remaining</div></div>
-        </div>
-
-        <div className="flex flex-wrap gap-3 mt-4">
+    <section className="max-w-3xl mx-auto px-6 py-10">
+      <div className="flex items-center justify-between mb-6">
+        <Link href="/dashboard/invoices" className="text-sm text-textMuted hover:text-text">
+          ← Back to invoices
+        </Link>
+        <div className="flex gap-3">
           {invoice.status === "draft" && (
             <form action={markSent}>
               <input type="hidden" name="invoice_id" value={invoice.id} />
               <input type="hidden" name="business_id" value={business.id} />
               <input type="hidden" name="invoice_number" value={invoice.invoice_number} />
-              <button className="rounded-xl bg-[#171918] text-white px-5 py-2.5 text-sm font-medium hover:bg-[#202725] transition-colors">Send invoice</button>
+              <Button type="submit">Mark as sent</Button>
             </form>
           )}
-          {(invoice.status === "sent" || invoice.status === "partially_paid" || overdue) && Number(invoice.paid_amount || 0) < total && (
-            <form action={recordPayment} className="flex flex-wrap items-end gap-2 border border-black/[.08] bg-white p-3">
+          {(invoice.status === "sent" || overdue) && (
+            <form action={markPaid}>
               <input type="hidden" name="invoice_id" value={invoice.id} />
-              <label className="text-xs text-black/55">Payment amount<input required name="amount" type="number" min="0.01" step="0.01" max={Math.max(0,total-Number(invoice.paid_amount||0)).toFixed(2)} defaultValue={Math.max(0,total-Number(invoice.paid_amount||0)).toFixed(2)} className="mt-1 block w-32 border border-black/[.08] px-2.5 py-2 text-sm" /></label>
-              <label className="text-xs text-black/55">Method<input name="method" placeholder="Bank transfer, cash..." className="mt-1 block w-40 border border-black/[.08] px-2.5 py-2 text-sm" /></label>
-              <label className="text-xs text-black/55">Reference<input name="reference" placeholder="Payment reference" className="mt-1 block w-40 border border-black/[.08] px-2.5 py-2 text-sm" /></label>
-              <button className="rounded-xl bg-[#202725] text-white px-5 py-2.5 text-sm font-medium hover:bg-[#151817] transition-colors">Record payment</button>
+              <input type="hidden" name="business_id" value={business.id} />
+              <input type="hidden" name="invoice_number" value={invoice.invoice_number} />
+              <input type="hidden" name="total" value={total.toFixed(2)} />
+              <input type="hidden" name="currency" value={invoice.currency} />
+              <input type="hidden" name="customer_name" value={customer?.name ?? "a customer"} />
+              <Button type="submit" variant="secondary">Mark as paid</Button>
             </form>
           )}
-          <Link href="/dashboard/invoices" className="rounded-xl border border-black/10 bg-white px-5 py-2.5 text-sm text-black/60 hover:text-black transition-colors">All invoices</Link>
         </div>
-      </section>
-    </main>
+      </div>
+
+      <Card className="p-8">
+        <div className="flex items-start justify-between border-b border-line pb-6 mb-6">
+          <div>
+            <p className="font-display text-xl text-text">{business.name}</p>
+            {business.address && <p className="text-sm text-textMuted mt-1 max-w-xs">{business.address}</p>}
+            <p className="text-sm text-textMuted mt-1">
+              {[business.contact_email, business.contact_phone].filter(Boolean).join(" · ")}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="font-display italic text-lg text-accent">Invoice</p>
+            <p className="text-sm text-textMuted mt-1">{invoice.invoice_number}</p>
+            <p className="text-xs text-textMuted mt-2">
+              Issued {new Date(invoice.created_at).toLocaleDateString()}
+            </p>
+            {invoice.due_date && (
+              <p className="text-xs text-textMuted">
+                Due {new Date(invoice.due_date).toLocaleDateString()}
+              </p>
+            )}
+            <div className="mt-2"><StatusPill status={displayStatus} /></div>
+          </div>
+        </div>
+
+        <div className="mb-6">
+          <p className="text-xs uppercase text-textMuted tracking-wide mb-1">Bill to</p>
+          <p className="text-text font-medium">{customer?.name ?? "No customer"}</p>
+          {customer?.email && <p className="text-sm text-textMuted">{customer.email}</p>}
+          {customer?.phone && <p className="text-sm text-textMuted">{customer.phone}</p>}
+        </div>
+
+        <div className="grid grid-cols-[1fr_60px_90px_90px] gap-2 text-xs uppercase text-textMuted tracking-wide pb-2 border-b border-line">
+          <span>Description</span>
+          <span className="text-right">Qty</span>
+          <span className="text-right">Price</span>
+          <span className="text-right">Amount</span>
+        </div>
+        <div className="divide-y divide-line">
+          {items.map((item) => (
+            <div key={item.id} className="grid grid-cols-[1fr_60px_90px_90px] gap-2 py-3 text-sm">
+              <span className="text-text">{item.description}</span>
+              <span className="text-right text-textMuted">{item.quantity}</span>
+              <span className="text-right text-textMuted">{item.unit_price.toFixed(2)}</span>
+              <span className="text-right text-text">{(item.quantity * item.unit_price).toFixed(2)}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex justify-end mt-6">
+          <div className="w-48">
+            <div className="flex justify-between font-display text-xl text-text border-t border-line pt-3">
+              <span>Total</span>
+              <span>{total.toFixed(2)} {invoice.currency}</span>
+            </div>
+          </div>
+        </div>
+      </Card>
+    </section>
   );
 }
