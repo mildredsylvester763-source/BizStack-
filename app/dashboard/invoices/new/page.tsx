@@ -81,7 +81,7 @@ export default function NewInvoicePage() {
     }
 
     const { count } = await supabase.from("invoices").select("id", { count: "exact", head: true }).eq("business_id", business.id);
-    const invoiceNumber = \`INV-\${String((count ?? 0) + 1).padStart(4, "0")}\`;
+    const invoiceNumber = `INV-${String((count ?? 0) + 1).padStart(4, "0")}`;
 
     const { data: invoice, error: invoiceError } = await supabase.from("invoices").insert({
       business_id: business.id,
@@ -120,12 +120,12 @@ export default function NewInvoicePage() {
     await supabase.from("events").insert({
       business_id: business.id,
       event_type: "invoice.created",
-      summary: \`Invoice \${invoiceNumber} created for \${customerName} — \${total.toFixed(2)} \${business.currency}\`,
+      summary: `Invoice ${invoiceNumber} created for ${customerName} — ${total.toFixed(2)} ${business.currency}`,
       evidence: { invoice_id: invoice.id, total, currency: business.currency, payment_methods: selectedMethods },
       status: "info"
     });
 
-    router.push(\`/dashboard/invoices/\${invoice.id}\`);
+    router.push(`/dashboard/invoices/${invoice.id}`);
   }
 
   const total = useMemo(() => calculateInvoiceTotal(items), [items]);
