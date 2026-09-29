@@ -4,7 +4,7 @@ import MenuOrderClient from "./MenuOrderClient";
 
 export default async function PublicMenuPage(props:{params: Promise<{slug:string}>}) {
  const params = await props.params;
- const supabase=createClient();
+ const supabase=await createClient();
  const {data:menu}=await supabase.from("digital_menus").select("id,name,currency,qr_token,kitchen_flow_enabled,status").eq("slug",params.slug).eq("status","published").single();
  if(!menu)return <main className="min-h-screen bg-ledger grid place-items-center p-6"><div className="text-center"><h1 className="font-display text-3xl">Menu not available</h1><p className="text-sm text-ink/50 mt-2">This menu is not published.</p></div></main>;
  const {data:items}=await supabase.from("menu_items").select("id,name,description,price,category,preparation_minutes,sort_order,available").eq("menu_id",menu.id).eq("available",true).order("sort_order");
