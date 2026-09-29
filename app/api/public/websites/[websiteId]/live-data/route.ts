@@ -14,6 +14,14 @@ type PublishedWebsiteRecord = {
   status:string;
 };
 
+type WebsiteBindingRecord = {
+  source_key:string;
+  enabled:boolean;
+  exposure:string;
+  fields:unknown;
+  sync_mode:string|null;
+};
+
 function pick(row: Record<string, unknown>, fields: string[], allowed: Set<string>) {
   const output: Record<string, unknown> = {};
   for (const field of fields) {
@@ -39,13 +47,14 @@ export async function GET(
     return NextResponse.json({ error: "Published website not found." }, { status: 404 });
   }
 
-  const { data: bindings, error: bindingError } = await supabase
+  const { data: rawBindings, error: bindingError } = await supabase
     .from("website_business_bindings")
     .select("source_key,enabled,exposure,fields,sync_mode")
     .eq("website_id", website.id)
     .eq("business_id", website.business_id)
     .eq("enabled", true)
     .eq("exposure", "public");
+  const bindings = (rawBindings ?? []) as WebsiteBindingRecord[];
 
   if (bindingError) {
     return NextResponse.json({ error: "Website data binding unavailable." }, { status: 500 });
