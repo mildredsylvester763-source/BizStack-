@@ -1,4 +1,4 @@
-import type { RouteEntry } from "./types";
+import type { RouteEntry } from "./project-graph-types";
 
 export type ProjectGraphNode = {
   id: string;
