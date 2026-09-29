@@ -25,7 +25,7 @@ export type WebsitePageSpec = {
 export type WebsiteSpec = {
   name: string;
   subdomain: string;
-  theme: { style: 'ledger' | 'modern' | 'luxury' | 'bold' | 'minimal' | 'dark'; primary: string; accent: string; surface: string; typography: 'editorial' | 'clean' | 'geometric' };
+  theme: { style: 'ledger' | 'modern' | 'luxury' | 'bold' | 'minimal' | 'dark'; primary: string; accent: string; surface: string; typography: 'editorial' | 'clean' | 'geometric'; logoUrl?: string };
   navigation: string[];
   features: string[];
   pages: WebsitePageSpec[];
