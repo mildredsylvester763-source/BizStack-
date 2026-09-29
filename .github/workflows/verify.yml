@@ -25,13 +25,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Diagnose remaining sync Supabase clients
-        shell: bash
-        run: |
-          set -e
-          echo "=== createClient callsites ==="
-          grep -RIn --include='*.ts' --include='*.tsx' --exclude-dir=node_modules --exclude-dir=.next 'createClient()' app lib || true
-          echo "=== async createClient callsites ==="
-          grep -RIn --include='*.ts' --include='*.tsx' --exclude-dir=node_modules --exclude-dir=.next 'await createClient()' app lib || true
       - run: npm install
       - run: npm run build
