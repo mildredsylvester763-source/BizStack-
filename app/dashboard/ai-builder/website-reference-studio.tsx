@@ -138,7 +138,7 @@ export default function WebsiteReferenceStudio({
                       <div key={String(label)} className="rounded-xl border border-white/[.05] bg-black/10 p-2">
                         <div className="text-[6px] uppercase tracking-wider text-white/20">{label}</div>
                         <div className="mt-1 space-y-0.5">
-                          {(values || []).slice(0, 3).map((value: string) => <div key={value} className="text-[7px] leading-3 text-white/27">• {value}</div>)}
+                          {(Array.isArray(values) ? values : values ? [values] : []).slice(0, 3).map((value: string) => <div key={value} className="text-[7px] leading-3 text-white/27">• {value}</div>)}
                         </div>
                       </div>
                     ))}
