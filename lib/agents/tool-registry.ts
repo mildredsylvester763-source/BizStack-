@@ -242,7 +242,8 @@ export async function executeTool(toolKey: string, input: Record<string, unknown
       websiteId: input.website_id ? String(input.website_id) : null,
       projectId: input.project_id ? String(input.project_id) : null,
       mode: "auto_execute",
-      publish: input.publish === true
+      publish: input.publish === true,
+      generateAssets: input.generate_assets !== false
     });
   }
 
