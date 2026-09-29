@@ -314,3 +314,4 @@ export default function NewInvoicePage() {
       <style jsx global>{`.field{width:100%;border:1px solid rgba(0,0,0,.10);background:#fffdf9;border-radius:12px;padding:.72rem .8rem;font-size:.875rem;color:#171918;outline:none;transition:border-color .15s,box-shadow .15s}.field:focus{border-color:rgba(32,39,37,.45);box-shadow:0 0 0 3px rgba(32,39,37,.07)}`}</style>
     </main>
   );
+}
