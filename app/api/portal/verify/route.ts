@@ -26,16 +26,18 @@ export async function POST(req: NextRequest) {
   const sessionHash = hash(sessionToken);
   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  const { error } = await admin.from("customer_portal_sessions").insert({
+  const sessionRecord = {
     portal_id: request.portal_id,
     customer_id: request.customer_id,
     session_hash: sessionHash,
     expires_at: expiresAt
-  });
+  };
+  const { error } = await (admin.from("customer_portal_sessions") as any).insert(sessionRecord);
   if (error) return NextResponse.json({ error: "Could not create the portal session." }, { status: 500 });
 
   await admin.from("customer_portal_access_requests").update({ consumed_at: now }).eq("id", request.id);
-  await admin.from("customer_portal_events").insert({ portal_id: request.portal_id, customer_id: request.customer_id, event_type: "access_granted", metadata: {} });
+  const accessEvent = { portal_id: request.portal_id, customer_id: request.customer_id, event_type: "access_granted", metadata: {} };
+  await (admin.from("customer_portal_events") as any).insert(accessEvent);
 
   const response = NextResponse.json({ ok: true });
   response.cookies.set("bizstack_portal_session", sessionToken, {
