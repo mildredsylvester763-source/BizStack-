@@ -3,9 +3,9 @@ import { Card } from "@/components/ui/Card";
 
 const SECTIONS = [
   { href: "/dashboard/settings/automation", label: "Automation", desc: "Autonomy per action type — live now." },
+  { href: "/dashboard/settings/payments", label: "Payment methods", desc: "Bank details shown on invoices — live now." },
   { href: "#", label: "Business profile", desc: "Name, address, currency, logo — coming soon." },
-  { href: "#", label: "Team & permissions", desc: "Invite staff, set roles — coming soon." },
-  { href: "#", label: "Billing & plan", desc: "Subscription and invoicing for BizStack itself — coming soon." }
+  { href: "#", label: "Team & permissions", desc: "Invite staff, set roles — coming soon." }
 ];
 
 export default function SettingsPage() {
