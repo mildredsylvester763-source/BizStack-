@@ -97,13 +97,13 @@ export default async function CustomersPage() {
             </div>
             <div className="divide-y divide-rule">
               {rows.map((c) => (
-                <div key={c.id} className="grid md:grid-cols-[1.5fr_1.2fr_1fr_1fr_1fr] gap-3 md:gap-4 px-5 py-4 hover:bg-mist/50 transition-colors">
-                  <div><p className="font-medium text-ink">{c.name}</p><p className="text-xs text-ink/40 mt-1">Added {new Date(c.created_at).toLocaleDateString()}</p></div>
+                <Link href={"/dashboard/customers/" + c.id} key={c.id} className="grid md:grid-cols-[1.5fr_1.2fr_1fr_1fr_1fr] gap-3 md:gap-4 px-5 py-4 hover:bg-mist/50 transition-colors">
+                  <div><p className="font-medium text-ink">{c.name}</p><p className="text-xs text-ink/40 mt-1">Added {new Date(c.created_at).toLocaleDateString()} · Open profile</p></div>
                   <div className="text-sm text-ink/60"><p>{c.email || "No email"}</p><p>{c.phone || "No phone"}</p></div>
                   <div className="text-sm text-ink/60">{c.stats.invoices}</div>
                   <div className="text-sm text-vault">{money(c.stats.paid, business.currency || "USD")}</div>
                   <div className="text-sm"><span className={c.stats.overdue > 0 ? "text-alert" : "text-ink"}>{money(c.stats.outstanding, business.currency || "USD")}</span>{c.stats.overdue > 0 && <p className="text-xs text-alert mt-1">Overdue {money(c.stats.overdue, business.currency || "USD")}</p>}</div>
-                </div>
+                </Link>
               ))}
             </div>
           </div>
