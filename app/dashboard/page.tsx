@@ -206,6 +206,31 @@ export default async function DashboardHome() {
         </BizPanel>
       </div>
 
+      <div className="mt-4 rounded-2xl border border-blue-400/15 bg-gradient-to-r from-blue-700/[.14] via-violet-600/[.12] to-fuchsia-600/[.13] p-3 shadow-[0_14px_40px_rgba(53,62,180,.14)]">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="min-w-[170px]">
+            <div className="text-[13px] font-semibold tracking-tight text-white">BizStack</div>
+            <div className="text-[7px] text-white/30 mt-1">One operating system for the whole business.</div>
+          </div>
+          <div className="hidden md:block h-8 w-px bg-white/[.08]" />
+          {[
+            ["Invoicing & Payments","Create, send, get paid","/dashboard/invoices"],
+            ["Website Builder","AI-powered, full workspace","/dashboard/ai-builder"],
+            ["CRM & Customers","Manage relationships","/dashboard/customers"],
+            ["Inventory & Products","Stock, orders, suppliers","/dashboard/products"],
+            ["Accounting & Finance","Track revenue and money","/dashboard/accounting"],
+            ["Marketing & Automation","Campaigns, workflows","/dashboard/actions"],
+            ["AI Assistants & Agents","Work smarter","/dashboard/ai-builder"],
+            ["Integrations & Apps","Connect your tools","/dashboard/integrations"]
+          ].map(([name,detail,href],i)=>(
+            <Link key={name} href={href} className="flex-1 min-w-[110px] rounded-xl border border-white/[.06] bg-black/[.08] px-2.5 py-2 hover:bg-white/[.05]">
+              <div className="text-[7px] text-white/60">{name}</div>
+              <div className="mt-1 text-[6px] leading-3 text-white/20">{detail}</div>
+            </Link>
+          ))}
+        </div>
+      </div>
+
       <div className="mt-3 grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-2">
         {[
           ["Invoicing", "/dashboard/invoices", "Create, send, track", "blue"],
