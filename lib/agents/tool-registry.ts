@@ -327,6 +327,120 @@ export async function executeTool(toolKey: string, input: Record<string, unknown
     return { blueprint, generated_by: raw ? "ai" : "deterministic-fallback", graph_summary: graph.summary };
   }
 
+
+  if (toolKey === "website.design.bridge") {
+    const projectId = String(input.project_id ?? context.projectId ?? "").trim();
+    if (!projectId) throw new Error("project_id is required.");
+
+    const { data: project, error: projectError } = await supabase
+      .from("ai_projects")
+      .select("id,business_id,name,status")
+      .eq("id", projectId)
+      .eq("business_id", businessId)
+      .neq("status", "deleted")
+      .single();
+    if (projectError || !project) throw new Error("Project not found.");
+
+    const { data: files, error: filesError } = await supabase
+      .from("ai_project_files")
+      .select("id,path,content,language,is_binary,version_no")
+      .eq("project_id", projectId)
+      .order("path");
+    if (filesError) throw filesError;
+
+    const bridge = (files ?? []).find((file: any) => String(file.path) === WEBSITE_DESIGN_BRIDGE_PATH);
+    const layoutCandidates = [
+      "app/layout.tsx",
+      "app/layout.ts",
+      "app/layout.jsx",
+      "app/layout.js",
+      "src/app/layout.tsx",
+      "src/app/layout.ts",
+      "src/app/layout.jsx",
+      "src/app/layout.js",
+      "pages/_app.tsx",
+      "pages/_app.js"
+    ];
+    const layout = (files ?? []).find((file: any) => layoutCandidates.includes(String(file.path)) && !file.is_binary && typeof file.content === "string");
+    if (!layout) throw new Error("No supported application layout file was found. Design Mode needs a known application root to install live selection.");
+
+    const alreadyImported = /BizStackDesignBridge/.test(String(layout.content));
+    if (bridge && alreadyImported) return { installed: true, bridge_path: WEBSITE_DESIGN_BRIDGE_PATH, layout_path: layout.path, changed: false };
+
+    await executeTool("project.version.create", { project_id: projectId, message: "Design Mode checkpoint before installing live selection bridge" }, context);
+
+    if (!bridge) {
+      const checksum = createHash("sha256").update(WEBSITE_DESIGN_BRIDGE_SOURCE, "utf8").digest("hex");
+      const { error: bridgeError } = await supabase.from("ai_project_files").upsert({
+        project_id: projectId,
+        path: WEBSITE_DESIGN_BRIDGE_PATH,
+        content: WEBSITE_DESIGN_BRIDGE_SOURCE,
+        content_sha: checksum,
+        language: "typescriptreact",
+        size_bytes: Buffer.byteLength(WEBSITE_DESIGN_BRIDGE_SOURCE, "utf8"),
+        is_binary: false,
+        version_no: 1,
+        updated_by: userId,
+        updated_at: new Date().toISOString()
+      }, { onConflict: "project_id,path" });
+      if (bridgeError) throw bridgeError;
+    }
+
+    const layoutMessages: BizStackModelMessage[] = [
+      {
+        role: "system",
+        content: [
+          "Patch a real application root layout to install BizStackDesignBridge.",
+          "Return ONLY JSON.",
+          "The JSON object must contain a content field with the complete updated source file and a summary field.",
+          "Do not return markdown or a diff.",
+          "Preserve all existing imports, providers, metadata, structure, data fetching and behavior.",
+          "Add the BizStackDesignBridge import and render <BizStackDesignBridge /> inside the root layout.",
+          "Use the project's existing import alias when possible; otherwise use a correct relative import.",
+          "Do not add dependencies."
+        ].join("\n")
+      },
+      {
+        role: "user",
+        content: "Layout path: " + String(layout.path) + "\nCurrent layout:\n" + String(layout.content)
+      }
+    ];
+
+    const result = await runBizStackModel(layoutMessages, []);
+    const raw = String(result.message?.content || "").trim();
+    let parsed: any = null;
+    try { parsed = JSON.parse(raw); } catch {}
+    const updatedLayout = typeof parsed?.content === "string" ? parsed.content : "";
+    if (!updatedLayout || !/BizStackDesignBridge/.test(updatedLayout)) {
+      throw new Error("The bridge installer could not produce a valid layout patch.");
+    }
+
+    const checksum = createHash("sha256").update(updatedLayout, "utf8").digest("hex");
+    const { error: layoutError } = await supabase.from("ai_project_files").upsert({
+      id: layout.id,
+      project_id: projectId,
+      path: layout.path,
+      content: updatedLayout,
+      content_sha: checksum,
+      language: layout.language || "typescriptreact",
+      size_bytes: Buffer.byteLength(updatedLayout, "utf8"),
+      is_binary: false,
+      version_no: Number(layout.version_no ?? 0) + 1,
+      updated_by: userId,
+      updated_at: new Date().toISOString()
+    }, { onConflict: "project_id,path" });
+    if (layoutError) throw layoutError;
+
+    let verification: Record<string, unknown> | null = null;
+    try {
+      verification = await executeTool("project.runtime.verify", { project_id: projectId, include_tests: false }, context) as Record<string, unknown>;
+    } catch (error) {
+      verification = { ok: false, error: error instanceof Error ? error.message : "Verification failed." };
+    }
+
+    return { installed: true, changed: true, bridge_path: WEBSITE_DESIGN_BRIDGE_PATH, layout_path: layout.path, verification };
+  }
+
   if (toolKey === "website.design.apply") {
     const projectId = String(input.project_id ?? context.projectId ?? "").trim();
     const instruction = String(input.instruction ?? "").trim();
