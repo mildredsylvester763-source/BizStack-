@@ -5,6 +5,21 @@ function isObject(value: unknown): value is Record<string, any> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
+function validRoute(value: unknown) {
+  return typeof value === "string" && /^\/[A-Za-z0-9_./:[\\]-]*$/.test(value);
+}
+
+function validHttpUrl(value: unknown) {
+  if (!value) return true;
+  if (typeof value !== "string") return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ projectId: string }> }
@@ -36,16 +51,33 @@ export async function PUT(
 
     if (!business) return NextResponse.json({ error: "Project access denied." }, { status: 403 });
 
-    const metadata = isObject(project.metadata) ? project.metadata : {};
     const settings = body.settings;
-    if (typeof settings.appName !== "string" || typeof settings.defaultRoute !== "string") {
-      return NextResponse.json({ error: "appName and defaultRoute are required." }, { status: 400 });
+    const identity = isObject(settings.identity) ? settings.identity : {};
+    const platform = isObject(settings.platform) ? settings.platform : {};
+    const seo = isObject(settings.seo) ? settings.seo : {};
+
+    if (typeof identity.appName !== "string" || identity.appName.trim().length < 1) {
+      return NextResponse.json({ error: "An application/site name is required." }, { status: 400 });
     }
-    if (!/^\/[A-Za-z0-9_./:[\\]-]*$/.test(settings.defaultRoute)) {
-      return NextResponse.json({ error: "defaultRoute must be a valid application route." }, { status: 400 });
+    if (!validRoute(platform.defaultRoute)) {
+      return NextResponse.json({ error: "Default route must begin with / and contain only valid route characters." }, { status: 400 });
+    }
+    if (!validHttpUrl(identity.iconUrl) || !validHttpUrl(identity.splashUrl) || !validHttpUrl(identity.socialImageUrl)) {
+      return NextResponse.json({ error: "Icon, splash and social image URLs must be valid HTTP(S) URLs." }, { status: 400 });
+    }
+    if (!validHttpUrl(seo.canonicalBase)) {
+      return NextResponse.json({ error: "Canonical base URL must be a valid HTTP(S) URL." }, { status: 400 });
     }
 
-    const nextMetadata = { ...metadata, settings };
+    const metadata = isObject(project.metadata) ? project.metadata : {};
+    const nextMetadata = {
+      ...metadata,
+      settings: {
+        ...settings,
+        _meta: { savedAt: new Date().toISOString(), savedBy: user.id }
+      }
+    };
+
     const { error } = await supabase
       .from("ai_projects")
       .update({ metadata: nextMetadata, updated_at: new Date().toISOString() })
@@ -53,7 +85,7 @@ export async function PUT(
       .eq("business_id", project.business_id);
 
     if (error) throw error;
-    return NextResponse.json({ ok: true, settings });
+    return NextResponse.json({ ok: true, settings: nextMetadata.settings });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Project settings could not be saved." }, { status: 400 });
   }
