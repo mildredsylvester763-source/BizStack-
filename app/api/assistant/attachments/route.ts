@@ -76,6 +76,13 @@ export async function POST(request: Request) {
     const originalName = file.name || "attachment";
     const mimeType = (file.type || "application/octet-stream").toLowerCase();
     const kind = attachmentKind(mimeType, originalName);
+    const storageMimeType = new Set([
+      "image/png","image/jpeg","image/webp","image/gif","image/svg+xml",
+      "application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","application/vnd.ms-excel",
+      "text/plain","text/markdown","text/csv","application/json","text/html",
+      "application/xml","text/xml","application/octet-stream"
+    ]).has(mimeType) ? mimeType : "application/octet-stream";
     const storagePath = [
       business.id,
       projectId || "unassigned",
@@ -109,7 +116,7 @@ export async function POST(request: Request) {
       const { error: uploadError } = await supabase.storage
         .from(AI_ATTACHMENT_BUCKET)
         .upload(storagePath, buffer, {
-          contentType: mimeType,
+          contentType: storageMimeType,
           cacheControl: "3600",
           upsert: false
         });
