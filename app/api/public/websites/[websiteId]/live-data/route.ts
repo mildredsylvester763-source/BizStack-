@@ -22,6 +22,16 @@ type WebsiteBindingRecord = {
   sync_mode:string|null;
 };
 
+type PublicProductRecord = {
+  id:string;
+  name:string;
+  sku:string|null;
+  unit:string|null;
+  unit_price:number|string|null;
+  stock_quantity:number|string|null;
+  is_active:boolean;
+};
+
 function pick(row: Record<string, unknown>, fields: string[], allowed: Set<string>) {
   const output: Record<string, unknown> = {};
   for (const field of fields) {
@@ -86,15 +96,16 @@ export async function GET(
     }
 
     if (key === "products") {
-      const { data } = await supabase
+      const { data: rawData } = await supabase
         .from("products")
         .select("id,name,sku,unit,unit_price,is_active")
         .eq("business_id", website.business_id)
         .eq("is_active", true)
         .order("name", { ascending: true })
         .limit(500);
+      const data = (rawData ?? []) as PublicProductRecord[];
 
-      result.products = (data ?? []).map((row) =>
+      result.products = data.map((row) =>
         pick(
           row,
           requestedFields.length ? requestedFields : [...PUBLIC_PRODUCT_FIELDS],
@@ -105,15 +116,16 @@ export async function GET(
     }
 
     if (key === "inventory_availability") {
-      const { data } = await supabase
+      const { data: rawData } = await supabase
         .from("products")
         .select("id,name,sku,unit,stock_quantity,is_active")
         .eq("business_id", website.business_id)
         .eq("is_active", true)
         .order("name", { ascending: true })
         .limit(500);
+      const data = (rawData ?? []) as PublicProductRecord[];
 
-      result.inventory_availability = (data ?? []).map((row) => {
+      result.inventory_availability = data.map((row) => {
         const safe = pick(
           row,
           requestedFields.length ? requestedFields : [...PUBLIC_INVENTORY_FIELDS],
