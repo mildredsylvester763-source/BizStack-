@@ -64,7 +64,8 @@ export default async function CashSalesPage() {
   const { data: business } = await supabase.from("businesses").select("id,name,currency").eq("owner_id", user.id).single();
   if (!business) redirect("/onboarding");
   const { data: session } = await supabase.from("cash_register_sessions").select("id,status,currency,opening_float,expected_cash,sales_count,cash_sales_total,card_sales_total,transfer_sales_total,other_sales_total,opened_at,closing_cash_counted,cash_variance").eq("business_id", business.id).eq("status","open").maybeSingle();
-  const { data: sales } = await supabase.from("cash_sales").select("id,sale_number,sale_at,payment_method,total,currency,customer:customers(name)").eq("business_id", business.id).order("sale_at",{ascending:false}).limit(25);
+  const { data: rawSales } = await supabase.from("cash_sales").select("id,sale_number,sale_at,payment_method,total,currency,customer:customers(name)").eq("business_id", business.id).order("sale_at",{ascending:false}).limit(25);
+  const sales = (rawSales ?? []).map((sale: any) => ({ ...sale, customerName: Array.isArray(sale.customer) ? sale.customer[0]?.name ?? null : sale.customer?.name ?? null }));
   return <main className="min-h-screen bg-ledger">
     <header className="border-b border-rule bg-white">
       <div className="max-w-6xl mx-auto px-6 py-5 flex justify-between items-center">
@@ -107,7 +108,7 @@ export default async function CashSalesPage() {
       </form>}
       <div className="bg-white border border-rule">
         <div className="p-5 border-b border-rule"><p className="text-xs uppercase tracking-[.16em] text-vault">Recent sales</p><h3 className="font-display text-xl mt-1">Register activity</h3></div>
-        <div className="divide-y divide-rule">{(sales||[]).map(s=><div key={s.id} className="p-4 flex flex-wrap justify-between gap-3"><div><p className="text-sm font-medium">{s.sale_number}</p><p className="text-xs text-ink/45 mt-1">{s.customer?.name||"Walk-in customer"} · {s.payment_method} · {new Date(s.sale_at).toLocaleString()}</p></div><p className="font-display">{s.currency} {Number(s.total||0).toLocaleString()}</p></div>)}{!(sales||[]).length&&<p className="p-6 text-sm text-ink/45">No sales recorded yet.</p>}</div>
+        <div className="divide-y divide-rule">{(sales||[]).map(s=><div key={s.id} className="p-4 flex flex-wrap justify-between gap-3"><div><p className="text-sm font-medium">{s.sale_number}</p><p className="text-xs text-ink/45 mt-1">{s.customerName||"Walk-in customer"} · {s.payment_method} · {new Date(s.sale_at).toLocaleString()}</p></div><p className="font-display">{s.currency} {Number(s.total||0).toLocaleString()}</p></div>)}{!(sales||[]).length&&<p className="p-6 text-sm text-ink/45">No sales recorded yet.</p>}</div>
       </div>
     </section>
   </main>;
