@@ -4,8 +4,7 @@ import "./globals.css";
 
 const display = Space_Grotesk({
   subsets: ["latin"],
-  weight: ["500", "600"],
-  style: ["normal", "italic"],
+  weight: ["500", "600", "700"],
   variable: "--font-display"
 });
 
@@ -26,7 +25,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${display.variable} ${body.variable}`}>
+    <html lang="en" className={display.variable + " " + body.variable}>
       <body className="font-body">{children}</body>
     </html>
   );
