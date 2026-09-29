@@ -5,7 +5,7 @@ import { decryptSecret, encryptSecret } from "@/lib/security/secrets";
 const providerEnv:Record<string,string>={github:"GITHUB","google-drive":"GOOGLE",gmail:"GOOGLE","google-calendar":"GOOGLE",slack:"SLACK",notion:"NOTION"};
 
 export async function POST(req:NextRequest){
-  const supabase=createClient();
+  const supabase=await createClient();
   const {data:{user}}=await supabase.auth.getUser();
   if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
   const body=await req.json().catch(()=>({}));
