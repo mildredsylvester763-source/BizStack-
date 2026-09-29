@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { createClient } from "@/lib/supabase-server";
 import { runBizStackModel, type BizStackModelMessage } from "@/lib/ai/providers/router";
 import { buildProjectGraph } from "@/lib/project-graph";
+import { WEBSITE_DESIGN_BRIDGE_PATH, WEBSITE_DESIGN_BRIDGE_SOURCE } from "@/lib/website/design-bridge-source";
 import { runWebsiteBuild } from "@/lib/ai/build-engine/runtime";
 import { runInvoiceBuild } from "@/lib/ai/build-engine/invoice-runtime";
 import { runProductInventoryBuild } from "@/lib/ai/build-engine/operations-runtime";
@@ -89,6 +90,7 @@ export function buildPlan(input: string): { toolKey: string; input: Record<strin
       }
     });
   }
+  if (/(enable live selection|live canvas|select elements on canvas|click elements in preview|install design bridge|interactive design mode)/.test(text) && /website|design|preview|canvas/.test(text)) plan.push({ toolKey: "website.design.bridge", input: { project_id: undefined } });
   if (/(live|real.?time|sync|dynamic|update.*website|website.*business data|products.*website)/.test(text) && /website/.test(text)) plan.push({ toolKey: "website.live_data.configure", input: {} });
   if (/(record this|log this|create an action|create a task|note this|add to timeline)/.test(text)) {
     plan.push({ toolKey: "events.create", input: { event_type: "agent.requested_action", summary: input.trim(), category: "agent", priority: "normal", action_type: "agent_followup" } });
