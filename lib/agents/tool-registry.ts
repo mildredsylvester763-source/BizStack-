@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 import { createClient } from "@/lib/supabase-server";
+import { runBizStackModel, type BizStackModelMessage } from "@/lib/ai/providers/router";
+import { buildProjectGraph } from "@/lib/project-graph";
 import { runWebsiteBuild } from "@/lib/ai/build-engine/runtime";
 import { runInvoiceBuild } from "@/lib/ai/build-engine/invoice-runtime";
 import { runProductInventoryBuild } from "@/lib/ai/build-engine/operations-runtime";
@@ -237,14 +239,77 @@ export async function executeTool(toolKey: string, input: Record<string, unknown
     const projectId = String(input.project_id ?? "").trim();
     const brief = String(input.brief ?? "").trim();
     if (!projectId || !brief) throw new Error("project_id and brief are required.");
-    const response = await fetch(new URL("/api/projects/" + encodeURIComponent(projectId) + "/blueprint", process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"), {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ brief })
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || "Website blueprint generation failed.");
-    return payload;
+
+    const { data: project, error: projectError } = await supabase
+      .from("ai_projects")
+      .select("id,business_id,name,framework,metadata,status")
+      .eq("id", projectId)
+      .eq("business_id", businessId)
+      .neq("status", "deleted")
+      .single();
+    if (projectError || !project) throw new Error("Project not found.");
+
+    const { data: business, error: businessError } = await supabase
+      .from("businesses")
+      .select("id,name,industry,currency")
+      .eq("id", businessId)
+      .single();
+    if (businessError || !business) throw new Error("Business context is not available.");
+
+    const { data: files } = await supabase
+      .from("ai_project_files")
+      .select("path,content,language")
+      .eq("project_id", projectId)
+      .order("path");
+    const graph = buildProjectGraph(projectId, (files ?? []).map((f) => ({ path: String(f.path), content: f.content, language: f.language })));
+
+    const schema = {
+      title: "string",
+      summary: "string",
+      audience: ["string"],
+      goals: ["string"],
+      pages: [{ id: "string", path: "/example", name: "string", purpose: "string", priority: "primary|secondary|utility", sections: [{ id: "string", name: "string", purpose: "string", data: ["string"], primary_action: "string" }] }],
+      flows: [{ id: "string", name: "string", steps: ["string"], outcome: "string" }],
+      design_direction: { style: "string", visual_principles: ["string"], typography: "string", color_direction: "string", motion: "string", responsive_strategy: "string" },
+      content_system: { cms_candidates: ["string"], reusable_components: ["string"], dynamic_data_candidates: ["string"] },
+      engineering_notes: { auth: ["string"], integrations: ["string"], data_dependencies: ["string"], verification: ["string"] }
+    };
+    const messages: BizStackModelMessage[] = [
+      { role: "system", content: "Create an implementation-ready website blueprint. Return only JSON matching: " + JSON.stringify(schema) },
+      { role: "user", content: [
+        "Business: " + business.name,
+        "Industry: " + (business.industry || "not specified"),
+        "Project: " + project.name,
+        "Framework: " + (project.framework || "not specified"),
+        "Existing routes: " + JSON.stringify(graph.routes),
+        "Existing graph: " + JSON.stringify(graph.summary),
+        "Brief: " + brief
+      ].join("\n") }
+    ];
+    let raw = "";
+    try {
+      const result = await runBizStackModel(messages, []);
+      raw = String(result.message?.content || "").trim();
+    } catch {}
+    let parsed: any = null;
+    try { parsed = raw ? JSON.parse(raw) : null; } catch {}
+    const blueprint = {
+      version: 1,
+      title: typeof parsed?.title === "string" ? parsed.title : project.name + " Website Blueprint",
+      summary: typeof parsed?.summary === "string" ? parsed.summary : "Source-aware website structure and implementation plan.",
+      audience: Array.isArray(parsed?.audience) ? parsed.audience.map(String).slice(0, 20) : [],
+      goals: Array.isArray(parsed?.goals) ? parsed.goals.map(String).slice(0, 20) : [],
+      pages: Array.isArray(parsed?.pages) && parsed.pages.length ? parsed.pages.slice(0, 40) : [{ id: "home", path: "/", name: "Home", priority: "primary", purpose: "Introduce the business.", sections: [] }],
+      flows: Array.isArray(parsed?.flows) ? parsed.flows.slice(0, 20) : [],
+      design_direction: parsed?.design_direction || {},
+      content_system: parsed?.content_system || {},
+      engineering_notes: parsed?.engineering_notes || {},
+      generated_at: new Date().toISOString()
+    };
+    const metadata = { ...(project.metadata && typeof project.metadata === "object" ? project.metadata : {}), blueprint };
+    const { error: updateError } = await supabase.from("ai_projects").update({ metadata, updated_at: new Date().toISOString() }).eq("id", projectId).eq("business_id", businessId);
+    if (updateError) throw updateError;
+    return { blueprint, generated_by: raw ? "ai" : "deterministic-fallback", graph_summary: graph.summary };
   }
 
   if (toolKey === "website.build") {
