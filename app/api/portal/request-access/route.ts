@@ -70,13 +70,17 @@ export async function POST(req: NextRequest) {
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
   await admin.from("customer_portal_access_requests").delete().eq("portal_id", portal.id).eq("customer_id", customer.id).is("consumed_at", null);
 
-  const { error } = await admin.from("customer_portal_access_requests").insert({
+  // The generated Supabase Database type does not currently expose this table, so the
+  // insert builder resolves to `never[]`. Keep the typed admin client everywhere else
+  // and cast only this boundary instead of weakening the whole route.
+  const accessRequest = {
     portal_id: portal.id,
     customer_id: customer.id,
     email,
     token_hash: tokenHash,
     expires_at: expiresAt
-  });
+  };
+  const { error } = await (admin.from("customer_portal_access_requests") as any).insert(accessRequest);
   if (error) return NextResponse.json({ error: "Could not prepare portal access." }, { status: 500 });
 
   const origin = new URL(req.url).origin;
