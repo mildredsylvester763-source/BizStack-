@@ -53,7 +53,11 @@ async function recordMetaMessages(supabase:any, integration:any, provider:string
   return rows.length;
 }
 
-export async function GET(req:NextRequest,{params}:{params:{provider:string;integrationId:string}}){
+export async function GET(
+  req:NextRequest,
+  props:{params: Promise<{provider:string;integrationId:string}>}
+) {
+  const params = await props.params;
   const provider=params.provider;
   if(!["whatsapp","meta-whatsapp","facebook-messenger","messenger","facebook"].includes(provider)) return NextResponse.json({error:"Unsupported webhook provider"},{status:404});
   const supabase=createAdminClient();
@@ -68,7 +72,11 @@ export async function GET(req:NextRequest,{params}:{params:{provider:string;inte
   return NextResponse.json({error:"Webhook verification failed"},{status:403});
 }
 
-export async function POST(req:NextRequest,{params}:{params:{provider:string;integrationId:string}}){
+export async function POST(
+  req:NextRequest,
+  props:{params: Promise<{provider:string;integrationId:string}>}
+) {
+  const params = await props.params;
   const raw=await req.text();
   const supabase=createAdminClient();
   const {data:integration}=await supabase.from("integrations").select("id,business_id,provider,config").eq("id",params.integrationId).single();
