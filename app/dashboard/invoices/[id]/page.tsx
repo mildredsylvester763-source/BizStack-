@@ -95,9 +95,15 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
   const total = Number(invoice.total ?? Math.max(0, subtotal - discount + tax));
   const { data: latestDelivery } = await supabase.from("communication_delivery_jobs").select("id,status,provider,provider_status,last_error,sent_at,created_at").eq("business_id",business.id).eq("entity_type","invoice").eq("entity_id",invoice.id).order("created_at",{ascending:false}).limit(1).maybeSingle();
   const overdue = invoice.status !== "draft" && invoice.status !== "paid" && !!invoice.due_date && new Date(invoice.due_date + "T23:59:59") < new Date();
+  const paid = Number(invoice.paid_amount || 0);
+  const outstanding = Math.max(0, total - paid);
+  const paymentReady = (paymentIntegrations ?? []).some((item: { status?: string }) => item.status === "connected");
+  const whatsappHref = customer?.phone ? "https://wa.me/" + customer.phone.replace(/\\D/g, "") : "";
+  const mailHref = customer?.email ? "mailto:" + customer.email + "?subject=" + encodeURIComponent("Invoice " + invoice.invoice_number + " from " + business.name) : "";
+  const callHref = customer?.phone ? "tel:" + customer.phone : "";
 
   return (
-    <main className="min-h-screen bg-ledger">
+    <main className="min-h-screen bg-[#f4f1ea] text-[#151817]">
       <header className="border-b border-black/10 bg-[#fbfaf7]/95 backdrop-blur sticky top-0 z-20">
         <div className="max-w-5xl mx-auto px-6 py-5 flex items-center justify-between">
           <Link href="/dashboard/invoices" className="text-sm text-ink/50 hover:text-ink">← Back to invoices</Link>
