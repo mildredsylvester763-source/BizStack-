@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import PortalInvoicePayment from "./portal-invoice-payment";
 
 type Data={
   authenticated:boolean;
@@ -9,6 +10,7 @@ type Data={
   appointments?:any[];
   messages?:any[];
   orders?:any[];
+  cardProcessorConnected?:boolean;
 };
 
 const tabs=["Overview","Invoices","Orders","Appointments","Messages"] as const;
@@ -45,6 +47,7 @@ export default function PortalClient({slug,initial}:{slug:string;initial:Data}){
  async function logout(){await fetch("/api/portal/session",{method:"DELETE"});setData({authenticated:false});setTab("Overview");}
 
  const invoices=data.invoices||[],appointments=data.appointments||[],messages=data.messages||[],orders=data.orders||[];
+ const cardProcessorConnected=Boolean(data.cardProcessorConnected);
  const outstanding=useMemo(()=>invoices.reduce((n,i)=>n+Math.max(Number(i.total||0)-Number(i.paid_amount||0),0),0),[invoices]);
  const currency=data.customer?.preferred_currency||invoices[0]?.currency||orders[0]?.currency||"";
  const fmt=(v:number,c=currency)=>new Intl.NumberFormat(undefined,{style:"currency",currency:c||"USD"}).format(v);
