@@ -15,7 +15,7 @@ const providerCapabilities:Record<string,{read:boolean;write:boolean;delete:bool
 };
 
 export async function GET(req:NextRequest){
- const supabase=createClient(); const url=new URL(req.url);
+ const supabase=await createClient(); const url=new URL(req.url);
  const state=url.searchParams.get("state"),code=url.searchParams.get("code"),oauthError=url.searchParams.get("error");
  if(!state)return NextResponse.json({error:"Missing OAuth state"},{status:400});
  const {data:s}=await supabase.from("integration_oauth_states").select("id,business_id,integration_id,attempt_id,redirect_uri,status,expires_at,provider").eq("state_token",state).eq("status","pending").single();
