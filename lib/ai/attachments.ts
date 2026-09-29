@@ -104,7 +104,7 @@ export async function extractAttachmentText(
     const parser = new PDFParse({ data: buffer });
     try {
       const result = await parser.getText();
-      return { text: truncateText(result.text || ""), metadata: { parser: "pdf-parse", pages: result.total ?? null } };
+      return { text: truncateText(result.text || ""), metadata: { parser: "pdf-parse" } };
     } finally {
       await parser.destroy();
     }
