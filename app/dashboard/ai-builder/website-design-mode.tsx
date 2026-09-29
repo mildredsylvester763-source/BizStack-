@@ -20,6 +20,8 @@ export default function WebsiteDesignMode({
   source: string;
   elements: ElementItem[];
   onAsk: (prompt: string) => void;
+  liveElement?: { tag: string; text: string; selector: string; className: string; href: string } | null;
+  onEnableLive?: () => void;
 }) {
   const [tab, setTab] = useState<DesignTab>("select");
   const [selected, setSelected] = useState<ElementItem | null>(null);
@@ -31,6 +33,7 @@ export default function WebsiteDesignMode({
   const [text, setText] = useState("");
 
   const target = selected || elements[0] || null;
+  const liveTarget = liveElement ? { label: liveElement.tag.toUpperCase() + " element", count: 1, prompt: "the selected " + liveElement.tag + " at " + liveElement.selector } : null;
 
   const tabs = useMemo(() => [
     ["select", "Select"],
@@ -90,6 +93,23 @@ export default function WebsiteDesignMode({
         </div>
 
         {tab === "select" && (
+          <div className="mt-3 rounded-xl border border-cyan-300/[.1] bg-cyan-300/[.035] p-3">
+            <div className="flex items-center gap-2">
+              <span className="grid h-7 w-7 place-items-center rounded-lg bg-cyan-300/[.08] text-cyan-100 text-[9px]">⌁</span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[7px] uppercase tracking-[.16em] text-cyan-100/45">Live canvas selection</div>
+                <div className="text-[8px] text-white/28 mt-0.5 truncate">{liveElement ? liveElement.selector : "Enable preview selection to click the actual rendered element."}</div>
+              </div>
+              {!liveElement && <button onClick={onEnableLive} className="shrink-0 rounded-lg bg-cyan-300/[.1] border border-cyan-300/[.12] px-2 py-1.5 text-[7px] text-cyan-100">Enable</button>}
+            </div>
+            {liveElement && <div className="mt-2 rounded-lg bg-black/10 border border-white/[.05] p-2">
+              <div className="text-[7px] text-white/25">Selected</div>
+              <div className="text-[9px] text-white/58 mt-1">{liveElement.tag.toUpperCase()} · {liveElement.text || "No text content"}</div>
+              <div className="text-[7px] text-white/18 mt-1 break-all">{liveElement.className || "no class metadata"}</div>
+              <button onClick={() => onAsk("Use Design Mode on the live-selected " + liveElement.tag + " element. Source: " + source + ". Selector: " + liveElement.selector + ". Preserve behavior and ask for approval before applying source changes.")} className="mt-2 w-full rounded-lg bg-white text-black px-2 py-2 text-[7px]">Plan change for selected element</button>
+            </div>}
+          </div>
+
           <div className="mt-3 space-y-1.5">
             <div className="text-[7px] uppercase tracking-[.16em] text-white/20 px-1">Page elements</div>
             {!elements.length && <div className="rounded-xl border border-white/[.05] p-3 text-[8px] leading-4 text-white/22">No source element descriptors are available yet. Use Builder to inspect the page source.</div>}
