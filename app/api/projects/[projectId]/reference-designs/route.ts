@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
-import { hydrateAttachmentContent, attachmentReferences } from "@/lib/ai/attachments";
+import { hydrateAttachmentContent } from "@/lib/ai/attachments";
 import { runBizStackModel, type BizStackModelMessage } from "@/lib/ai/providers/router";
 import { buildProjectGraph } from "@/lib/project-graph";
 
@@ -66,6 +66,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
   const { references, parts } = await hydrateAttachmentContent(supabase, project.business_id, [attachmentId]);
   const reference = references[0];
   if (!reference) return NextResponse.json({ error: "Reference attachment not found." }, { status: 404 });
+  if (reference.project_id && reference.project_id !== projectId) return NextResponse.json({ error: "Reference attachment is not linked to this project." }, { status: 403 });
 
   const schema = {
     summary: "string",
