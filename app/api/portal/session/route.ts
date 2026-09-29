@@ -28,8 +28,9 @@ export async function GET(req:NextRequest){
     admin.from("communication_messages").select("id,channel,direction,status,subject,body,sent_at,delivered_at,read_at,created_at").eq("customer_id",session.customer_id).order("created_at",{ascending:false}).limit(50),
     admin.from("cash_sales").select("id,sale_number,sale_at,status,payment_method,currency,total,notes,cash_sale_items(description,quantity,unit_price,line_total)").eq("customer_id",session.customer_id).order("sale_at",{ascending:false}).limit(50)
   ]);
-  if(!portal){ await admin.from("customer_portal_sessions").update({revoked_at:new Date().toISOString()}).eq("id",session.id); return NextResponse.json({authenticated:false}); }
-  await admin.from("customer_portal_sessions").update({last_seen_at:new Date().toISOString()}).eq("id",session.id);
+  const sessions=(admin.from("customer_portal_sessions") as any);
+  if(!portal){ await sessions.update({revoked_at:new Date().toISOString()}).eq("id",session.id); return NextResponse.json({authenticated:false}); }
+  await sessions.update({last_seen_at:new Date().toISOString()}).eq("id",session.id);
   return NextResponse.json({authenticated:true,portal,customer,invoices:invoices||[],appointments:appointments||[],messages:messages||[],orders:orders||[]});
 }
 
