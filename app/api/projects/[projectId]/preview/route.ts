@@ -5,7 +5,7 @@ import { runSandboxCommand, sandboxPreviewDomain } from "@/lib/sandbox/vercel";
 export async function POST(_request: Request, props: { params: Promise<{ projectId: string }> }) {
   const params = await props.params;
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { data: project, error } = await supabase.from("ai_projects").select("id,status,business_id").eq("id", params.projectId).single();
