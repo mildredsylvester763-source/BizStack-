@@ -22,20 +22,25 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const conversationId = url.searchParams.get("conversationId");
+  const projectId = url.searchParams.get("projectId");
   const limit = Math.min(Math.max(Number(url.searchParams.get("limit") || 40), 1), 100);
 
   const { data: conversations, error } = await supabase
     .from("ai_conversations")
-    .select("id,title,last_message_at,created_at,updated_at")
+    .select("id,title,last_message_at,created_at,updated_at,metadata")
     .eq("business_id", business.id)
     .order("last_message_at", { ascending: false })
     .limit(limit);
 
+  const scopedConversations = projectId
+    ? (conversations ?? []).filter((item) => item.metadata?.project_id === projectId)
+    : (conversations ?? []);
+
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  if (!conversationId) return NextResponse.json({ conversations: conversations ?? [] });
+  if (!conversationId) return NextResponse.json({ conversations: scopedConversations.map(({ metadata: _metadata, ...item }) => item) });
 
-  const belongsToBusiness = (conversations ?? []).some((item) => item.id === conversationId);
+  const belongsToBusiness = scopedConversations.some((item) => item.id === conversationId);
   if (!belongsToBusiness) {
     const { data: existing } = await supabase
       .from("ai_conversations")
@@ -57,7 +62,7 @@ export async function GET(request: Request) {
   if (messagesError) return NextResponse.json({ error: messagesError.message }, { status: 500 });
 
   return NextResponse.json({
-    conversations: conversations ?? [],
+    conversations: scopedConversations.map(({ metadata: _metadata, ...item }) => item),
     messages: (messages ?? []).filter((item) => item.role === "user" || item.role === "assistant")
   });
 }
