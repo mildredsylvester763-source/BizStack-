@@ -10,6 +10,7 @@ type Event={id:string;title:string;status:string;detail?:string;input?:any;outpu
 type Project={id:string;name:string;slug:string;project_type:string;status:string;default_branch:string;framework:string|null;runtime:string|null;repository_name:string|null;preview_url:string|null;production_url:string|null;updated_at:string};
 type ProjectFile={id:string;path:string;content:string|null;content_sha:string|null;language:string|null;size_bytes:number;is_binary:boolean;version_no:number;updated_at:string};
 type EngineeringMode="plan"|"review"|"architecture";
+type Conversation={id:string;title:string|null;last_message_at:string|null;created_at:string;updated_at:string};
 
 const FALLBACK:App[]=[
  {name:"Google Drive",slug:"google-drive",category:"Files",description:"Search and work with Drive files, Docs, Sheets and Slides.",icon_key:"GD"},
@@ -33,6 +34,7 @@ export default function OperatorCockpit({
 }:{businessId:string;businessName:string;initialConversationId:string|null;initialMessages:Msg[]}){
   const db=createClient(),end=useRef<HTMLDivElement>(null);
   const [messages,setMessages]=useState(initialMessages),[input,setInput]=useState(""),[busy,setBusy]=useState(false);
+  const [conversations,setConversations]=useState<Conversation[]>([]),[historyQuery,setHistoryQuery]=useState(""),[historyBusy,setHistoryBusy]=useState(false),[historyOpen,setHistoryOpen]=useState(false),[conversationBusy,setConversationBusy]=useState(false);
   const [conversationId,setConversationId]=useState(initialConversationId),[events,setEvents]=useState<Event[]>([]);
   const [apps,setApps]=useState<App[]>(FALLBACK),[appOpen,setAppOpen]=useState(false),[query,setQuery]=useState("");
   const [context,setContext]=useState<App[]>([]),[tab,setTab]=useState("chat"),[selectedEvent,setSelectedEvent]=useState<Event|null>(null),[approval,setApproval]=useState<any>(null),[picker,setPicker]=useState(false);
@@ -48,8 +50,48 @@ export default function OperatorCockpit({
   const selectedFile=useMemo(()=>files.find(f=>f.path===selectedPath)||null,[files,selectedPath]);
   const shownApps=useMemo(()=>apps.filter(a=>(a.name+" "+a.category+" "+a.description).toLowerCase().includes(query.toLowerCase())),[apps,query]);
 
+  const shownConversations=useMemo(()=>conversations.filter(c=>(c.title||"New conversation").toLowerCase().includes(historyQuery.trim().toLowerCase())),[conversations,historyQuery]);
+
+  async function loadConversations(){
+    setHistoryBusy(true);
+    try{
+      const r=await fetch("/api/assistant/conversations?limit=80",{cache:"no-store"});
+      const x=await r.json().catch(()=>({}));
+      if(!r.ok)throw new Error(x.error||"Conversation history could not be loaded.");
+      setConversations((x.conversations||[]) as Conversation[]);
+    }catch(e){
+      setMessages(v=>v.length?v:[{role:"assistant",content:e instanceof Error?e.message:"Conversation history could not be loaded."}]);
+    }finally{setHistoryBusy(false)}
+  }
+
+  async function openConversation(id:string){
+    if(id===conversationId||conversationBusy)return;
+    setConversationBusy(true);
+    try{
+      const r=await fetch("/api/assistant/conversations?conversationId="+encodeURIComponent(id)+"&limit=80",{cache:"no-store"});
+      const x=await r.json().catch(()=>({}));
+      if(!r.ok)throw new Error(x.error||"Conversation could not be opened.");
+      setConversationId(id);
+      setMessages((x.messages||[]).map((m:any)=>({id:m.id,role:m.role,content:m.content,metadata:m.metadata})));
+      setApproval(null);
+      setTab("chat");
+      setHistoryOpen(false);
+    }catch(e){
+      setMessages(v=>[...v,{role:"assistant",content:e instanceof Error?e.message:"Conversation could not be opened."}]);
+    }finally{setConversationBusy(false)}
+  }
+
+  function startNewConversation(){
+    setConversationId(null);
+    setMessages([]);
+    setApproval(null);
+    setInput("");
+    setTab("chat");
+    setHistoryOpen(false);
+  }
+
   useEffect(()=>{end.current?.scrollIntoView({behavior:"smooth"})},[messages,busy]);
-  useEffect(()=>{(async()=>{try{const r=await fetch("/api/ai/providers",{cache:"no-store"});const x=await r.json();if(r.ok)setAiProviders(x.providers||[]);}catch{}})()},[]);
+  useEffect(()=>{(async()=>{try{const r=await fetch("/api/ai/providers",{cache:"no-store"});const x=await r.json();if(r.ok)setAiProviders(x.providers||[]);}catch{}})();void loadConversations()},[]);
 
 
   async function loadProjects(preferredId?:string){
@@ -138,6 +180,7 @@ export default function OperatorCockpit({
         setMessages(v=>[...v,{role:"assistant",content:x.message||"Done."}]);
         await loadProjects(projectId||undefined).catch(()=>null);
         await loadFiles(projectId||"").catch(()=>null);
+        await loadConversations().catch(()=>null);
       }
     }catch(e){setMessages(v=>[...v,{role:"assistant",content:e instanceof Error?e.message:"The Operator could not complete that request."}])}
     finally{setBusy(false)}
@@ -283,10 +326,28 @@ export default function OperatorCockpit({
   const statusPills=project?[project.framework||"framework undetected",project.runtime||"runtime unconfigured",project.repository_name?"repo linked":"local project",project.preview_url?"preview linked":"preview not published"]:[];
   const quickActions=project?["Inspect "+project.name,"Edit "+project.name+" source","Review current project","Plan the next feature"]:["Create a software project","Connect Google Drive","Find overdue invoices","Explain cash position"];
 
-  return <div className="min-h-screen bg-[#0b0d11] text-white">
+  return <div className="min-h-screen bg-[#0b0d11] text-white"><div className="flex min-h-screen">
+    <aside className={(historyOpen?"fixed inset-y-0 left-0 z-50 flex":"hidden")+" xl:flex w-[250px] shrink-0 flex-col bg-[#0c0e12] border-r border-white/[.07]"}>
+      <div className="h-12 px-3 border-b border-white/[.07] flex items-center gap-2">
+        <button onClick={startNewConversation} className="flex-1 rounded-xl bg-white text-black px-3 py-2 text-[9px] font-medium">+ New chat</button>
+        <button onClick={()=>setHistoryOpen(false)} className="xl:hidden w-8 h-8 rounded-lg bg-white/[.05] text-white/40">×</button>
+      </div>
+      <div className="p-3 border-b border-white/[.06]"><input value={historyQuery} onChange={e=>setHistoryQuery(e.target.value)} placeholder="Search chats" className="w-full bg-white/[.04] border border-white/[.07] rounded-xl px-3 py-2 text-[9px] text-white/70 placeholder:text-white/20 outline-none"/></div>
+      <div className="px-3 py-2 text-[8px] uppercase tracking-[.18em] text-white/20">History</div>
+      <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-1">
+        {historyBusy&&<div className="px-2 py-3 text-[8px] text-white/20">Loading conversations…</div>}
+        {!historyBusy&&!shownConversations.length&&<div className="px-2 py-4 text-[8px] text-white/20">No saved chats yet. Your first message will create one.</div>}
+        {shownConversations.map(c=><button key={c.id} onClick={()=>void openConversation(c.id)} className={"w-full text-left px-3 py-2.5 rounded-xl border "+(conversationId===c.id?"bg-white/[.07] border-white/[.09]":"border-transparent hover:bg-white/[.04]")}>
+          <div className="text-[9px] text-white/65 truncate">{c.title||"New conversation"}</div>
+          <div className="text-[7px] text-white/20 mt-1">{c.last_message_at?new Date(c.last_message_at).toLocaleDateString(undefined,{month:"short",day:"numeric"}):"No activity"}</div>
+        </button>)}
+      </div>
+      <div className="p-3 border-t border-white/[.06]"><div className="text-[8px] text-white/20">Persistent history</div><div className="text-[7px] leading-4 text-white/15 mt-1">Chats stay attached to the BizStack workspace and can be reopened without losing the project context you were using.</div></div>
+    </aside>
+    <div className="min-w-0 flex-1">
     <div className="h-12 px-4 border-b border-white/[.07] flex items-center gap-3">
       <div className="font-semibold text-[11px] tracking-tight">BizStack Operator</div><div className="text-[9px] text-white/25 truncate">{businessName}</div><div className="hidden md:flex items-center gap-1.5 ml-3">{aiProviders.map(p=><span key={p.provider} className="px-2 py-1 rounded bg-emerald-300/[.06] border border-emerald-300/[.08] text-[7px] text-emerald-200/70">{p.provider} · {p.model}</span>)}{!aiProviders.length&&<span className="px-2 py-1 rounded bg-amber-300/[.06] border border-amber-300/[.08] text-[7px] text-amber-200/70">AI provider not configured</span>}</div>
-      <div className="ml-auto flex items-center gap-2"><button onClick={()=>setProjectOpen(true)} className="px-3 py-1.5 rounded-lg bg-white/[.06] text-[9px] text-white/60">+ Project</button><button onClick={()=>setAppOpen(true)} className="px-3 py-1.5 rounded-lg bg-indigo-400/10 border border-indigo-300/10 text-[9px] text-indigo-200">Apps</button></div>
+      <div className="ml-auto flex items-center gap-2"><button onClick={()=>setHistoryOpen(true)} className="xl:hidden px-3 py-1.5 rounded-lg bg-white/[.06] text-[9px] text-white/60">History</button><button onClick={startNewConversation} className="px-3 py-1.5 rounded-lg bg-white/[.06] text-[9px] text-white/60">New chat</button><button onClick={()=>setProjectOpen(true)} className="px-3 py-1.5 rounded-lg bg-white/[.06] text-[9px] text-white/60">+ Project</button><button onClick={()=>setAppOpen(true)} className="px-3 py-1.5 rounded-lg bg-indigo-400/10 border border-indigo-300/10 text-[9px] text-indigo-200">Apps</button></div>
     </div>
     <div className="px-3 py-2 border-b border-white/[.06] bg-[#0d0f13] flex items-center gap-2 overflow-x-auto">
       <span className="text-[8px] uppercase tracking-[.18em] text-white/20">Project</span>
@@ -300,9 +361,9 @@ export default function OperatorCockpit({
         <div className="flex-1 overflow-y-auto">
           {tab==="chat"&&<div className="p-4 space-y-5">
             {!messages.length&&<div className="pt-8"><div className="text-[8px] uppercase tracking-[.2em] text-white/20">Autonomous workspace</div><h2 className="text-3xl mt-2 tracking-tight">What should I handle?</h2><p className="text-[11px] text-white/35 leading-5 mt-3">Tell the Operator the outcome. It can now work against real project records and source files.</p><div className="grid grid-cols-2 gap-2 mt-5">{quickActions.map(x=><button key={x} onClick={()=>setInput(x)} className="text-left p-3 rounded-xl border border-white/[.07] text-[9px] text-white/45 hover:bg-white/[.04]">{x}</button>)}</div></div>}
-            {messages.map((m,i)=><div key={m.id||i}><div className="text-[9px] text-white/25 mb-1">{m.role==="user"?"You":m.role==="tool"?"Tool":"Operator"}</div><div className="text-[12px] leading-6 text-white/70 whitespace-pre-wrap">{m.content}</div></div>)}
+            {messages.map((m,i)=><div key={m.id||i} className="flex gap-3 items-start"><div className={"w-7 h-7 shrink-0 rounded-lg flex items-center justify-center text-[8px] font-semibold "+(m.role==="user"?"bg-white/[.08] text-white/55":"bg-indigo-400/10 text-indigo-200")}>{m.role==="user"?"You":"B"}</div><div className="min-w-0 flex-1"><div className="flex items-center gap-2 mb-1"><span className="text-[9px] text-white/35">{m.role==="user"?"You":"BizStack"}</span>{m.metadata?.ai_provider&&<span className="text-[7px] text-white/15">{String(m.metadata.ai_provider)}</span>}</div><div className="text-[12px] leading-6 text-white/72 whitespace-pre-wrap break-words">{m.content}</div></div></div>)}
             {approval&&<div className="p-3 rounded-xl border border-amber-300/20 bg-amber-300/[.05]"><div className="text-[8px] text-amber-200 uppercase">Approval required</div><p className="text-[10px] mt-2">{approval.action}</p><button className="mt-3 bg-white text-black rounded-lg px-3 py-2 text-[9px]" onClick={async()=>{setBusy(true);try{const r=await fetch("/api/assistant/approve",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:approval.runId})});const x=await r.json().catch(()=>({}));setApproval(x.approval||null);setMessages(v=>[...v,{role:"assistant",content:x.message||"Approved action completed."}]);await loadProjects(projectId||undefined).catch(()=>null)}finally{setBusy(false)}}}>Approve</button></div>}
-            {busy&&<div className="text-[9px] text-white/30 animate-pulse">Operator is working across the workspace…</div>}<div ref={end}/>
+            {busy&&<div className="flex gap-3 items-center py-2"><div className="w-7 h-7 rounded-lg bg-indigo-400/10 flex items-center justify-center text-[8px] text-indigo-200 animate-pulse">B</div><div className="text-[9px] text-white/30">BizStack is working across the workspace…</div></div>}<div ref={end}/>
           </div>}
           {tab==="code"&&<div className="h-full min-h-[620px] flex">
             <div className="w-56 shrink-0 border-r border-white/[.06] bg-[#0f1115] overflow-y-auto"><div className="px-3 py-2 border-b border-white/[.05] text-[8px] uppercase tracking-[.15em] text-white/20">{project?.name||"No project"}</div>{!project&&<div className="p-3 text-[9px] text-white/25">Create or select a project to open its real source tree.</div>}{project&&files.map(f=><button key={f.path} onClick={()=>{setSelectedPath(f.path);setEditor(String(f.content??""));setFileDirty(false)}} className={selectedPath===f.path?"w-full text-left px-3 py-2 bg-white/[.07] text-[9px] text-white":"w-full text-left px-3 py-2 text-[9px] text-white/35 hover:bg-white/[.04]"}>{f.path}</button>)}{project&&files.length===0&&<div className="p-3 text-[9px] text-white/20">No source files yet. Ask the Operator to create the project files.</div>}</div>
@@ -348,7 +409,7 @@ export default function OperatorCockpit({
           </div>}
           {tab==="run"&&<div>{events.length?events.map(e=><button key={e.id} onClick={()=>setSelectedEvent(e)} className="w-full text-left px-4 py-3 border-b border-white/[.05] hover:bg-white/[.03]"><div className="flex gap-2 text-[9px]"><span className={e.status==="failed"?"text-red-300":"text-emerald-300"}>●</span><span className="text-white/55">{e.title}</span><span className="ml-auto text-white/20">{e.status}</span></div>{e.detail&&<p className="text-[8px] text-white/20 mt-1">{e.detail}</p>}</button>):<div className="p-5 text-[9px] text-white/20">No runtime events recorded for this workspace yet.</div>}</div>}
         </div>
-        <div className="p-3 border-t border-white/[.07]"><div className="rounded-2xl border border-white/[.1] bg-[#15181e] p-2">{picker&&<div className="mb-2 p-2 rounded-xl bg-[#1b1e25]">{apps.filter(a=>a.connected).map(a=><button key={a.slug} onClick={()=>{setContext(v=>v.some(x=>x.slug===a.slug)?v:[...v,a]);setPicker(false)}} className="block w-full text-left px-2 py-2 text-[9px] hover:bg-white/[.05]">@{a.name}</button>)}{!apps.some(a=>a.connected)&&<button onClick={()=>{setPicker(false);setAppOpen(true)}} className="text-[9px] text-indigo-200 p-2">Connect an app →</button>}</div>}<div className="flex items-end gap-2"><button onClick={()=>setPicker(v=>!v)} className="w-8 h-8 rounded-xl bg-white/[.05] text-white/40">+</button><VoiceInput onTranscript={setInput}/><textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();void send()}}} rows={2} placeholder="Ask the Operator to do something…" className="flex-1 resize-none bg-transparent outline-none text-[11px] leading-5 placeholder:text-white/20"/><button onClick={()=>void send()} disabled={!input.trim()||busy} className="w-9 h-9 rounded-xl bg-white text-black disabled:opacity-20">↑</button></div></div><p className="text-[8px] text-white/15 mt-2">Enter run · Shift+Enter newline · + adds connected tools to this turn</p></div>
+        <div className="p-3 border-t border-white/[.07]"><div className="rounded-2xl border border-white/[.1] bg-[#15181e] p-2">{picker&&<div className="mb-2 p-2 rounded-xl bg-[#1b1e25]">{apps.filter(a=>a.connected).map(a=><button key={a.slug} onClick={()=>{setContext(v=>v.some(x=>x.slug===a.slug)?v:[...v,a]);setPicker(false)}} className="block w-full text-left px-2 py-2 text-[9px] hover:bg-white/[.05]">@{a.name}</button>)}{!apps.some(a=>a.connected)&&<button onClick={()=>{setPicker(false);setAppOpen(true)}} className="text-[9px] text-indigo-200 p-2">Connect an app →</button>}</div>}<div className="flex items-end gap-2"><button onClick={()=>setPicker(v=>!v)} className="w-8 h-8 rounded-xl bg-white/[.05] text-white/40">+</button><VoiceInput onTranscript={setInput}/><textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();void send()}}} rows={2} placeholder={project?.project_type==="website"?"Describe the website you want to build or change…":"Ask BizStack to build, inspect, edit, run, review or operate something…"} className="flex-1 resize-none bg-transparent outline-none text-[11px] leading-5 placeholder:text-white/20"/><button onClick={()=>void send()} disabled={!input.trim()||busy} className="w-9 h-9 rounded-xl bg-white text-black disabled:opacity-20">↑</button></div></div><div className="mt-2 flex items-center justify-between gap-3"><p className="text-[8px] text-white/15">Enter run · Shift+Enter newline · + adds connected tools to this turn</p><span className="text-[7px] text-white/15">{project?.project_type==="website"?"Website Creator mode":"AI engineering + operations"}</span></div></div>
       </section>
 
       <section className="bg-[#15181d] border-r border-white/[.07] min-h-0"><div className="h-10 px-4 border-b border-white/[.06] flex items-center justify-between"><span className="text-[9px] text-white/35">Project work surface</span><span className="text-[8px] text-white/20">{project?project.slug:"operator runtime"}</span></div>{project?<div className="p-5"><div className="grid md:grid-cols-2 xl:grid-cols-3 gap-2.5"><div className="rounded-2xl bg-white/[.025] border border-white/[.06] p-4"><div className="text-[8px] uppercase tracking-[.18em] text-white/20">Source</div><div className="text-2xl mt-2">{files.length}</div><div className="text-[9px] text-white/25 mt-1">editable files</div></div><div className="rounded-2xl bg-white/[.025] border border-white/[.06] p-4"><div className="text-[8px] uppercase tracking-[.18em] text-white/20">Revision</div><div className="text-2xl mt-2">{selectedFile?.version_no||"—"}</div><div className="text-[9px] text-white/25 mt-1">selected file revision</div></div><div className="rounded-2xl bg-white/[.025] border border-white/[.06] p-4"><div className="text-[8px] uppercase tracking-[.18em] text-white/20">Preview</div><div className="text-[10px] mt-3">{project.preview_url||"Not published"}</div><div className="text-[9px] text-white/25 mt-1">only verified URLs appear</div></div></div><div className="mt-4 rounded-2xl border border-white/[.06] bg-white/[.02] p-4"><div className="text-[8px] uppercase tracking-[.18em] text-white/20">Operator contract</div><p className="text-[11px] text-white/40 leading-6 mt-2">Natural language and voice requests can now resolve against a persistent project graph, read source files, write source files and snapshot versions. Terminal execution, browser execution and sandbox isolation remain separate runtime adapters and are not faked here.</p></div></div>:<div className="h-[calc(100%-40px)] flex items-center justify-center p-10 text-center"><div className="max-w-md"><div className="w-16 h-16 rounded-[20px] border border-white/[.07] bg-white/[.03] mx-auto flex items-center justify-center text-[9px] text-white/20">PROJECT</div><h3 className="text-lg mt-5">Attach a real software project.</h3><p className="text-[10px] text-white/25 leading-5 mt-3">Create a project here or ask the Operator to create one. The center surface reflects persisted project state rather than simulated build output.</p><button onClick={()=>setProjectOpen(true)} className="mt-5 rounded-xl bg-white text-black px-4 py-2 text-[9px]">Create project</button></div></div>}</section>
