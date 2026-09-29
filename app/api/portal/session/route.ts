@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const token = req.cookies.get("bizstack_portal_session")?.value;
   if (!token) return NextResponse.json({ authenticated: false });
 
-  const admin = createAdminClient();
+  const admin = createAdminClient() as any;
   const { data: rawSession } = await admin
     .from("customer_portal_sessions")
     .select("id,portal_id,customer_id,expires_at,revoked_at")
