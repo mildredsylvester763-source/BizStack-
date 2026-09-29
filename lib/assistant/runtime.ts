@@ -147,8 +147,8 @@ async function getConversationMessages(
   const byAttachment = new Map(hydratedEntries.map(([id, value]) => [id, value.parts]));
 
   return rows.map((row) => {
-    const ids = row.role === "user" && Array.isArray(row.metadata?.attachments)
-      ? row.metadata.attachments.map((item: any) => String(item?.id || "")).filter(Boolean)
+    const ids: string[] = row.role === "user" && Array.isArray(row.metadata?.attachments)
+      ? row.metadata.attachments.map((item: any) => String(item?.id || "")).filter(Boolean) as string[]
       : [];
     const attachmentParts = ids.flatMap((id) => byAttachment.get(id) || []);
     return {
