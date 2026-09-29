@@ -52,7 +52,7 @@ async function loadFiles(supabase: ReturnType<typeof createClient>, projectId: s
 
 export async function POST(
   request: Request,
-  context: { params: { projectId: string } }
+  context: { params: Promise<{ projectId: string }> }
 ) {
   try {
     const supabase = createClient();
@@ -66,7 +66,7 @@ export async function POST(
       }, { status: 503 });
     }
 
-    const project = await loadProject(supabase, context.params.projectId, user.id);
+    const project = await loadProject(supabase, (await context.params).projectId, user.id);
     const body = await request.json().catch(() => ({}));
     const action = typeof body.action === "string" ? body.action : "sync";
 
