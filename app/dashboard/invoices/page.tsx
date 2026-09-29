@@ -36,7 +36,7 @@ export default async function InvoicesPage() {
           <span className="text-xs text-ink/55">{paid>0?formatMoney(paid,inv.currency)+" paid · ":""}{formatMoney(outstanding,inv.currency)} due</span>
           <span className={`text-xs px-2.5 py-1 rounded-full text-center capitalize ${STATUS_STYLES[displayStatus]??"bg-ink/10 text-ink/60"}`}>{displayStatus.replace("_"," ")}</span>
         </Link>;
-      })}</div>}
+      })}</div></div>}
     </section>
   </main>;
 }
