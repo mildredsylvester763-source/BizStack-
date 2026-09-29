@@ -6,7 +6,7 @@ import { assertBusinessOwner, saveIntegrationCredential } from "@/lib/integratio
 export const runtime="nodejs";
 
 export async function POST(req:NextRequest){
-  const supabase=createClient();
+  const supabase=await createClient();
   const {data:{user}}=await supabase.auth.getUser();
   if(!user) return NextResponse.json({error:"Unauthorized"},{status:401});
   const body=await req.json().catch(()=>null);
