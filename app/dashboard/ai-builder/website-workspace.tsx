@@ -530,13 +530,3 @@ export default function WebsiteWorkspace({
         </div>
       </aside>
     </div>
-      {blueprintOpen && project && (
-        <div className="fixed inset-0 z-[70] bg-black/70 backdrop-blur-[4px] p-2 sm:p-4 lg:p-7">
-          <div className="relative h-full w-full max-w-[1500px] mx-auto overflow-hidden rounded-[24px] border border-white/[.1] bg-[#090b0e] shadow-[0_30px_120px_rgba(0,0,0,.55)]">
-            <button onClick={() => setBlueprintOpen(false)} aria-label="Close Website Blueprint" className="absolute right-4 top-4 z-10 h-9 w-9 rounded-xl border border-white/[.08] bg-black/30 text-white/45 hover:text-white/75">×</button>
-            <WebsiteBlueprint projectId={project.id} projectName={project.name} onAskAI={prompt => { setBlueprintOpen(false); onAskAI(prompt); }} />
-          </div>
-        </div>
-      )}
-  );
-}
