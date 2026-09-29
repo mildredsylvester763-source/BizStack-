@@ -24,7 +24,7 @@ function validCommand(cmd: unknown, args: unknown) {
   return { cmd, args: args as string[] };
 }
 
-async function loadProject(supabase: ReturnType<typeof createClient>, projectId: string, userId: string) {
+async function loadProject(supabase: Awaited<ReturnType<typeof createClient>>, projectId: string, userId: string) {
   const { data, error } = await supabase
     .from("ai_projects")
     .select("id,name,slug,status,business_id,framework,runtime")
@@ -38,7 +38,7 @@ async function loadProject(supabase: ReturnType<typeof createClient>, projectId:
   return data;
 }
 
-async function loadFiles(supabase: ReturnType<typeof createClient>, projectId: string) {
+async function loadFiles(supabase: Awaited<ReturnType<typeof createClient>>, projectId: string) {
   const { data, error } = await supabase
     .from("ai_project_files")
     .select("path,content,is_binary")
