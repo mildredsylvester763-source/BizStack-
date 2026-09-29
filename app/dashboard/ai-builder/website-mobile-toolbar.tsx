@@ -9,6 +9,7 @@ export default function WebsiteMobileToolbar({
   onRoute,
   onDevice,
   onAsk,
+  onBlueprint,
 }: {
   route: string;
   routes: Array<{ path: string; label: string }>;
