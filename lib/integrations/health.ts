@@ -35,7 +35,7 @@ const ENDPOINTS:Record<string,(token:string, cfg:any)=>{url:string;headers:Recor
   salesforce:(t)=>({url:"https://login.salesforce.com/services/oauth2/userinfo",headers:{Authorization:`Bearer ${t}`}}),
   airtable:(t)=>({url:"https://api.airtable.com/v0/meta/whoami",headers:{Authorization:`Bearer ${t}`}}),
   stripe:(t)=>({url:"https://api.stripe.com/v1/account",headers:{Authorization:"Basic "+Buffer.from(t+":").toString("base64")}}),
-  shopify:(t,c)=>({url:`https://${String(c?.shop_domain||c?.shop||"").replace(/^https?:\\/\\//,"")}/admin/api/2025-10/shop.json`,headers:{X:"x"}})
+  shopify:(t,c)=>({url:`https://${String(c?.shop_domain||c?.shop||"").replace(/^https?:\/\//,"")}/admin/api/2025-10/shop.json`,headers:{X:"x"}})
 };
 
 function normalizeProvider(provider:string){return provider==="microsoft-365"?"microsoft":provider;}
@@ -49,7 +49,7 @@ export async function verifyIntegrationHealth(supabase:any, integration:any, bus
   let request=ENDPOINTS[provider]?.(token,cfg);
   if(!request) throw new Error(`No health-check adapter is registered for ${provider} yet.`);
   if(provider==="shopify"){
-    const domain=String(cfg.shop_domain||cfg.shop||"").trim().replace(/^https?:\\/\\//,"").replace(/\\/$/,"");
+    const domain=String(cfg.shop_domain||cfg.shop||"").trim().replace(/^https?:\/\//,"").replace(/\\/$/,"");
     if(!domain) throw new Error("Shopify shop domain is required.");
     request={url:`https://${domain}/admin/api/2025-10/shop.json`,headers:{Authorization:`Bearer ${token}`,Accept:"application/json"}};
   }
