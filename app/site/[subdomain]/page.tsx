@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase-server";
 
 export default async function PublicHome(props:{params: Promise<{subdomain:string}>}) {
  const params = await props.params;
- const supabase=createClient();
+ const supabase=await createClient();
  const {data:site}=await supabase.from("websites").select("id,name,subdomain,status,settings").eq("subdomain",params.subdomain).eq("status","published").maybeSingle();
  if(!site)notFound();
  const {data:page}=await supabase.from("website_pages").select("title,content,seo").eq("website_id",site.id).eq("slug","home").eq("status","published").maybeSingle();
