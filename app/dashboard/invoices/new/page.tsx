@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase-browser";
+import { formatMoney } from "@/lib/invoices";
 
 type Customer = { id: string; name: string; email: string | null; phone: string | null };
 type LineItem = { description: string; quantity: number; unit_price: number };
