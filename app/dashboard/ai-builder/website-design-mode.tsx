@@ -15,13 +15,15 @@ export default function WebsiteDesignMode({
   source,
   elements,
   onAsk,
+  liveElement,
+  onEnableLive,
 }: {
   route: string;
   source: string;
   elements: ElementItem[];
   onAsk: (prompt: string) => void;
-  liveElement?: { tag: string; text: string; selector: string; className: string; href: string } | null;
-  onEnableLive?: () => void;
+  liveElement: { tag: string; text: string; selector: string; className: string; href: string } | null;
+  onEnableLive: () => void;
 }) {
   const [tab, setTab] = useState<DesignTab>("select");
   const [selected, setSelected] = useState<ElementItem | null>(null);
@@ -92,7 +94,7 @@ export default function WebsiteDesignMode({
         </div>
 
         {tab === "select" && (
-          <div className="mt-3 rounded-xl border border-cyan-300/[.1] bg-cyan-300/[.035] p-3">
+          <div className="mt-3 space-y-2.5"> bg-cyan-300/[.035] p-3">
             <div className="flex items-center gap-2">
               <span className="grid h-7 w-7 place-items-center rounded-lg bg-cyan-300/[.08] text-cyan-100 text-[9px]">⌁</span>
               <div className="min-w-0 flex-1">
@@ -107,9 +109,9 @@ export default function WebsiteDesignMode({
               <div className="text-[7px] text-white/18 mt-1 break-all">{liveElement.className || "no class metadata"}</div>
               <button onClick={() => onAsk("Use Design Mode on the live-selected " + liveElement.tag + " element. Source: " + source + ". Selector: " + liveElement.selector + ". Preserve behavior and ask for approval before applying source changes.")} className="mt-2 w-full rounded-lg bg-white text-black px-2 py-2 text-[7px]">Plan change for selected element</button>
             </div>}
-          </div>
+            </div>
 
-          <div className="mt-3 space-y-1.5">
+            <div className="space-y-1.5">
             <div className="text-[7px] uppercase tracking-[.16em] text-white/20 px-1">Page elements</div>
             {!elements.length && <div className="rounded-xl border border-white/[.05] p-3 text-[8px] leading-4 text-white/22">No source element descriptors are available yet. Use Builder to inspect the page source.</div>}
             {elements.map(item => (
