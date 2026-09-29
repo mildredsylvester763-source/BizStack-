@@ -47,7 +47,7 @@ export default function NewInvoicePage() {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { data: business } = await supabase.from("businesses").select("id, currency").eq("owner_id", user.id).single();
+      const { data: business } = await supabase.from("businesses").select("id, currency, name").eq("owner_id", user.id).single();
       if (!business) return;
       setCurrency(business.currency || "USD");
       setBusinessName(business.name || "Your business");
