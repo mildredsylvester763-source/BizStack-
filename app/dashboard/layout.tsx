@@ -53,7 +53,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <nav className="biz-nav">
             <div className="biz-nav-group">Workspace</div>
             {NAV.map(item => (
-              <Link key={item.href} href={item.href} className={"biz-nav-item " + (item.href === "/dashboard" ? "active" : "")}>
+              <Link key={item.href} href={item.href} className="biz-nav-item">
                 <span className="biz-nav-icon text-[11px]">{item.icon}</span>
                 <span>{item.label}</span>
               </Link>
@@ -93,7 +93,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
               <input className="biz-search" aria-label="Search BizStack" placeholder="Search projects, customers, invoices, tools…" />
             </div>
             <div className="flex items-center gap-2">
-              <Link href="/dashboard/notifications" className="grid h-8 w-8 place-items-center rounded-lg border border-white/[.09] bg-white/[.03] text-[10px] text-white/50">◌</Link>
+              <Link href="/dashboard/actions" className="grid h-8 w-8 place-items-center rounded-lg border border-white/[.09] bg-white/[.03] text-[10px] text-white/50">◌</Link>
               <Link href="/dashboard/ai-builder" className="rounded-lg border border-blue-400/20 bg-blue-500/10 px-3 py-2 text-[8px] font-medium text-blue-200">Open AI Builder</Link>
               <div className="hidden sm:block text-right">
                 <div className="text-[8px] text-white/55">{business.name}</div>
