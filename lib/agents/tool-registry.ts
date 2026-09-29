@@ -77,7 +77,7 @@ export function buildPlan(input: string): { toolKey: string; input: Record<strin
   if (/(whatsapp|facebook messenger|messenger|sms|email|customer message|inbox|reply to customer)/.test(text)) plan.push({ toolKey: "communications.inbox", input: { limit: 50 } });
   if (/(build|create|make|edit|modify|code|app|application|website|project|repository|file|feature|terminal|preview)/.test(text)) plan.push({ toolKey: "projects.list", input: {} });
   if (/(design mode|typography|font size|font weight|border radius|shadow|spacing|visual style|visual change|responsive layout|change the content|redesign this|make this bigger|make this smaller)/.test(text) && /website|page|section|button|heading|image|form|design/.test(text)) {
-    const sourceMatch = input.match(/source(?:\\s+file)?:\\s*([^\\s,;]+\\.(?:tsx|ts|jsx|js|css|scss))/i);
+    const sourceMatch = input.match(/source(?:\s+file)?:\s*([^\s,;]+\.(?:tsx|ts|jsx|js|css|scss))/i);
     plan.push({
       toolKey: "website.design.apply",
       input: {
@@ -343,7 +343,7 @@ export async function executeTool(toolKey: string, input: Record<string, unknown
 
     const { data: files, error: filesError } = await supabase
       .from("ai_project_files")
-      .select("path,content,language,is_binary")
+      .select("path,content,language,is_binary,version_no")
       .eq("project_id", projectId)
       .order("path");
     if (filesError) throw filesError;
