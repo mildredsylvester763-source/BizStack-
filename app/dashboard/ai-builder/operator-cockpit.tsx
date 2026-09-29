@@ -8,7 +8,8 @@ type App={name:string;slug:string;category:string;description:string;icon_key:st
 type Msg={id?:string;role:"user"|"assistant"|"tool";content:string;metadata?:any};
 type Event={id:string;title:string;status:string;detail?:string;input?:any;output?:any};
 type Project={id:string;name:string;slug:string;project_type:string;status:string;default_branch:string;framework:string|null;runtime:string|null;repository_name:string|null;preview_url:string|null;production_url:string|null;updated_at:string};
-type ProjectFile={id:string;path:string;content:string|null;content_sha:string|null;language:string|null;size_bytes:number;is_binary:boolean;version_no:number;updated_at:string};\ntype EngineeringMode="plan"|"review"|"architecture";
+type ProjectFile={id:string;path:string;content:string|null;content_sha:string|null;language:string|null;size_bytes:number;is_binary:boolean;version_no:number;updated_at:string};
+type EngineeringMode="plan"|"review"|"architecture";
 
 const FALLBACK:App[]=[
  {name:"Google Drive",slug:"google-drive",category:"Files",description:"Search and work with Drive files, Docs, Sheets and Slides.",icon_key:"GD"},
