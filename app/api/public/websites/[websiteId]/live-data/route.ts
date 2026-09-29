@@ -8,6 +8,12 @@ const PUBLIC_PRODUCT_FIELDS = new Set(["id","name","sku","unit","unit_price","is
 const PUBLIC_PROFILE_FIELDS = new Set(["name","industry","currency","address","contact_email","contact_phone"]);
 const PUBLIC_INVENTORY_FIELDS = new Set(["id","name","sku","unit","stock_quantity","is_active"]);
 
+type PublishedWebsiteRecord = {
+  id:string;
+  business_id:string;
+  status:string;
+};
+
 function pick(row: Record<string, unknown>, fields: string[], allowed: Set<string>) {
   const output: Record<string, unknown> = {};
   for (const field of fields) {
@@ -21,12 +27,13 @@ export async function GET(
   { params }: { params: { websiteId: string } }
 ) {
   const supabase = createAdminClient();
-  const { data: website, error } = await supabase
+  const { data: rawWebsite, error } = await supabase
     .from("websites")
     .select("id,business_id,status")
     .eq("id", params.websiteId)
     .eq("status", "published")
     .single();
+  const website = rawWebsite as PublishedWebsiteRecord|null;
 
   if (error || !website) {
     return NextResponse.json({ error: "Published website not found." }, { status: 404 });
