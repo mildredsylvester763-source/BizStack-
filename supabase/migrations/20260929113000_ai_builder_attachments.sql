@@ -27,6 +27,8 @@ create index if not exists ai_builder_attachments_conversation_idx
   on public.ai_builder_attachments(conversation_id, created_at desc);
 create index if not exists ai_builder_attachments_project_idx
   on public.ai_builder_attachments(project_id, created_at desc);
+create index if not exists ai_builder_attachments_created_by_idx
+  on public.ai_builder_attachments(created_by);
 
 alter table public.ai_builder_attachments enable row level security;
 
