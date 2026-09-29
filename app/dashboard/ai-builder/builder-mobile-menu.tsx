@@ -35,8 +35,10 @@ export default function BuilderMobileMenu({
     { label: "AI Builder", detail: "Build, edit, inspect and ship", icon: "✦", action: onNewChat },
     { label: "Website Creator", detail: "Design, pages, source and preview", icon: "◇", action: onOpenWebsite },
     { label: "Projects", detail: projectName || "Choose a software project", icon: "▦", action: onOpenProject },
+    { label: "Customer profiles", detail: "Customers, records and activity", icon: "◎", action: () => { window.location.href = "/dashboard/customers"; } },
     { label: "Connections", detail: "Accounts, APIs and services", icon: "⌁", action: onOpenApps },
     { label: "Chats & history", detail: "Persistent Builder conversations", icon: "◌", action: onOpenHistory },
+    { label: "Settings", detail: "Business and workspace controls", icon: "⚙", action: () => { window.location.href = "/dashboard/settings"; } },
   ];
 
   return (
