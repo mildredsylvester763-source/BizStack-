@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 export async function POST(_req:NextRequest, props:{params: Promise<{id:string}>}) {
  const params = await props.params;
- const supabase=createClient();
+ const supabase=await createClient();
  const {data:{user}}=await supabase.auth.getUser();if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
  const {data:business}=await supabase.from("businesses").select("id").eq("owner_id",user.id).single();if(!business)return NextResponse.json({error:"Business not found"},{status:404});
  const {data:client}=await supabase.from("finance_api_clients").select("id").eq("id",params.id).eq("business_id",business.id).single();if(!client)return NextResponse.json({error:"API client not found"},{status:404});
