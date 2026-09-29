@@ -15,11 +15,11 @@ async function markSent(formData: FormData) {
   await supabase.from("events").insert({
     business_id: businessId,
     event_type: "invoice.sent",
-    summary: \`Invoice \${invoiceNumber} marked as sent\`,
+    summary: `Invoice ${invoiceNumber} marked as sent`,
     evidence: { invoice_id: invoiceId },
     status: "info"
   });
-  revalidatePath(\`/dashboard/invoices/\${invoiceId}\`);
+  revalidatePath(`/dashboard/invoices/${invoiceId}`);
 }
 
 async function markPaid(formData: FormData) {
@@ -42,12 +42,12 @@ async function markPaid(formData: FormData) {
   await supabase.from("events").insert({
     business_id: businessId,
     event_type: "invoice.paid",
-    summary: \`\${total} \${currency} received from \${customerName} for invoice \${invoiceNumber} via \${paymentMethod.replace("_", " ")}\`,
+    summary: `${total} ${currency} received from ${customerName} for invoice ${invoiceNumber} via ${paymentMethod.replace("_", " ")}`,
     evidence: { invoice_id: invoiceId, total, currency, payment_method: paymentMethod },
     status: "info"
   });
 
-  revalidatePath(\`/dashboard/invoices/\${invoiceId}\`);
+  revalidatePath(`/dashboard/invoices/${invoiceId}`);
   revalidatePath("/dashboard/invoices");
 }
 
@@ -107,15 +107,15 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
       await supabase.from("events").insert({
         business_id: business.id,
         event_type: "payment.overdue",
-        summary: autoExecute ? \`Invoice \${invoice.invoice_number} is overdue — reminder would be sent automatically\` : \`Invoice \${invoice.invoice_number} is overdue and needs your decision on a reminder\`,
+        summary: autoExecute ? `Invoice ${invoice.invoice_number} is overdue — reminder would be sent automatically` : `Invoice ${invoice.invoice_number} is overdue and needs your decision on a reminder`,
         evidence: { invoice_id: invoice.id },
         status: autoExecute ? "auto_handled" : "needs_approval"
       });
     }
   }
 
-  const qrPayload = encodeURIComponent(\`Pay \${total.toFixed(2)} \${invoice.currency} to \${business.name} — Invoice \${invoice.invoice_number}\`);
-  const qrUrl = \`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=\${qrPayload}\`;
+  const qrPayload = encodeURIComponent(`Pay ${total.toFixed(2)} ${invoice.currency} to ${business.name} — Invoice ${invoice.invoice_number}`);
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${qrPayload}`;
 
   return (
     <main className="biz-page min-h-screen">
