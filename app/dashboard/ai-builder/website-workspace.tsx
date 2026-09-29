@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import WebsiteMobileToolbar from "./website-mobile-toolbar";
+import WebsiteDesignMode from "./website-design-mode";
 
 type Project = {
   id: string;
@@ -142,6 +143,7 @@ export default function WebsiteWorkspace({
   const [previewBusy, setPreviewBusy] = useState(false);
   const [previewError, setPreviewError] = useState("");
   const [focusMode, setFocusMode] = useState<"page" | "elements">("page");
+  const [designModeOpen, setDesignModeOpen] = useState(false);
   const [sourceGraph, setSourceGraph] = useState<{
     summary: { files: number; routes: number; components: number; apiSurfaces: number; styles: number; assets: number; dataSurfaces: number; integrations: number };
     nodes: Array<{ id: string; kind: string; label: string; path: string; route?: string; evidence: string[] }>;
@@ -409,7 +411,15 @@ export default function WebsiteWorkspace({
       </section>
 
       <aside className="hidden lg:block w-[250px] shrink-0 border-l border-white/[.06] bg-[#0d0f13] p-3 overflow-y-auto">
-        <div className="text-[8px] uppercase tracking-[.18em] text-white/20">Page context</div>
+        <div className="flex items-center justify-between">
+          <div className="text-[8px] uppercase tracking-[.18em] text-white/20">Page context</div>
+          <button onClick={() => setDesignModeOpen(v => !v)} className={designModeOpen ? "px-2 py-1 rounded-lg bg-indigo-300/[.1] border border-indigo-300/[.12] text-[7px] text-indigo-100" : "px-2 py-1 rounded-lg border border-white/[.06] text-[7px] text-white/35"}>{designModeOpen ? "Close Design Mode" : "Design Mode"}</button>
+        </div>
+        {designModeOpen && (
+          <div className="mt-3">
+            <WebsiteDesignMode route={selectedRoute?.path || "/"} source={selectedRoute?.source || ""} elements={elementMap} onAsk={onAskAI} />
+          </div>
+        )}
         <div className="rounded-2xl border border-white/[.06] bg-white/[.02] p-3 mt-2">
           <div className="text-[8px] text-white/25">Route</div>
           <div className="text-[10px] text-white/65 mt-1 break-all">{selectedRoute?.path || "/"}</div>
