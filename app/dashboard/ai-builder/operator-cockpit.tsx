@@ -405,7 +405,7 @@ export default function OperatorCockpit({
       </div>
       <div className="p-3 border-t border-white/[.06]"><div className="text-[8px] text-white/20">Persistent history</div><div className="text-[7px] leading-4 text-white/15 mt-1">Chats stay attached to the BizStack workspace and can be reopened without losing the project context you were using.</div></div>
     </aside>
-      <div className="min-h-screen bg-[#0b0d11] text-white xl:pl-[250px]">
+      <div className="bizstack-builder min-h-screen bg-[#0b0d11] text-white xl:pl-[250px]">
 
     <div className="h-14 px-3 sm:px-4 border-b border-white/[.07] flex items-center gap-2">
       <BuilderMobileMenu
