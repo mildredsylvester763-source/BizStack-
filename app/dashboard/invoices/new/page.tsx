@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase-browser";
 import { formatMoney } from "@/lib/invoices";
 
 type Customer = { id: string; name: string; email: string | null; phone: string | null };
+type AttachmentMeta = { name: string; size: number; type: string };
 type LineItem = { description: string; quantity: number; unit_price: number };
 
 const PAYMENT_TERMS = ["Due on receipt", "Net 7", "Net 15", "Net 30", "Net 45", "Net 60"];
@@ -15,6 +16,7 @@ export default function NewInvoicePage() {
   const router = useRouter();
   const supabase = createClient();
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [businessName, setBusinessName] = useState("Your business");
   const [customerId, setCustomerId] = useState("");
   const [issueDate, setIssueDate] = useState(new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState("");
@@ -33,7 +35,7 @@ export default function NewInvoicePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [attachmentNames, setAttachmentNames] = useState<string[]>([]);
+  const [attachments, setAttachments] = useState<AttachmentMeta[]>([]);
   const [documentSettings, setDocumentSettings] = useState({
     show_logo: true, show_customer_address: true, show_tax: true, show_discount: true,
     show_shipping: false, show_reference: true, show_purchase_order: true, show_notes: true,
@@ -48,6 +50,7 @@ export default function NewInvoicePage() {
       const { data: business } = await supabase.from("businesses").select("id, currency").eq("owner_id", user.id).single();
       if (!business) return;
       setCurrency(business.currency || "USD");
+      setBusinessName(business.name || "Your business");
       const { data: settings } = await supabase.from("business_settings").select("tax_mode, default_tax_rate, default_tax_name, tax_jurisdiction, invoice_settings").eq("business_id", business.id).maybeSingle();
       if (settings) {
         setTaxEnabled(settings.tax_mode !== "disabled" && Boolean(settings.default_tax_rate));
@@ -88,6 +91,19 @@ export default function NewInvoicePage() {
   function toggleDocumentSetting(key: keyof typeof documentSettings) {
     setDocumentSettings(prev => ({ ...prev, [key]: !prev[key] }));
   }
+
+  function setFiles(fileList: FileList | null) {
+    const next = Array.from(fileList ?? []).map(file => ({ name: file.name, size: file.size, type: file.type }));
+    setAttachments(prev => [...prev, ...next]);
+  }
+
+  function formatFileSize(bytes: number) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  const visibleSettingCount = Object.values(documentSettings).filter(Boolean).length;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -260,15 +276,15 @@ export default function NewInvoicePage() {
                 </label>
               </div>
               <div className="p-6 sm:p-7">
-                {!attachmentNames.length ? (
+                {!attachments.length ? (
                   <label className="group flex min-h-[150px] cursor-pointer flex-col items-center justify-center rounded-[22px] border border-dashed border-black/15 bg-white/50 px-6 text-center hover:bg-white transition-colors">
                     <span className="h-11 w-11 rounded-2xl border border-black/10 bg-[#f4f1e9] flex items-center justify-center text-lg text-black/45">↥</span>
                     <span className="mt-3 text-sm font-medium">Drop files here or choose files</span>
                     <span className="mt-1 text-xs text-black/35">PDF, images, documents and other supporting files</span>
-                    <input type="file" multiple className="hidden" onChange={e => setAttachmentNames(Array.from(e.target.files ?? []).map(file => file.name))} />
+                    <input type="file" multiple className="hidden" onChange={e => setFiles(e.target.files)} />
                   </label>
                 ) : (
-                  <div className="space-y-2">{attachmentNames.map(name => <div key={name} className="flex items-center justify-between rounded-2xl border border-black/[.08] bg-white px-4 py-3"><div className="min-w-0"><p className="text-sm font-medium truncate">{name}</p><p className="text-[10px] uppercase tracking-[.14em] text-black/30 mt-1">Attachment selected</p></div><span className="text-xs text-[#52799a]">Ready</span></div>)}</div>
+                  <div className="space-y-2">{attachments.map((file, index) => <div key={`${file.name}-${index}`} className="flex items-center gap-3 rounded-2xl border border-black/[.08] bg-white px-4 py-3"><span className="h-9 w-9 shrink-0 rounded-xl bg-[#f1eee5] flex items-center justify-center text-[10px] uppercase tracking-[.08em] text-black/45">{file.type.split("/")[1]?.slice(0,4) || "file"}</span><div className="min-w-0 flex-1"><p className="text-sm font-medium truncate">{file.name}</p><p className="text-[10px] uppercase tracking-[.14em] text-black/30 mt-1">Selected · {formatFileSize(file.size)}</p></div><span className="text-xs text-[#52799a]">Ready</span></div>)}</div>
                 )}
               </div>
             </section>
@@ -282,12 +298,12 @@ export default function NewInvoicePage() {
 
           <aside className="xl:sticky xl:top-[92px]">
             <div className="rounded-[30px] border border-black/[.08] bg-[#fcfaf5] shadow-[0_28px_90px_rgba(25,24,20,.10)] overflow-hidden">
-              <div className="px-6 py-5 border-b border-black/[.07] flex items-center justify-between"><div><p className="text-[9px] uppercase tracking-[.2em] text-black/30">Live document</p><p className="text-sm font-medium mt-1">Invoice preview</p></div><span className="text-[10px] text-black/30">{currency}</span></div>
+              <div className="px-6 py-5 border-b border-black/[.07] flex items-center justify-between gap-4"><div><p className="text-[9px] uppercase tracking-[.2em] text-black/30">Live document</p><p className="text-sm font-medium mt-1">Invoice preview</p></div><div className="flex items-center gap-2"><span className="rounded-full border border-black/10 bg-white px-2.5 py-1 text-[9px] uppercase tracking-[.14em] text-black/40">{visibleSettingCount}/14 shown</span><span className="text-[10px] text-black/30">{currency}</span></div></div>
               <div className="p-7 sm:p-8 bg-white min-h-[620px]">
-                <div className="flex items-start justify-between gap-5 pb-8 border-b border-black/[.08]"><div><div className="h-8 w-8 rounded-lg bg-[#202725] mb-4" /><p className="font-display text-xl">INVOICE</p><p className="font-mono text-[10px] text-black/35 mt-1">DRAFT / PREVIEW</p></div><div className="text-right text-[11px] text-black/45"><p>{issueDate || "—"}</p><p className="mt-1">Due {dueDate || "—"}</p></div></div>
-                <div className="py-7 grid grid-cols-2 gap-5 border-b border-black/[.08]"><div><p className="text-[9px] uppercase tracking-[.18em] text-black/30">Bill to</p><p className="text-sm font-medium mt-2">{customers.find(c=>c.id===customerId)?.name || "Customer name"}</p></div><div className="text-right"><p className="text-[9px] uppercase tracking-[.18em] text-black/30">Reference</p><p className="text-sm mt-2">{documentSettings.show_reference ? (reference || "—") : "Hidden"}</p></div></div>
+                <div className="flex items-start justify-between gap-5 pb-8 border-b border-black/[.08]"><div>{documentSettings.show_logo && <div className="h-8 w-8 rounded-lg bg-[#202725] mb-4" />}<p className="font-display text-xl">INVOICE</p><p className="text-[10px] uppercase tracking-[.14em] text-black/35 mt-1">{businessName}</p><p className="font-mono text-[9px] text-black/35 mt-2">DRAFT / PREVIEW</p></div><div className="text-right text-[11px] text-black/45"><p>{issueDate || "—"}</p><p className="mt-1">Due {dueDate || "—"}</p></div></div>
+                <div className="py-7 grid grid-cols-2 gap-5 border-b border-black/[.08]"><div><p className="text-[9px] uppercase tracking-[.18em] text-black/30">Bill to</p><p className="text-sm font-medium mt-2">{customers.find(c=>c.id===customerId)?.name || "Customer name"}</p>{documentSettings.show_customer_address && <p className="text-[10px] text-black/35 mt-2">Customer contact details shown on the final document.</p>}</div><div className="text-right"><p className="text-[9px] uppercase tracking-[.18em] text-black/30">Reference</p><p className="text-sm mt-2">{documentSettings.show_reference ? (reference || "—") : "Hidden"}</p>{documentSettings.show_purchase_order && purchaseOrder && <p className="text-[10px] text-black/35 mt-1">PO · {purchaseOrder}</p>}</div></div>
                 <div className="py-6 border-b border-black/[.08]"><div className="grid grid-cols-[1fr_55px_90px] gap-3 text-[8px] uppercase tracking-[.16em] text-black/30 pb-3"><span>Description</span><span>Qty</span><span className="text-right">Amount</span></div>{items.filter(i=>i.description.trim()||i.unit_price>0).map((item,i)=><div key={i} className="grid grid-cols-[1fr_55px_90px] gap-3 py-3 border-t border-black/[.06] text-[11px]"><span className="truncate">{item.description || "Untitled item"}</span><span>{item.quantity}</span><span className="text-right">{formatMoney(item.quantity*item.unit_price,currency)}</span></div>)}{!items.some(i=>i.description.trim()||i.unit_price>0)&&<p className="text-xs text-black/30 py-5">Your line items will appear here.</p>}</div>
-                <div className="ml-auto max-w-[250px] py-6 space-y-2 text-[11px]"><div className="flex justify-between text-black/45"><span>Subtotal</span><span>{formatMoney(subtotal,currency)}</span></div>{documentSettings.show_discount && discountAmount>0&&<div className="flex justify-between text-black/45"><span>Discount</span><span>-{formatMoney(discountAmount,currency)}</span></div>}{documentSettings.show_tax && taxAmount>0&&<div className="flex justify-between text-black/45"><span>{taxName} ({taxRate}%)</span><span>{formatMoney(taxAmount,currency)}</span></div>}<div className="border-t border-black/20 pt-3 flex justify-between items-end"><span className="text-black/50">Total</span><span className="font-display text-xl">{formatMoney(total,currency)}</span></div></div>
+                <div className="ml-auto max-w-[250px] py-6 space-y-2 text-[11px]"><div className="flex justify-between text-black/45"><span>Subtotal</span><span>{formatMoney(subtotal,currency)}</span></div>{documentSettings.show_discount && discountAmount>0&&<div className="flex justify-between text-black/45"><span>Discount</span><span>-{formatMoney(discountAmount,currency)}</span></div>}{documentSettings.show_tax && taxAmount>0&&<div className="flex justify-between text-black/45"><span>{taxName} ({taxRate}%)</span><span>{formatMoney(taxAmount,currency)}</span></div>}<div className="border-t border-black/20 pt-3 flex justify-between items-end"><span className="text-black/50">Total</span><span className="font-display text-xl">{formatMoney(total,currency)}</span></div></div><div className="mt-2 pt-5 border-t border-black/[.07] flex flex-wrap gap-2">{documentSettings.show_payment_details && <span className="rounded-full bg-[#eef2ed] px-2.5 py-1 text-[9px] uppercase tracking-[.12em] text-[#48644f]">Payment details</span>}{documentSettings.show_signature && <span className="rounded-full bg-[#f3eee5] px-2.5 py-1 text-[9px] uppercase tracking-[.12em] text-[#756448]">Signature</span>}{documentSettings.show_qr_payment && <span className="rounded-full bg-[#eef0f3] px-2.5 py-1 text-[9px] uppercase tracking-[.12em] text-[#4d6378]">QR payment</span>}{documentSettings.show_shipping && <span className="rounded-full bg-[#f4ece8] px-2.5 py-1 text-[9px] uppercase tracking-[.12em] text-[#7c5547]">Shipping</span>}{!documentSettings.show_payment_details && !documentSettings.show_signature && !documentSettings.show_qr_payment && !documentSettings.show_shipping && <span className="text-[10px] text-black/30">Optional presentation details are hidden.</span>}</div>
               </div>
             </div>
             <div className="mt-3 rounded-[22px] border border-black/[.08] bg-[#eee8da] p-5"><p className="text-[10px] uppercase tracking-[.18em] text-black/35">Payment layer</p><p className="text-sm text-black/60 mt-2 leading-5">No fake payment rail is shown here. Verified provider capabilities can attach after the invoice exists.</p><Link href="/dashboard/integrations" className="inline-block mt-3 text-xs font-medium underline underline-offset-4">Review integrations</Link></div>
