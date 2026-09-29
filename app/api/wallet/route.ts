@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 
 export async function GET(){
-  const supabase=await createClient(); const {data:{user}}=await supabase.auth.getUser();
+  const supabase=await await createClient(); const {data:{user}}=await supabase.auth.getUser();
   if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
   const {data:b}=await supabase.from("businesses").select("id,currency").eq("owner_id",user.id).single();
   if(!b)return NextResponse.json({error:"Business not found"},{status:404});
@@ -16,7 +16,7 @@ export async function GET(){
 }
 
 export async function POST(request:Request){
-  const supabase=await createClient(); const {data:{user}}=await supabase.auth.getUser();
+  const supabase=await await createClient(); const {data:{user}}=await supabase.auth.getUser();
   if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
   const body=await request.json(); const action=String(body?.action||"");
   const {data:b}=await supabase.from("businesses").select("id,currency").eq("owner_id",user.id).single();
