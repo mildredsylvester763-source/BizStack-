@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import WebsiteMobileToolbar from "./website-mobile-toolbar";
 import WebsiteDesignMode from "./website-design-mode";
+import WebsiteBlueprint from "./website-blueprint";
 
 type Project = {
   id: string;
@@ -144,6 +145,7 @@ export default function WebsiteWorkspace({
   const [previewError, setPreviewError] = useState("");
   const [focusMode, setFocusMode] = useState<"page" | "elements">("page");
   const [designModeOpen, setDesignModeOpen] = useState(false);
+  const [blueprintOpen, setBlueprintOpen] = useState(false);
   const [liveElement, setLiveElement] = useState<{ tag: string; text: string; selector: string; className: string; href: string } | null>(null);
   const [sourceGraph, setSourceGraph] = useState<{
     summary: { files: number; routes: number; components: number; apiSurfaces: number; styles: number; assets: number; dataSurfaces: number; integrations: number };
@@ -282,7 +284,7 @@ export default function WebsiteWorkspace({
 
   return (
     <div className="min-h-[680px] flex flex-col lg:flex-row bg-[#090b0f] text-white">
-      <WebsiteMobileToolbar route={selectedRoute?.path || "/"} routes={routes.map(item => ({path:item.path,label:item.label}))} device={device} onRoute={setRoute} onDevice={setDevice} onAsk={onAskAI} />
+      <WebsiteMobileToolbar route={selectedRoute?.path || "/"} routes={routes.map(item => ({path:item.path,label:item.label}))} device={device} onRoute={setRoute} onDevice={setDevice} onAsk={onAskAI} onBlueprint={() => setBlueprintOpen(true)} />
       <aside className="hidden lg:flex w-[220px] shrink-0 border-r border-white/[.06] bg-[#0d0f13] flex-col">
         <div className="px-3 py-3 border-b border-white/[.06]">
           <div className="text-[8px] uppercase tracking-[.18em] text-white/20">Website Creator</div>
@@ -363,6 +365,7 @@ export default function WebsiteWorkspace({
             <div className="text-[7px] text-white/20 truncate">{selectedRoute?.source || "Project source"}</div>
           </div>
           <div className="ml-auto flex items-center gap-1.5">
+            <button onClick={() => setBlueprintOpen(true)} className={blueprintOpen ? "px-2.5 py-1.5 rounded-lg bg-indigo-300/[.09] border border-indigo-300/[.1] text-[7px] text-indigo-100" : "px-2.5 py-1.5 rounded-lg border border-white/[.06] text-[7px] text-white/35"}>Blueprint</button>
             {(Object.entries(DEVICES) as [DeviceKey, { label: string; width: number }][]).map(([key, value]) => (
               <button
                 key={key}
@@ -503,5 +506,13 @@ export default function WebsiteWorkspace({
         </div>
       </aside>
     </div>
+      {blueprintOpen && project && (
+        <div className="fixed inset-0 z-[70] bg-black/70 backdrop-blur-[4px] p-2 sm:p-4 lg:p-7">
+          <div className="relative h-full w-full max-w-[1500px] mx-auto overflow-hidden rounded-[24px] border border-white/[.1] bg-[#090b0e] shadow-[0_30px_120px_rgba(0,0,0,.55)]">
+            <button onClick={() => setBlueprintOpen(false)} aria-label="Close Website Blueprint" className="absolute right-4 top-4 z-10 h-9 w-9 rounded-xl border border-white/[.08] bg-black/30 text-white/45 hover:text-white/75">×</button>
+            <WebsiteBlueprint projectId={project.id} projectName={project.name} onAskAI={prompt => { setBlueprintOpen(false); onAskAI(prompt); }} />
+          </div>
+        </div>
+      )}
   );
 }
