@@ -2,9 +2,13 @@ import type { ToolCall } from "@/lib/ai/providers/types";
 
 export type ProviderName = "anthropic" | "openai" | "gemini" | "mistral";
 
+export type ModelContentPart =
+  | { type: "text"; text: string }
+  | { type: "image"; mimeType: string; data: string };
+
 export type BizStackModelMessage = {
   role: "system" | "user" | "assistant" | "tool";
-  content: string;
+  content: string | ModelContentPart[];
   tool_call_id?: string;
   name?: string;
   tool_calls?: ToolCall[];
@@ -89,13 +93,18 @@ function configuredProviders(): ProviderConfig[] {
   return providers.sort((a, b) => a.priority - b.priority);
 }
 
+function contentToText(content: BizStackModelMessage["content"]) {
+  if (typeof content === "string") return content;
+  return content.filter((part) => part.type === "text").map((part) => part.text).join("\n");
+}
+
 function latestUserText(messages: BizStackModelMessage[]) {
-  return messages.filter((m) => m.role === "user").at(-1)?.content.toLowerCase() || "";
+  return contentToText(messages.filter((m) => m.role === "user").at(-1)?.content || "").toLowerCase();
 }
 
 function classifyTask(messages: BizStackModelMessage[]): TaskProfile {
   const text = latestUserText(messages);
-  const allText = messages.map((m) => m.content).join("\n").toLowerCase();
+  const allText = messages.map((m) => contentToText(m.content)).join("\n").toLowerCase();
 
   const coding = /(build|code|coding|developer|typescript|javascript|react|next\\.js|api|database|sql|github|deploy|website|app|application|terminal|compile|repository|source file|refactor)/i.test(text);
   const architecture = /(architect|architecture|system design|design the backend|schema design|data model|orchestration|service boundary)/i.test(text);
@@ -196,14 +205,26 @@ function openAiMessages(messages: BizStackModelMessage[]) {
     if (message.role !== "tool") {
       const clean: Record<string, unknown> = {
         role: message.role,
-        content: message.content
+        content: typeof message.content === "string"
+          ? message.content
+          : message.content.map((part) =>
+              part.type === "text"
+                ? { type: "text", text: part.text }
+                : {
+                    type: "image_url",
+                    image_url: {
+                      url: "data:" + part.mimeType + ";base64," + part.data,
+                      detail: "high"
+                    }
+                  }
+            )
       };
       if (message.tool_calls?.length) clean.tool_calls = message.tool_calls;
       return clean;
     }
     return {
       role: "tool",
-      content: message.content,
+      content: String(message.content),
       tool_call_id: message.tool_call_id || ""
     };
   });
@@ -261,7 +282,23 @@ function anthropicMessages(messages: BizStackModelMessage[]) {
         }]
       };
     }
-    return { role: m.role === "assistant" ? "assistant" : "user", content: m.content };
+    return {
+      role: m.role === "assistant" ? "assistant" : "user",
+      content: typeof m.content === "string"
+        ? m.content
+        : m.content.map((part) =>
+            part.type === "text"
+              ? { type: "text", text: part.text }
+              : {
+                  type: "image",
+                  source: {
+                    type: "base64",
+                    media_type: part.mimeType,
+                    data: part.data
+                  }
+                }
+          )
+    };
   });
   return { system, messages: converted };
 }
