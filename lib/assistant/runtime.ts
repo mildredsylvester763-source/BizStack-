@@ -437,11 +437,12 @@ export async function runUniversalAssistant({
   let conversationIdValue = conversationId || null;
   if (conversationIdValue) {
     const { data: existing } = await supabase.from("ai_conversations")
-      .select("id")
+      .select("id,metadata")
       .eq("id", conversationIdValue)
       .eq("business_id", business.id)
       .single();
-    if (!existing) conversationIdValue = null;
+    const existingProjectId = typeof existing?.metadata?.project_id === "string" ? existing.metadata.project_id : null;
+    if (!existing || (projectId && existingProjectId !== projectId)) conversationIdValue = null;
   }
 
   if (!conversationIdValue) {
@@ -450,6 +451,7 @@ export async function runUniversalAssistant({
       created_by: userId,
       agent_id: agent.id,
       title: input.trim().slice(0, 80) || "New conversation",
+      metadata: { project_id: projectId || null, surface: projectId ? "website_creator" : "ai_builder" },
       last_message_at: new Date().toISOString()
     }).select("id").single();
     if (error || !conversation) throw new Error("Could not create the assistant conversation.");
