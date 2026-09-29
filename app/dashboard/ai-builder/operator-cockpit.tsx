@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import VoiceInput from "./voice-input";
 import WebsiteWorkspace from "./website-workspace";
+import BuilderMobileMenu from "./builder-mobile-menu";
 
 type App={name:string;slug:string;category:string;description:string;icon_key:string;connected?:boolean;accounts?:any[]};
 type Msg={id?:string;role:"user"|"assistant"|"tool";content:string;metadata?:any};
@@ -406,9 +407,26 @@ export default function OperatorCockpit({
     </aside>
       <div className="min-h-screen bg-[#0b0d11] text-white xl:pl-[250px]">
 
-    <div className="h-12 px-4 border-b border-white/[.07] flex items-center gap-3">
-      <div className="font-semibold text-[11px] tracking-tight">BizStack AI Builder</div><div className="text-[9px] text-white/25 truncate">{project?.project_type==="website"?"Website Creator · ":""}{businessName}</div><div className="hidden md:flex items-center gap-1.5 ml-3">{aiProviders.map(p=><span key={p.provider} className="px-2 py-1 rounded bg-emerald-300/[.06] border border-emerald-300/[.08] text-[7px] text-emerald-200/70">{p.provider} · {p.model}</span>)}{!aiProviders.length&&<span className="px-2 py-1 rounded bg-amber-300/[.06] border border-amber-300/[.08] text-[7px] text-amber-200/70">AI provider not configured</span>}</div>
-      <div className="ml-auto flex items-center gap-2"><button onClick={()=>setHistoryOpen(true)} className="xl:hidden px-3 py-1.5 rounded-lg bg-white/[.06] text-[9px] text-white/60">History</button><button onClick={startNewConversation} className="px-3 py-1.5 rounded-lg bg-white/[.06] text-[9px] text-white/60">New chat</button><button onClick={()=>setProjectOpen(true)} className="px-3 py-1.5 rounded-lg bg-white/[.06] text-[9px] text-white/60">+ Project</button><button onClick={()=>setAppOpen(true)} className="px-3 py-1.5 rounded-lg bg-indigo-400/10 border border-indigo-300/10 text-[9px] text-indigo-200">Apps</button></div>
+    <div className="h-14 px-3 sm:px-4 border-b border-white/[.07] flex items-center gap-2">
+      <BuilderMobileMenu
+        businessName={businessName}
+        projectName={project?.name}
+        onNewChat={startNewConversation}
+        onOpenHistory={()=>setHistoryOpen(true)}
+        onOpenApps={()=>setAppOpen(true)}
+        onOpenProject={()=>setProjectOpen(true)}
+        onOpenWebsite={()=>setTab("website")}
+      />
+      <div className="min-w-0">
+        <div className="font-semibold text-[12px] tracking-[-.02em] text-white/90">BizStack</div>
+        <div className="text-[8px] text-white/25 truncate">{project?.project_type==="website"?"Website Creator":"AI Builder"} · {businessName}</div>
+      </div>
+      <div className="hidden lg:flex items-center gap-1.5 ml-3">{aiProviders.slice(0,3).map(p=><span key={p.provider} className="px-2 py-1 rounded-full bg-emerald-300/[.05] border border-emerald-300/[.07] text-[7px] text-emerald-200/55">{p.provider} · {p.model}</span>)}</div>
+      <div className="ml-auto flex items-center gap-1.5">
+        <button onClick={()=>setHistoryOpen(true)} className="hidden sm:inline-flex px-3 py-1.5 rounded-xl bg-white/[.045] border border-white/[.06] text-[8px] text-white/45">History</button>
+        <button onClick={startNewConversation} className="hidden md:inline-flex px-3 py-1.5 rounded-xl bg-white/[.055] border border-white/[.06] text-[8px] text-white/55">New chat</button>
+        <button onClick={()=>setAppOpen(true)} className="hidden md:inline-flex px-3 py-1.5 rounded-xl bg-indigo-400/10 border border-indigo-300/10 text-[8px] text-indigo-200">Connections</button>
+      </div>
     </div>
     <div className="px-3 py-2 border-b border-white/[.06] bg-[#0d0f13] flex items-center gap-2 overflow-x-auto">
       <span className="text-[8px] uppercase tracking-[.18em] text-white/20">Project</span>
