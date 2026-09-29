@@ -1,4 +1,3 @@
-// @ts-nocheck
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -7,7 +6,7 @@ import { runCashSaleBuild } from "@/lib/ai/build-engine/cash-sale-runtime";
 
 async function openSession(formData: FormData) {
   "use server";
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const { data: business } = await supabase.from("businesses").select("id,currency").eq("owner_id", user.id).single();
@@ -28,7 +27,7 @@ async function openSession(formData: FormData) {
 
 async function reconcile(formData: FormData) {
   "use server";
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const { data: business } = await supabase.from("businesses").select("id").eq("owner_id", user.id).single();
@@ -46,7 +45,7 @@ async function reconcile(formData: FormData) {
 
 async function runSale(formData: FormData) {
   "use server";
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const { data: business } = await supabase.from("businesses").select("id").eq("owner_id", user.id).single();
@@ -59,7 +58,7 @@ async function runSale(formData: FormData) {
 }
 
 export default async function CashSalesPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const { data: business } = await supabase.from("businesses").select("id,name,currency").eq("owner_id", user.id).single();
