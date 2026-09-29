@@ -12,6 +12,7 @@ type Project={id:string;name:string;slug:string;project_type:string;status:strin
 type ProjectFile={id:string;path:string;content:string|null;content_sha:string|null;language:string|null;size_bytes:number;is_binary:boolean;version_no:number;updated_at:string};
 type EngineeringMode="plan"|"review"|"architecture";
 type Conversation={id:string;title:string|null;last_message_at:string|null;created_at:string;updated_at:string};
+type ComposerAttachment={id:string;name:string;mime_type:string;size_bytes:number;kind:"image"|"document"|"spreadsheet"|"text"|"archive"|"other";status:"processing"|"ready"|"failed";extracted_chars:number;preview_url?:string|null;project_id?:string|null;conversation_id?:string|null};
 
 const FALLBACK:App[]=[
  {name:"Google Drive",slug:"google-drive",category:"Files",description:"Search and work with Drive files, Docs, Sheets and Slides.",icon_key:"GD"},
@@ -52,8 +53,9 @@ function collectGeneratedAssets(toolResults:any[]|undefined){
 export default function OperatorCockpit({
   businessId,businessName,initialConversationId,initialMessages
 }:{businessId:string;businessName:string;initialConversationId:string|null;initialMessages:Msg[]}){
-  const db=createClient(),end=useRef<HTMLDivElement>(null);
+  const db=createClient(),end=useRef<HTMLDivElement>(null),fileInput=useRef<HTMLInputElement>(null);
   const [messages,setMessages]=useState(initialMessages),[input,setInput]=useState(""),[busy,setBusy]=useState(false);
+  const [attachments,setAttachments]=useState<ComposerAttachment[]>([]),[attachmentBusy,setAttachmentBusy]=useState(false);
   const [conversations,setConversations]=useState<Conversation[]>([]),[historyQuery,setHistoryQuery]=useState(""),[historyBusy,setHistoryBusy]=useState(false),[historyOpen,setHistoryOpen]=useState(false),[conversationBusy,setConversationBusy]=useState(false);
   const [visualPicker,setVisualPicker]=useState(false);
   const [conversationId,setConversationId]=useState(initialConversationId),[events,setEvents]=useState<Event[]>([]);
@@ -107,6 +109,7 @@ export default function OperatorCockpit({
     setMessages([]);
     setApproval(null);
     setInput("");
+    setAttachments([]);
     setTab("chat");
     setHistoryOpen(false);
   }
@@ -184,16 +187,43 @@ export default function OperatorCockpit({
     return()=>{db.removeChannel(ch)};
   },[businessId]);
 
+  async function uploadAttachments(selected:FileList|File[]){
+    const filesToUpload=Array.from(selected).filter(Boolean).slice(0,12);
+    if(!filesToUpload.length||attachmentBusy)return;
+    setAttachmentBusy(true);
+    const added:ComposerAttachment[]=[];
+    const failures:string[]=[];
+    try{
+      for(const file of filesToUpload){
+        const form=new FormData();
+        form.append("file",file);
+        if(projectId)form.append("projectId",projectId);
+        if(conversationId)form.append("conversationId",conversationId);
+        const response=await fetch("/api/assistant/attachments",{method:"POST",body:form});
+        const payload=await response.json().catch(()=>({}));
+        if(!response.ok||!payload.attachment)failures.push(file.name+": "+String(payload.error||"upload failed"));
+        else added.push(payload.attachment as ComposerAttachment);
+      }
+      if(added.length)setAttachments(v=>[...v,...added].slice(-12));
+      if(failures.length)setMessages(v=>[...v,{role:"assistant",content:"Some attachments could not be added:\n"+failures.join("\n")}]);
+    }finally{
+      setAttachmentBusy(false);
+      if(fileInput.current)fileInput.current.value="";
+    }
+  }
+
   async function send(){
-    const text=input.trim();if(!text||busy)return;
-    setInput("");setBusy(true);setPicker(false);
-    setMessages(v=>[...v,{role:"user",content:text,metadata:{apps:context.map(a=>a.slug),project_id:projectId||null}}]);
+    const text=input.trim();
+    const pendingAttachments=attachments;
+    if((!text&&!pendingAttachments.length)||busy||attachmentBusy)return;
+    setInput("");setAttachments([]);setBusy(true);setPicker(false);
+    setMessages(v=>[...v,{role:"user",content:text||"Review these attached references.",metadata:{apps:context.map(a=>a.slug),project_id:projectId||null,attachments:pendingAttachments}}]);
     try{
       const isBuildRequest=/\b(build|create|make|design|generate|website|web app|landing page|site|code|feature|fix|bug|edit)\b/i.test(text);
-      const r=await fetch("/api/assistant",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({input:text,conversationId,clientMessageId:crypto.randomUUID(),context:{apps:context.map(a=>a.slug),businessId,projectId:projectId||null}})});
+      const r=await fetch("/api/assistant",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({input:text,attachments:pendingAttachments.map(a=>a.id),conversationId,clientMessageId:crypto.randomUUID(),context:{apps:context.map(a=>a.slug),businessId,projectId:projectId||null}})});
       const x=await r.json().catch(()=>({}));
       if(!r.ok){
-        if(isBuildRequest && projectId && /model provider|AI engine|provider/i.test(String(x.error||""))){
+        if(isBuildRequest && projectId && pendingAttachments.length===0 && /model provider|AI engine|provider/i.test(String(x.error||""))){
           const fallback=await fetch("/api/ai/build",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({capability:"website",prompt:text,businessId,projectId,mode:"auto_execute",publish:false})});
           const fx=await fallback.json().catch(()=>({}));
           if(!fallback.ok) throw new Error(fx.error||x.error||"Builder request failed.");
@@ -392,7 +422,7 @@ export default function OperatorCockpit({
         <div className="flex-1 overflow-y-auto">
           {tab==="chat"&&<div className="p-4 space-y-5">
             {!messages.length&&<div className="pt-8"><div className="text-[8px] uppercase tracking-[.2em] text-white/20">Autonomous workspace</div><h2 className="text-3xl mt-2 tracking-tight">What should I handle?</h2><p className="text-[11px] text-white/35 leading-5 mt-3">Tell the Operator the outcome. It can now work against real project records and source files.</p><div className="grid grid-cols-2 gap-2 mt-5">{quickActions.map(x=><button key={x} onClick={()=>setInput(x)} className="text-left p-3 rounded-xl border border-white/[.07] text-[9px] text-white/45 hover:bg-white/[.04]">{x}</button>)}</div></div>}
-            {messages.map((m,i)=><div key={m.id||i} className="flex gap-3 items-start"><div className={"w-7 h-7 shrink-0 rounded-lg flex items-center justify-center text-[8px] font-semibold "+(m.role==="user"?"bg-white/[.08] text-white/55":"bg-indigo-400/10 text-indigo-200")}>{m.role==="user"?"You":"B"}</div><div className="min-w-0 flex-1"><div className="flex items-center gap-2 mb-1"><span className="text-[9px] text-white/35">{m.role==="user"?"You":"BizStack"}</span>{m.metadata?.ai_provider&&<span className="text-[7px] text-white/15">{String(m.metadata.ai_provider)}</span>}</div><div className="text-[12px] leading-6 text-white/72 whitespace-pre-wrap break-words">{m.content}</div>{Array.isArray(m.metadata?.assets)&&m.metadata.assets.length>0&&<div className="grid gap-2 mt-3 sm:grid-cols-2">{m.metadata.assets.map((asset:any)=><a key={asset.id||asset.public_url} href={asset.public_url} target="_blank" rel="noreferrer" className="group rounded-2xl overflow-hidden border border-white/[.08] bg-white/[.025]"><div className="aspect-[16/10] bg-white/[.03]"><img src={asset.public_url} alt={asset.alt_text||asset.name||"Generated website visual"} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.015]" loading="lazy"/></div><div className="px-3 py-2.5 flex items-center justify-between gap-2"><span className="text-[8px] text-white/50 truncate">{asset.name||"Generated visual"}</span><span className="text-[7px] text-indigo-200/70 shrink-0">bespoke</span></div></a>)}</div>}</div></div>)}
+            {messages.map((m,i)=><div key={m.id||i} className="flex gap-3 items-start"><div className={"w-7 h-7 shrink-0 rounded-lg flex items-center justify-center text-[8px] font-semibold "+(m.role==="user"?"bg-white/[.08] text-white/55":"bg-indigo-400/10 text-indigo-200")}>{m.role==="user"?"You":"B"}</div><div className="min-w-0 flex-1"><div className="flex items-center gap-2 mb-1"><span className="text-[9px] text-white/35">{m.role==="user"?"You":"BizStack"}</span>{m.metadata?.ai_provider&&<span className="text-[7px] text-white/15">{String(m.metadata.ai_provider)}</span>}</div><div className="text-[12px] leading-6 text-white/72 whitespace-pre-wrap break-words">{m.content}</div>{Array.isArray(m.metadata?.attachments)&&m.metadata.attachments.length>0&&<div className="mt-3 flex flex-wrap gap-2">{m.metadata.attachments.map((a:any)=><div key={a.id||a.name} className="rounded-xl border border-white/[.07] bg-white/[.025] px-2.5 py-2 min-w-[150px] max-w-full">{a.preview_url&&String(a.mime_type||"").startsWith("image/")&&<img src={a.preview_url} alt={a.name||"Attached image"} className="w-32 h-20 object-cover rounded-lg mb-2"/>}<div className="text-[8px] text-white/55 truncate">{a.name||"Attachment"}</div><div className="text-[7px] text-white/20 mt-1">{a.kind||"file"}{a.extracted_chars?(" · "+a.extracted_chars.toLocaleString()+" chars read"):""}</div></div>)}</div>}{Array.isArray(m.metadata?.assets)&&m.metadata.assets.length>0&&<div className="grid gap-2 mt-3 sm:grid-cols-2">{m.metadata.assets.map((asset:any)=><a key={asset.id||asset.public_url} href={asset.public_url} target="_blank" rel="noreferrer" className="group rounded-2xl overflow-hidden border border-white/[.08] bg-white/[.025]"><div className="aspect-[16/10] bg-white/[.03]"><img src={asset.public_url} alt={asset.alt_text||asset.name||"Generated website visual"} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.015]" loading="lazy"/></div><div className="px-3 py-2.5 flex items-center justify-between gap-2"><span className="text-[8px] text-white/50 truncate">{asset.name||"Generated visual"}</span><span className="text-[7px] text-indigo-200/70 shrink-0">bespoke</span></div></a>)}</div>}</div></div>)}
             {approval&&<div className="p-3 rounded-xl border border-amber-300/20 bg-amber-300/[.05]"><div className="text-[8px] text-amber-200 uppercase">Approval required</div><p className="text-[10px] mt-2">{approval.action}</p><button className="mt-3 bg-white text-black rounded-lg px-3 py-2 text-[9px]" onClick={async()=>{setBusy(true);try{const r=await fetch("/api/assistant/approve",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:approval.runId})});const x=await r.json().catch(()=>({}));setApproval(x.approval||null);setMessages(v=>[...v,{role:"assistant",content:x.message||"Approved action completed."}]);await loadProjects(projectId||undefined).catch(()=>null)}finally{setBusy(false)}}}>Approve</button></div>}
             {busy&&<div className="flex gap-3 items-center py-2"><div className="w-7 h-7 rounded-lg bg-indigo-400/10 flex items-center justify-center text-[8px] text-indigo-200 animate-pulse">B</div><div className="text-[9px] text-white/30">BizStack is working across the workspace…</div></div>}<div ref={end}/>
           </div>}
@@ -440,7 +470,10 @@ export default function OperatorCockpit({
           </div>}
           {tab==="run"&&<div>{events.length?events.map(e=><button key={e.id} onClick={()=>setSelectedEvent(e)} className="w-full text-left px-4 py-3 border-b border-white/[.05] hover:bg-white/[.03]"><div className="flex gap-2 text-[9px]"><span className={e.status==="failed"?"text-red-300":"text-emerald-300"}>●</span><span className="text-white/55">{e.title}</span><span className="ml-auto text-white/20">{e.status}</span></div>{e.detail&&<p className="text-[8px] text-white/20 mt-1">{e.detail}</p>}</button>):<div className="p-5 text-[9px] text-white/20">No runtime events recorded for this workspace yet.</div>}</div>}
         </div>
-        <div className="p-3 border-t border-white/[.07]"><div className="rounded-2xl border border-white/[.1] bg-[#15181e] p-2">{picker&&<div className="mb-2 p-2 rounded-xl bg-[#1b1e25]">
+        <div className="p-3 border-t border-white/[.07]"><div className="rounded-2xl border border-white/[.1] bg-[#15181e] p-2">
+<input ref={fileInput} type="file" multiple accept="image/*,.pdf,.docx,.xlsx,.xls,.csv,.txt,.md,.json,.html,.xml,.yaml,.yml,.ts,.tsx,.js,.jsx,.css,.scss,.sql" className="hidden" onChange={e=>{if(e.target.files)void uploadAttachments(e.target.files)}}/>
+{attachments.length>0&&<div className="mb-2 flex flex-wrap gap-1.5">{attachments.map(a=><div key={a.id} className="group flex items-center gap-1.5 rounded-xl border border-indigo-300/[.1] bg-indigo-300/[.04] px-2 py-1.5"><span className="text-[8px] text-white/60 max-w-[170px] truncate">{a.name}</span><span className="text-[7px] text-indigo-200/60">{a.status==="ready"?"read":"processing"}</span><button onClick={()=>setAttachments(v=>v.filter(x=>x.id!==a.id))} className="text-white/25 hover:text-white/60">×</button></div>)}</div>}
+{picker&&<div className="mb-2 p-2 rounded-xl bg-[#1b1e25]">
   <div className="text-[7px] uppercase tracking-[.18em] text-white/20 px-2 pb-1">Connected context</div>
   {apps.filter(a=>a.connected).map(a=><button key={a.slug} onClick={()=>{setContext(v=>v.some(x=>x.slug===a.slug)?v:[...v,a]);setPicker(false)}} className="block w-full text-left px-2 py-2 text-[9px] hover:bg-white/[.05]">@{a.name}</button>)}
   {!apps.some(a=>a.connected)&&<button onClick={()=>{setPicker(false);setAppOpen(true)}} className="text-[9px] text-indigo-200 p-2">Connect an app →</button>}
@@ -458,7 +491,7 @@ export default function OperatorCockpit({
       ["section_image","Create an original section visual that communicates this exact business idea and fits the existing visual identity. Avoid stock/template artwork."]
     ].map(([kind,prompt])=><button key={kind} onClick={()=>{setInput(prompt);setVisualPicker(false)}} className="text-left rounded-lg border border-white/[.06] bg-white/[.02] hover:bg-white/[.05] px-2.5 py-2"><div className="text-[8px] text-white/65 capitalize">{String(kind).replace("_"," ")}</div><div className="text-[7px] leading-4 text-white/25 mt-1">AI will create it in this chat</div></button>)}
   </div>
-</div>}<div className="flex items-end gap-2"><button onClick={()=>setPicker(v=>!v)} className="w-8 h-8 rounded-xl bg-white/[.05] text-white/40">+</button><VoiceInput onTranscript={setInput}/><textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();void send()}}} rows={2} placeholder={project?.project_type==="website"?"Describe the website you want to build or change…":"Ask BizStack to build, inspect, edit, run, review or operate something…"} className="flex-1 resize-none bg-transparent outline-none text-[11px] leading-5 placeholder:text-white/20"/><button onClick={()=>void send()} disabled={!input.trim()||busy} className="w-9 h-9 rounded-xl bg-white text-black disabled:opacity-20">↑</button></div></div><div className="mt-2 flex items-center justify-between gap-3"><p className="text-[8px] text-white/15">Enter run · Shift+Enter newline · + adds connected tools to this turn</p><span className="text-[7px] text-white/15">{project?.project_type==="website"?"Website Creator mode":"AI engineering + operations"}</span></div></div>
+</div>}<div className="flex items-end gap-2"><button title="Attach files or images" onClick={()=>fileInput.current?.click()} className="w-8 h-8 rounded-xl bg-indigo-400/[.08] border border-indigo-300/[.08] text-indigo-200/80">{attachmentBusy?"…":"↗"}</button><button onClick={()=>setPicker(v=>!v)} className="w-8 h-8 rounded-xl bg-white/[.05] text-white/40">+</button><VoiceInput onTranscript={setInput}/><textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();void send()}}} rows={2} placeholder={project?.project_type==="website"?"Attach a screenshot/reference or describe the website you want to build or change…":"Attach files/images, then ask BizStack to understand, build, edit, run or review them…"} className="flex-1 resize-none bg-transparent outline-none text-[11px] leading-5 placeholder:text-white/20"/><button onClick={()=>void send()} disabled={(!input.trim()&&!attachments.length)||busy||attachmentBusy} className="w-9 h-9 rounded-xl bg-white text-black disabled:opacity-20">↑</button></div></div><div className="mt-2 flex items-center justify-between gap-3"><p className="text-[8px] text-white/15">Attach images, PDFs, Word files, spreadsheets or source files · Enter run · Shift+Enter newline</p><span className="text-[7px] text-white/15">{project?.project_type==="website"?"Website Creator mode":"AI engineering + operations"}</span></div></div>
       </section>
 
       <section className="bg-[#15181d] border-r border-white/[.07] min-h-0"><div className="h-10 px-4 border-b border-white/[.06] flex items-center justify-between"><span className="text-[9px] text-white/35">Project work surface</span><span className="text-[8px] text-white/20">{project?project.slug:"operator runtime"}</span></div>{project?<div className="p-5"><div className="grid md:grid-cols-2 xl:grid-cols-3 gap-2.5"><div className="rounded-2xl bg-white/[.025] border border-white/[.06] p-4"><div className="text-[8px] uppercase tracking-[.18em] text-white/20">Source</div><div className="text-2xl mt-2">{files.length}</div><div className="text-[9px] text-white/25 mt-1">editable files</div></div><div className="rounded-2xl bg-white/[.025] border border-white/[.06] p-4"><div className="text-[8px] uppercase tracking-[.18em] text-white/20">Revision</div><div className="text-2xl mt-2">{selectedFile?.version_no||"—"}</div><div className="text-[9px] text-white/25 mt-1">selected file revision</div></div><div className="rounded-2xl bg-white/[.025] border border-white/[.06] p-4"><div className="text-[8px] uppercase tracking-[.18em] text-white/20">Preview</div><div className="text-[10px] mt-3">{project.preview_url||"Not published"}</div><div className="text-[9px] text-white/25 mt-1">only verified URLs appear</div></div></div><div className="mt-4 rounded-2xl border border-white/[.06] bg-white/[.02] p-4"><div className="text-[8px] uppercase tracking-[.18em] text-white/20">Operator contract</div><p className="text-[11px] text-white/40 leading-6 mt-2">Natural language and voice requests can now resolve against a persistent project graph, read source files, write source files and snapshot versions. Terminal execution, browser execution and sandbox isolation remain separate runtime adapters and are not faked here.</p></div></div>:<div className="h-[calc(100%-40px)] flex items-center justify-center p-10 text-center"><div className="max-w-md"><div className="w-16 h-16 rounded-[20px] border border-white/[.07] bg-white/[.03] mx-auto flex items-center justify-center text-[9px] text-white/20">PROJECT</div><h3 className="text-lg mt-5">Attach a real software project.</h3><p className="text-[10px] text-white/25 leading-5 mt-3">Create a project here or ask the Operator to create one. The center surface reflects persisted project state rather than simulated build output.</p><button onClick={()=>setProjectOpen(true)} className="mt-5 rounded-xl bg-white text-black px-4 py-2 text-[9px]">Create project</button></div></div>}</section>
