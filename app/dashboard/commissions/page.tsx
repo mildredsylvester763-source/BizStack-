@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase-server";
 
 async function createAgent(formData: FormData) {
   "use server";
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const { data: business } = await supabase.from("businesses").select("id").eq("owner_id", user.id).single();
@@ -26,7 +26,7 @@ async function createAgent(formData: FormData) {
 
 async function preparePayable(formData: FormData){
   "use server";
-  const supabase=createClient();
+  const supabase=await createClient();
   const {data:{user}}=await supabase.auth.getUser();if(!user)redirect("/login");
   const {data:business}=await supabase.from("businesses").select("id").eq("owner_id",user.id).single();if(!business)redirect("/onboarding");
   const {error}=await supabase.rpc("prepare_paid_invoice_commissions",{p_business_id:business.id});
@@ -36,7 +36,7 @@ async function preparePayable(formData: FormData){
 
 async function createPayout(formData:FormData){
   "use server";
-  const supabase=createClient();
+  const supabase=await createClient();
   const {data:{user}}=await supabase.auth.getUser();if(!user)redirect("/login");
   const {data:business}=await supabase.from("businesses").select("id").eq("owner_id",user.id).single();if(!business)redirect("/onboarding");
   const agentId=String(formData.get("agentId")||"");
@@ -47,7 +47,7 @@ async function createPayout(formData:FormData){
 
 async function markPaid(formData:FormData){
   "use server";
-  const supabase=createClient();
+  const supabase=await createClient();
   const {data:{user}}=await supabase.auth.getUser();if(!user)redirect("/login");
   const {data:business}=await supabase.from("businesses").select("id").eq("owner_id",user.id).single();if(!business)redirect("/onboarding");
   const payoutId=String(formData.get("payoutId")||"");
@@ -57,7 +57,7 @@ async function markPaid(formData:FormData){
 }
 
 export default async function CommissionsPage(){
- const supabase=createClient();
+ const supabase=await createClient();
  const {data:{user}}=await supabase.auth.getUser();if(!user)redirect("/login");
  const {data:business}=await supabase.from("businesses").select("id,name,currency").eq("owner_id",user.id).single();if(!business)redirect("/onboarding");
  const [{data:agents},{data:entries},{data:payouts}]=await Promise.all([
