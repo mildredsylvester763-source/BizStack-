@@ -32,6 +32,14 @@ export default function NewInvoicePage() {
   const [currency, setCurrency] = useState("USD");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [attachmentNames, setAttachmentNames] = useState<string[]>([]);
+  const [documentSettings, setDocumentSettings] = useState({
+    show_logo: true, show_customer_address: true, show_tax: true, show_discount: true,
+    show_shipping: false, show_reference: true, show_purchase_order: true, show_notes: true,
+    show_terms: true, show_product_image: false, show_sku: true, show_payment_details: true,
+    show_signature: false, show_qr_payment: false
+  });
 
   useEffect(() => {
     async function load() {
@@ -75,6 +83,10 @@ export default function NewInvoicePage() {
 
   function removeLine(index: number) {
     setItems(prev => prev.length === 1 ? prev : prev.filter((_, i) => i !== index));
+  }
+
+  function toggleDocumentSetting(key: keyof typeof documentSettings) {
+    setDocumentSettings(prev => ({ ...prev, [key]: !prev[key] }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -208,6 +220,50 @@ export default function NewInvoicePage() {
               <div className="p-6 sm:p-7 grid sm:grid-cols-2 gap-5">
                 <label className="text-[11px] uppercase tracking-[.12em] text-black/40">Discount<span className="mt-2 flex gap-2 normal-case tracking-normal"><select value={discountType} onChange={e=>setDiscountType(e.target.value as "none"|"percentage"|"fixed")} className="field w-32"><option value="none">None</option><option value="percentage">Percent</option><option value="fixed">Fixed</option></select><input type="number" min="0" value={discountValue} onChange={e=>setDiscountValue(Number(e.target.value))} className="field flex-1" /></span></label>
                 <label className="text-[11px] uppercase tracking-[.12em] text-black/40">Tax<span className="mt-2 block normal-case tracking-normal"><input type="number" min="0" value={taxRate} onChange={e=>{setTaxRate(Number(e.target.value));setTaxEnabled(Number(e.target.value)>0)}} className="field" placeholder="Tax rate %" /></span></label>
+              </div>
+            </section>
+
+
+
+            <section className="rounded-[28px] border border-black/[.08] bg-[#fcfaf5] shadow-[0_20px_70px_rgba(25,24,20,.05)] overflow-hidden">
+              <button type="button" onClick={() => setSettingsOpen(v => !v)} className="w-full px-6 sm:px-7 py-5 flex items-center justify-between text-left hover:bg-black/[.015] transition-colors">
+                <div><p className="text-[10px] uppercase tracking-[.18em] text-black/30">05 / Presentation</p><h2 className="font-display text-2xl mt-1">Manage settings</h2><p className="text-xs text-black/40 mt-1">Control what this invoice shows without changing the commercial record.</p></div>
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-black/10 bg-white text-sm text-black/45">{settingsOpen ? "−" : "+"}</span>
+              </button>
+              {settingsOpen && <div className="px-6 sm:px-7 pb-7">
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {[
+                    ["show_logo","Business logo"],["show_customer_address","Customer address"],["show_tax","Tax"],["show_discount","Discount"],["show_shipping","Shipping"],["show_reference","Reference"],["show_purchase_order","Purchase order"],["show_notes","Notes"],["show_terms","Terms & conditions"],["show_product_image","Product images"],["show_sku","SKU"],["show_payment_details","Payment details"],["show_signature","Signature"],["show_qr_payment","QR payment"]
+                  ].map(([key,label]) => {
+                    const active = documentSettings[key as keyof typeof documentSettings];
+                    return <button type="button" key={key} onClick={() => toggleDocumentSetting(key as keyof typeof documentSettings)} className={`flex items-center justify-between rounded-2xl border px-4 py-3 text-left transition-colors ${active ? "border-[#bccdbf] bg-[#edf4ee]" : "border-black/[.08] bg-white/60"}`}>
+                      <span><span className="block text-xs font-medium">{label}</span><span className="block text-[10px] text-black/35 mt-0.5">{active ? "Shown on document" : "Hidden from document"}</span></span>
+                      <span className={`h-5 w-9 rounded-full p-0.5 transition-colors ${active ? "bg-[#4f9965]" : "bg-black/15"}`}><span className={`block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${active ? "translate-x-4" : ""}`} /></span>
+                    </button>;
+                  })}
+                </div>
+              </div>}
+            </section>
+
+            <section className="rounded-[28px] border border-black/[.08] bg-[#fcfaf5] shadow-[0_20px_70px_rgba(25,24,20,.05)] overflow-hidden">
+              <div className="px-6 sm:px-7 py-5 border-b border-black/[.07] flex items-center justify-between">
+                <div><p className="text-[10px] uppercase tracking-[.18em] text-black/30">06 / Files</p><h2 className="font-display text-2xl mt-1">Attachments</h2><p className="text-xs text-black/40 mt-1">Keep briefs, purchase orders, references and supporting files beside the invoice.</p></div>
+                <label className="cursor-pointer rounded-xl border border-black/10 bg-white px-3.5 py-2 text-xs font-medium hover:bg-black/[.03]">
+                  + Add attachment
+                  <input type="file" multiple className="hidden" onChange={e => setAttachmentNames(Array.from(e.target.files ?? []).map(file => file.name))} />
+                </label>
+              </div>
+              <div className="p-6 sm:p-7">
+                {!attachmentNames.length ? (
+                  <label className="group flex min-h-[150px] cursor-pointer flex-col items-center justify-center rounded-[22px] border border-dashed border-black/15 bg-white/50 px-6 text-center hover:bg-white transition-colors">
+                    <span className="h-11 w-11 rounded-2xl border border-black/10 bg-[#f4f1e9] flex items-center justify-center text-lg text-black/45">↥</span>
+                    <span className="mt-3 text-sm font-medium">Drop files here or choose files</span>
+                    <span className="mt-1 text-xs text-black/35">PDF, images, documents and other supporting files</span>
+                    <input type="file" multiple className="hidden" onChange={e => setAttachmentNames(Array.from(e.target.files ?? []).map(file => file.name))} />
+                  </label>
+                ) : (
+                  <div className="space-y-2">{attachmentNames.map(name => <div key={name} className="flex items-center justify-between rounded-2xl border border-black/[.08] bg-white px-4 py-3"><div className="min-w-0"><p className="text-sm font-medium truncate">{name}</p><p className="text-[10px] uppercase tracking-[.14em] text-black/30 mt-1">Attachment selected</p></div><span className="text-xs text-[#52799a]">Ready</span></div>)}</div>
+                )}
               </div>
             </section>
 
