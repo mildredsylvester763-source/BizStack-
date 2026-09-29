@@ -153,32 +153,6 @@ export default function WebsiteWorkspace({
   const [graphError, setGraphError] = useState("");
 
   useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (!event.data || event.data.source !== "bizstack-design-bridge") return;
-      if (event.data.type !== "bizstack-design-select") return;
-      if (!basePreviewUrl) return;
-      try {
-        const allowedOrigin = new URL(basePreviewUrl).origin;
-        if (event.origin !== allowedOrigin) return;
-      } catch {
-        return;
-      }
-      const element = event.data.element;
-      if (!element || typeof element !== "object") return;
-      setLiveElement({
-        tag: String(element.tag || "element"),
-        text: String(element.text || ""),
-        selector: String(element.selector || ""),
-        className: String(element.className || ""),
-        href: String(element.href || "")
-      });
-      setDesignModeOpen(true);
-    };
-    window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
-  }, [basePreviewUrl]);
-
-  useEffect(() => {
     if (!project?.id) {
       setSourceGraph(null);
       return;
@@ -218,6 +192,33 @@ export default function WebsiteWorkspace({
   const selectedFile = selectedRoute ? files.find((file) => file.path === selectedRoute.source) : null;
   const elementMap = useMemo(() => inferElementMap(selectedFile?.content ?? null), [selectedFile]);
   const basePreviewUrl = initialPreviewUrl || project?.preview_url || "";
+
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (!event.data || event.data.source !== "bizstack-design-bridge") return;
+      if (event.data.type !== "bizstack-design-select") return;
+      if (!basePreviewUrl) return;
+      try {
+        const allowedOrigin = new URL(basePreviewUrl).origin;
+        if (event.origin !== allowedOrigin) return;
+      } catch {
+        return;
+      }
+      const element = event.data.element;
+      if (!element || typeof element !== "object") return;
+      setLiveElement({
+        tag: String(element.tag || "element"),
+        text: String(element.text || ""),
+        selector: String(element.selector || ""),
+        className: String(element.className || ""),
+        href: String(element.href || "")
+      });
+      setDesignModeOpen(true);
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [basePreviewUrl]);
+
   const deviceSpec = DEVICES[device];
 
   function buildRouteUrl(base: string, routePath: string, designMode = false) {
