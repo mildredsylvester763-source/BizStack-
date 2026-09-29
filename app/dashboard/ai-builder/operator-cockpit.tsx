@@ -59,7 +59,7 @@ export default function OperatorCockpit({
   const [conversationId,setConversationId]=useState(initialConversationId),[events,setEvents]=useState<Event[]>([]);
   const [apps,setApps]=useState<App[]>(FALLBACK),[appOpen,setAppOpen]=useState(false),[query,setQuery]=useState("");
   const [context,setContext]=useState<App[]>([]),[tab,setTab]=useState("chat"),[selectedEvent,setSelectedEvent]=useState<Event|null>(null),[approval,setApproval]=useState<any>(null),[picker,setPicker]=useState(false);
-  const [projects,setProjects]=useState<Project[]>([]),[projectId,setProjectId]=useState(""),[files,setFiles]=useState<ProjectFile[]>([]),[selectedPath,setSelectedPath]=useState(""),[editor,setEditor]=useState(""),[fileDirty,setFileDirty]=useState(false),[saving,setSaving]=useState(false),[versioning,setVersioning]=useState(false);
+  const [projects,setProjects]=useState<Project[]>([]),[projectId,setProjectId]=useState(""),[files,setFiles]=useState<ProjectFile[]>([]),[selectedPath,setSelectedPath]=useState(""),[editor,setEditor]=useState(""),[fileDirty,setFileDirty]=useState(false),[saving,setSaving]=useState(false),[versioning,setVersioning]=useState(false),[workspaceAutoOpened,setWorkspaceAutoOpened]=useState(false);
   const [terminalCommand,setTerminalCommand]=useState("npm run build"),[terminalOutput,setTerminalOutput]=useState(""),[terminalBusy,setTerminalBusy]=useState(false),[terminalPreview,setTerminalPreview]=useState("");
   const [previewUrl,setPreviewUrl]=useState("");
   const [aiProviders,setAiProviders]=useState<{provider:string;model:string;priority:number}[]>([]);
@@ -123,6 +123,13 @@ export default function OperatorCockpit({
     setProjects(list);
     const next=preferredId||projectId||list[0]?.id||"";
     setProjectId(next);
+    if(!workspaceAutoOpened){
+      const initialProject=list.find(p=>p.id===next);
+      if(initialProject?.project_type==="website"){
+        setTab("website");
+        setWorkspaceAutoOpened(true);
+      }
+    }
     return next;
   }
 
@@ -370,7 +377,7 @@ export default function OperatorCockpit({
       <div className="min-h-screen bg-[#0b0d11] text-white xl:pl-[250px]">
 
     <div className="h-12 px-4 border-b border-white/[.07] flex items-center gap-3">
-      <div className="font-semibold text-[11px] tracking-tight">BizStack Operator</div><div className="text-[9px] text-white/25 truncate">{businessName}</div><div className="hidden md:flex items-center gap-1.5 ml-3">{aiProviders.map(p=><span key={p.provider} className="px-2 py-1 rounded bg-emerald-300/[.06] border border-emerald-300/[.08] text-[7px] text-emerald-200/70">{p.provider} · {p.model}</span>)}{!aiProviders.length&&<span className="px-2 py-1 rounded bg-amber-300/[.06] border border-amber-300/[.08] text-[7px] text-amber-200/70">AI provider not configured</span>}</div>
+      <div className="font-semibold text-[11px] tracking-tight">BizStack AI Builder</div><div className="text-[9px] text-white/25 truncate">{project?.project_type==="website"?"Website Creator · ":""}{businessName}</div><div className="hidden md:flex items-center gap-1.5 ml-3">{aiProviders.map(p=><span key={p.provider} className="px-2 py-1 rounded bg-emerald-300/[.06] border border-emerald-300/[.08] text-[7px] text-emerald-200/70">{p.provider} · {p.model}</span>)}{!aiProviders.length&&<span className="px-2 py-1 rounded bg-amber-300/[.06] border border-amber-300/[.08] text-[7px] text-amber-200/70">AI provider not configured</span>}</div>
       <div className="ml-auto flex items-center gap-2"><button onClick={()=>setHistoryOpen(true)} className="xl:hidden px-3 py-1.5 rounded-lg bg-white/[.06] text-[9px] text-white/60">History</button><button onClick={startNewConversation} className="px-3 py-1.5 rounded-lg bg-white/[.06] text-[9px] text-white/60">New chat</button><button onClick={()=>setProjectOpen(true)} className="px-3 py-1.5 rounded-lg bg-white/[.06] text-[9px] text-white/60">+ Project</button><button onClick={()=>setAppOpen(true)} className="px-3 py-1.5 rounded-lg bg-indigo-400/10 border border-indigo-300/10 text-[9px] text-indigo-200">Apps</button></div>
     </div>
     <div className="px-3 py-2 border-b border-white/[.06] bg-[#0d0f13] flex items-center gap-2 overflow-x-auto">
