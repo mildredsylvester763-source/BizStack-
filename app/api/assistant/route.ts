@@ -14,8 +14,11 @@ export async function POST(request: Request) {
     const clientMessageId = typeof body?.clientMessageId === "string" ? body.clientMessageId : null;
     const projectId = typeof body?.context?.projectId === "string" ? body.context.projectId : null;
     const businessId = typeof body?.context?.businessId === "string" ? body.context.businessId : null;
+    const attachmentIds = Array.isArray(body?.attachments)
+      ? body.attachments.filter((item: unknown): item is string => typeof item === "string").slice(0, 12)
+      : [];
 
-    if (!input) return NextResponse.json({ error: "Tell BizStack what you want handled." }, { status: 400 });
+    if (!input && !attachmentIds.length) return NextResponse.json({ error: "Tell BizStack what you want handled or attach a reference file." }, { status: 400 });
     if (input.length > 12000) return NextResponse.json({ error: "That request is too long for one operator turn." }, { status: 400 });
 
     const result = await runUniversalAssistant({
@@ -24,7 +27,8 @@ export async function POST(request: Request) {
       conversationId,
       input,
       clientMessageId,
-      projectId
+      projectId,
+      attachmentIds
     });
 
     return NextResponse.json(result);
