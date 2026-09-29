@@ -22,7 +22,14 @@ export default function WebsiteDesignMode({
   source: string;
   elements: ElementItem[];
   onAsk: (prompt: string) => void;
-  liveElement: { tag: string; text: string; selector: string; className: string; href: string } | null;
+  liveElement: {
+    tag: string;
+    text: string;
+    selector: string;
+    className: string;
+    href: string;
+    computed?: Record<string, string>;
+  } | null;
   onEnableLive: () => void;
 }) {
   const [tab, setTab] = useState<DesignTab>("select");
@@ -105,10 +112,22 @@ export default function WebsiteDesignMode({
               {!liveElement && <button onClick={onEnableLive} className="shrink-0 rounded-lg bg-cyan-300/[.1] border border-cyan-300/[.12] px-2 py-1.5 text-[7px] text-cyan-100">Enable</button>}
             </div>
             {liveElement && <div className="mt-2 rounded-lg bg-black/10 border border-white/[.05] p-2">
-              <div className="text-[7px] text-white/25">Selected</div>
+              <div className="text-[7px] text-white/25">Selected element</div>
               <div className="text-[9px] text-white/58 mt-1">{liveElement.tag.toUpperCase()} · {liveElement.text || "No text content"}</div>
               <div className="text-[7px] text-white/18 mt-1 break-all">{liveElement.className || "no class metadata"}</div>
-              <button onClick={() => onAsk("Use Design Mode on the live-selected " + liveElement.tag + " element. Source: " + source + ". Selector: " + liveElement.selector + ". Preserve behavior and ask for approval before applying source changes.")} className="mt-2 w-full rounded-lg bg-white text-black px-2 py-2 text-[7px]">Plan change for selected element</button>
+              <div className="mt-2 grid grid-cols-2 gap-1">
+                {(["width","height","fontSize","fontWeight","lineHeight","borderRadius","padding","margin"] as const).map((key) => (
+                  <div key={key} className="rounded-md border border-white/[.05] bg-white/[.02] px-2 py-1.5">
+                    <div className="text-[6px] uppercase tracking-wider text-white/15">{key}</div>
+                    <div className="text-[7px] text-white/35 mt-0.5 truncate">{liveElement.computed?.[key] || "—"}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-2 flex gap-1.5">
+                <button onClick={() => onAsk("Use Design Mode to plan typography changes on the live-selected " + liveElement.tag + " element. Source: " + source + ". Selector: " + liveElement.selector + ". Current rendered properties: " + JSON.stringify(liveElement.computed || {}) + ". Preserve behavior and accessibility.")} className="flex-1 rounded-lg border border-white/[.06] bg-white/[.03] px-2 py-2 text-[7px] text-white/55">Typography</button>
+                <button onClick={() => onAsk("Use Design Mode to plan spacing and visual surface changes on the live-selected " + liveElement.tag + " element. Source: " + source + ". Selector: " + liveElement.selector + ". Current rendered properties: " + JSON.stringify(liveElement.computed || {}) + ". Preserve behavior and responsiveness.")} className="flex-1 rounded-lg border border-white/[.06] bg-white/[.03] px-2 py-2 text-[7px] text-white/55">Spacing</button>
+              </div>
+              <button onClick={() => onAsk("Use Design Mode on the live-selected " + liveElement.tag + " element. Source: " + source + ". Selector: " + liveElement.selector + ". Current rendered properties: " + JSON.stringify(liveElement.computed || {}) + ". Preserve behavior and ask for approval before applying source changes.")} className="mt-2 w-full rounded-lg bg-white text-black px-2 py-2 text-[7px]">Plan source change</button>
             </div>}
             </div>
 
