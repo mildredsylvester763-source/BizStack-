@@ -175,8 +175,9 @@ export default function WebsiteWorkspace({
   const [blueprintOpen, setBlueprintOpen] = useState(false);
   const [liveElement, setLiveElement] = useState<{ tag: string; text: string; selector: string; className: string; href: string } | null>(null);
   const [sourceGraph, setSourceGraph] = useState<{
-    summary: { files: number; routes: number; components: number; apiSurfaces: number; styles: number; assets: number; dataSurfaces: number; integrations: number };
+    summary: { files: number; routes: number; components: number; elements: number; apiSurfaces: number; styles: number; assets: number; dataSurfaces: number; integrations: number };
     nodes: Array<{ id: string; kind: string; label: string; path: string; route?: string; evidence: string[] }>;
+    elements: Array<{ id: string; route: string; source: string; tag: string; label: string; line: number; text: string; className: string; selectorHint: string; evidence: string[] }>;
   } | null>(null);
   const [graphBusy, setGraphBusy] = useState(false);
   const [graphError, setGraphError] = useState("");
@@ -219,7 +220,19 @@ export default function WebsiteWorkspace({
 
   const selectedRoute = routes.find((item) => item.path === route) || routes[0] || null;
   const selectedFile = selectedRoute ? files.find((file) => file.path === selectedRoute.source) : null;
-  const elementMap = useMemo(() => inferElementMap(selectedFile?.content ?? null), [selectedFile]);
+  const elementMap = useMemo(() => {
+    const graphElements = sourceGraph?.elements
+      ?.filter((item) => item.route === (selectedRoute?.path || "/") && item.source === (selectedRoute?.source || ""))
+      .map((item) => ({
+        id: item.id,
+        label: item.label,
+        prompt: "the " + item.label.toLowerCase() + " in the source-backed element graph",
+        count: 1,
+        line: item.line,
+        excerpt: item.text || item.className || item.tag
+      })) || [];
+    return graphElements.length ? graphElements : inferElementMap(selectedFile?.content ?? null);
+  }, [sourceGraph, selectedFile, selectedRoute?.path, selectedRoute?.source]);
   const basePreviewUrl = initialPreviewUrl || project?.preview_url || "";
 
   useEffect(() => {
@@ -492,6 +505,7 @@ export default function WebsiteWorkspace({
             <div className="grid grid-cols-2 gap-1.5 mt-2">
               {[
                 ["Routes", sourceGraph.summary.routes],
+                ["Elements", sourceGraph.summary.elements],
                 ["Components", sourceGraph.summary.components],
                 ["API", sourceGraph.summary.apiSurfaces],
                 ["Data", sourceGraph.summary.dataSurfaces],
