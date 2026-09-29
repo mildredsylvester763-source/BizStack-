@@ -9,7 +9,7 @@ import BuilderMobileMenu from "./builder-mobile-menu";
 type App={name:string;slug:string;category:string;description:string;icon_key:string;connected?:boolean;accounts?:any[]};
 type Msg={id?:string;role:"user"|"assistant"|"tool";content:string;metadata?:any};
 type Event={id:string;title:string;status:string;detail?:string;input?:any;output?:any};
-type Project={id:string;name:string;slug:string;project_type:string;status:string;default_branch:string;framework:string|null;runtime:string|null;repository_name:string|null;preview_url:string|null;production_url:string|null;updated_at:string};
+type Project={id:string;name:string;slug:string;project_type:string;status:string;default_branch:string;framework:string|null;runtime:string|null;repository_name:string|null;preview_url:string|null;production_url:string|null;updated_at:string;metadata?:Record<string,any>};
 type ProjectFile={id:string;path:string;content:string|null;content_sha:string|null;language:string|null;size_bytes:number;is_binary:boolean;version_no:number;updated_at:string};
 type EngineeringMode="plan"|"review"|"architecture";
 type Conversation={id:string;title:string|null;last_message_at:string|null;created_at:string;updated_at:string};
@@ -383,7 +383,7 @@ export default function OperatorCockpit({
     else setMessages(v=>[...v,{role:"assistant",content:x.error||"This provider connection needs its provider-specific adapter before authorization can begin."}]);
   }
 
-  const statusPills=project?[project.framework||"framework undetected",project.runtime||"runtime unconfigured",project.repository_name?"repo linked":"local project",project.preview_url?"preview linked":"preview not published"]:[];
+  const statusPills=project?[project.metadata?.platform_target?"target: "+String(project.metadata.platform_target):null,project.framework||"framework undetected",project.runtime||"runtime unconfigured",project.repository_name?"repo linked":"local project",project.preview_url?"preview linked":"preview not published"].filter(Boolean):[];[];
   const quickActions=project?["Inspect "+project.name,"Edit "+project.name+" source","Review current project","Plan the next feature"]:["Create a software project","Connect Google Drive","Find overdue invoices","Explain cash position"];
 
   return (
