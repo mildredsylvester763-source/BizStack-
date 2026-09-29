@@ -20,18 +20,19 @@ export async function GET(req:NextRequest){
   const {data:rawSession}=await admin.from("customer_portal_sessions").select("id,portal_id,customer_id,expires_at,revoked_at").eq("session_hash",hash(token)).is("revoked_at",null).gt("expires_at",new Date().toISOString()).maybeSingle();
   const session=rawSession as PortalSessionRecord|null;
   if(!session)return NextResponse.json({authenticated:false});
-  const [{data:portal},{data:customer},{data:invoices},{data:appointments},{data:messages},{data:orders}]=await Promise.all([
+  const [{data:portal},{data:customer},{data:invoices},{data:appointments},{data:messages},{data:orders},{data:processors}]=await Promise.all([
     admin.from("customer_portals").select("id,name,slug,status,settings").eq("id",session.portal_id).eq("status","published").single(),
     admin.from("customers").select("id,name,email,phone,company_name,preferred_currency").eq("id",session.customer_id).single(),
-    admin.from("invoices").select("id,invoice_number,status,issue_date,due_date,currency,total,paid_amount").eq("customer_id",session.customer_id).order("created_at",{ascending:false}).limit(50),
+    admin.from("invoices").select("id,invoice_number,status,issue_date,due_date,currency,total,paid_amount,payment_methods,business:businesses(name,bank_name,bank_account_name,bank_account_number)").eq("customer_id",session.customer_id).order("created_at",{ascending:false}).limit(50),
     admin.from("appointments").select("id,starts_at,ends_at,status,price,deposit_required,deposit_paid,currency,notes,appointment_services(name)").eq("customer_id",session.customer_id).order("starts_at",{ascending:false}).limit(50),
     admin.from("communication_messages").select("id,channel,direction,status,subject,body,sent_at,delivered_at,read_at,created_at").eq("customer_id",session.customer_id).order("created_at",{ascending:false}).limit(50),
-    admin.from("cash_sales").select("id,sale_number,sale_at,status,payment_method,currency,total,notes,cash_sale_items(description,quantity,unit_price,line_total)").eq("customer_id",session.customer_id).order("sale_at",{ascending:false}).limit(50)
+    admin.from("cash_sales").select("id,sale_number,sale_at,status,payment_method,currency,total,notes,cash_sale_items(description,quantity,unit_price,line_total)").eq("customer_id",session.customer_id).order("sale_at",{ascending:false}).limit(50),
+    admin.from("integrations").select("id,provider,status").eq("business_id", (await admin.from("customer_portals").select("business_id").eq("id", session.portal_id).single()).data?.business_id || "").in("provider", ["stripe","payment-processor"]).eq("status","connected")
   ]);
   const sessions=(admin.from("customer_portal_sessions") as any);
   if(!portal){ await sessions.update({revoked_at:new Date().toISOString()}).eq("id",session.id); return NextResponse.json({authenticated:false}); }
   await sessions.update({last_seen_at:new Date().toISOString()}).eq("id",session.id);
-  return NextResponse.json({authenticated:true,portal,customer,invoices:invoices||[],appointments:appointments||[],messages:messages||[],orders:orders||[]});
+  return NextResponse.json({authenticated:true,portal,customer,invoices:invoices||[],appointments:appointments||[],messages:messages||[],orders:orders||[],cardProcessorConnected:Boolean(processors?.length)});
 }
 
 export async function DELETE(req:NextRequest){
