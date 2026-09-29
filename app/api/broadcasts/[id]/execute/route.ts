@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import { executeBroadcastCampaign } from "@/lib/broadcasts/runtime";
 export const runtime="nodejs";
-export async function POST(_req:NextRequest,{params}:{params:{id:string}}){
+export async function POST(_req:NextRequest, props:{params: Promise<{id:string}>}) {
+ const params = await props.params;
  const supabase=createClient();
  const {data:{user}}=await supabase.auth.getUser();
  if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
