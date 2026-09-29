@@ -1,0 +1,45 @@
+name: Next 16 compatibility check
+
+on:
+  push:
+    branches:
+      - chore/next-16-safe-migration
+  pull_request:
+    branches:
+      - chore/next-16-safe-migration
+
+permissions:
+  contents: write
+
+concurrency:
+  group: next16-compatibility-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://build-check.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: build-check-placeholder
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Apply official Next 16 async API codemod
+        if: "!contains(github.event.head_commit.message, '[next16-codemod]')"
+        run: npx @next/codemod@canary next-async-request-api . --force
+      - name: Commit codemod changes
+        if: "!contains(github.event.head_commit.message, '[next16-codemod]')"
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- . ':!node_modules'
+          git diff --cached --quiet && exit 0
+          git commit -m "refactor: apply Next 16 async API codemod [next16-codemod]"
+          git push
+      - name: TypeScript compatibility
+        run: npx tsc --noEmit
+      - name: Next production build
+        run: npm run build

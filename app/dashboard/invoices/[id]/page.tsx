@@ -6,7 +6,7 @@ import { sendEmail } from "@/lib/integrations/providers";
 
 async function markSent(formData: FormData) {
   "use server";
-  const supabase = createClient();
+  const supabase = await createClient();
   const invoiceId = String(formData.get("invoice_id") || "");
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
@@ -35,7 +35,7 @@ async function markSent(formData: FormData) {
 
 async function recordPayment(formData: FormData) {
   "use server";
-  const supabase = createClient();
+  const supabase = await createClient();
   const invoiceId = String(formData.get("invoice_id") || "");
   const amount = Number(formData.get("amount"));
   const method = String(formData.get("method") || "").trim() || null;
@@ -64,8 +64,9 @@ function money(value: number, currency: string) {
   return `${value.toFixed(2)} ${currency}`;
 }
 
-export default async function InvoiceDetailPage({ params }: { params: { id: string } }) {
-  const supabase = createClient();
+export default async function InvoiceDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 

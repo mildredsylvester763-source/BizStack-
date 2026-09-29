@@ -45,7 +45,7 @@ type AgentApproval = {
 
 async function updateEventStatus(formData: FormData) {
   "use server";
-  const supabase = createClient();
+  const supabase = await await createClient();
   const id = String(formData.get("id") || "");
   const status = String(formData.get("status") || "");
 
@@ -80,7 +80,7 @@ async function decideAgentApprovalAction(formData: FormData) {
 
   if (!approvalId) return;
 
-  const supabase = createClient();
+  const supabase = await await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
@@ -112,7 +112,7 @@ async function decideBuildApprovalAction(formData: FormData) {
   const decision: BuildApprovalDecision = rawDecision === "reject" ? "reject" : "approve";
   if (!approvalId) return;
 
-  const supabase = createClient();
+  const supabase = await await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
@@ -342,7 +342,7 @@ function ActivityGroup({ events }: { events: EventRow[] }) {
 }
 
 export default async function ActionCenterPage() {
-  const supabase = createClient();
+  const supabase = await await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 

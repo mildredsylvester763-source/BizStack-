@@ -20,7 +20,7 @@ async function finish(supabase:any,businessId:string,runId:string,artifactType:s
 }
 
 export async function runThriftBuild({businessId,userId,prompt,mode="auto_execute"}:{businessId:string;userId:string;prompt:string;mode?:BuildMode}){
- const supabase=createClient(); const {data:business,error}=await supabase.from("businesses").select("id,name,currency,workspace_id").eq("id",businessId).eq("owner_id",userId).single(); if(error||!business)throw new Error("Business context is not available.");
+ const supabase=await createClient(); const {data:business,error}=await supabase.from("businesses").select("id,name,currency,workspace_id").eq("id",businessId).eq("owner_id",userId).single(); if(error||!business)throw new Error("Business context is not available.");
  const draft=parseThriftRequest(prompt,business.currency||"USD"); const started=await start(supabase,business,userId,"thrift_group",prompt,mode); if(started.existing)return{runId:started.existing.id,status:started.existing.status,result:started.existing.result}; const runId=started.run.id;
  try{
   const {data:group,error:ge}=await supabase.from("thrift_groups").insert({business_id:businessId,name:draft.name,contribution_amount:draft.amount,currency:draft.currency,frequency:draft.frequency,payout_method:draft.payoutMethod,next_contribution_date:draft.nextDate,rules:draft.rules,status:"draft",created_by:userId}).select("id,name,contribution_amount,currency,frequency,payout_method,next_contribution_date,status").single();
@@ -32,7 +32,7 @@ export async function runThriftBuild({businessId,userId,prompt,mode="auto_execut
 }
 
 export async function runBusinessCreditBuild({businessId,userId,prompt,mode="draft_only"}:{businessId:string;userId:string;prompt:string;mode?:BuildMode}){
- const supabase=createClient(); const {data:business,error}=await supabase.from("businesses").select("id,name,currency,workspace_id").eq("id",businessId).eq("owner_id",userId).single(); if(error||!business)throw new Error("Business context is not available.");
+ const supabase=await createClient(); const {data:business,error}=await supabase.from("businesses").select("id,name,currency,workspace_id").eq("id",businessId).eq("owner_id",userId).single(); if(error||!business)throw new Error("Business context is not available.");
  const started=await start(supabase,business,userId,"business_credit",prompt,mode); if(started.existing)return{runId:started.existing.id,status:started.existing.status,result:started.existing.result}; const runId=started.run.id;
  try{
   const {data:score,error:se}=await supabase.rpc("calculate_business_credit_score",{p_business_id:businessId}); if(se||!score)throw new Error(se?.message||"Could not calculate business credit score.");
@@ -45,7 +45,7 @@ export async function runBusinessCreditBuild({businessId,userId,prompt,mode="dra
 }
 
 export async function runSuccessorAccessBuild({businessId,userId,prompt,mode="ask_first"}:{businessId:string;userId:string;prompt:string;mode?:BuildMode}){
- const supabase=createClient(); const {data:business,error}=await supabase.from("businesses").select("id,name,workspace_id").eq("id",businessId).eq("owner_id",userId).single(); if(error||!business)throw new Error("Business context is not available.");
+ const supabase=await createClient(); const {data:business,error}=await supabase.from("businesses").select("id,name,workspace_id").eq("id",businessId).eq("owner_id",userId).single(); if(error||!business)throw new Error("Business context is not available.");
  const draft=parseSuccessorRequest(prompt); const started=await start(supabase,business,userId,"successor_access",prompt,mode); if(started.existing)return{runId:started.existing.id,status:started.existing.status,result:started.existing.result}; const runId=started.run.id;
  try{
   const {data:grant,error:ge}=await supabase.from("successor_access_grants").insert({business_id:businessId,recipient_email:draft.email,recipient_name:draft.name,role:draft.role,permissions:draft.permissions,activation_delay_hours:draft.delayHours,emergency_reason_required:true,status:"draft",created_by:userId}).select("id,recipient_email,recipient_name,role,permissions,activation_delay_hours,status").single();
@@ -57,7 +57,7 @@ export async function runSuccessorAccessBuild({businessId,userId,prompt,mode="as
 }
 
 export async function runComplianceBuild({businessId,userId,prompt,mode="auto_execute"}:{businessId:string;userId:string;prompt:string;mode?:BuildMode}){
- const supabase=createClient(); const {data:business,error}=await supabase.from("businesses").select("id,name,workspace_id").eq("id",businessId).eq("owner_id",userId).single(); if(error||!business)throw new Error("Business context is not available.");
+ const supabase=await createClient(); const {data:business,error}=await supabase.from("businesses").select("id,name,workspace_id").eq("id",businessId).eq("owner_id",userId).single(); if(error||!business)throw new Error("Business context is not available.");
  const draft=parseComplianceRequest(prompt); const started=await start(supabase,business,userId,"compliance",prompt,mode); if(started.existing)return{runId:started.existing.id,status:started.existing.status,result:started.existing.result}; const runId=started.run.id;
  try{
   const {data:item,error:ie}=await supabase.from("compliance_items").insert({business_id:businessId,name:draft.name,authority:draft.authority,category:draft.category,jurisdiction:draft.jurisdiction,due_date:draft.dueDate,recurrence:draft.recurrence,priority:draft.priority,owner_email:draft.ownerEmail,created_by:userId}).select("id,name,authority,category,jurisdiction,due_date,recurrence,status,priority,owner_email,evidence_required").single();

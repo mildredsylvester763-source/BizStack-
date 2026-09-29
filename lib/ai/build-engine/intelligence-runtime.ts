@@ -18,7 +18,7 @@ async function finish(supabase:any,businessId:string,runId:string,artifactType:s
  await supabase.from("events").insert({business_id:businessId,event_type:"ai.build.completed",summary,evidence:{build_run_id:runId,capability:artifactType},status:"info",priority:"normal",category:"ai_build"});
 }
 export async function runVoiceAgentBuild({businessId,userId,prompt,mode="ask_first"}:{businessId:string;userId:string;prompt:string;mode?:BuildMode}){
- const supabase=createClient();const {data:business,error}=await supabase.from("businesses").select("id,name,workspace_id").eq("id",businessId).eq("owner_id",userId).single();if(error||!business)throw new Error("Business context is not available.");
+ const supabase=await createClient();const {data:business,error}=await supabase.from("businesses").select("id,name,workspace_id").eq("id",businessId).eq("owner_id",userId).single();if(error||!business)throw new Error("Business context is not available.");
  const draft=parseVoiceAgentRequest(prompt),started=await start(supabase,business,userId,"voice_agent",prompt,mode);if(started.existing)return{runId:started.existing.id,status:started.existing.status,result:started.existing.result};const runId=started.run.id;
  try{
   const {data:agent,error:ae}=await supabase.from("voice_agents").insert({business_id:businessId,name:draft.name,greeting:draft.greeting,system_instructions:draft.instructions,provider:draft.provider,phone_number:draft.phoneNumber,status:"draft",business_hours:{},escalation_policy:{required_for:"uncertain_or_out_of_scope"},created_by:userId}).select("id,name,status,provider,phone_number,greeting,system_instructions").single();
@@ -29,7 +29,7 @@ export async function runVoiceAgentBuild({businessId,userId,prompt,mode="ask_fir
  }catch(error){const message=error instanceof Error?error.message:"Voice agent build failed.";await supabase.from("ai_build_runs").update({status:"failed",error_message:message,finished_at:new Date().toISOString()}).eq("id",runId);throw new Error(message);}
 }
 export async function runBroadcastBuild({businessId,userId,prompt,mode="ask_first"}:{businessId:string;userId:string;prompt:string;mode?:BuildMode}){
- const supabase=createClient();const {data:business,error}=await supabase.from("businesses").select("id,name,workspace_id").eq("id",businessId).eq("owner_id",userId).single();if(error||!business)throw new Error("Business context is not available.");
+ const supabase=await createClient();const {data:business,error}=await supabase.from("businesses").select("id,name,workspace_id").eq("id",businessId).eq("owner_id",userId).single();if(error||!business)throw new Error("Business context is not available.");
  const draft=parseBroadcastRequest(prompt),started=await start(supabase,business,userId,"broadcast",prompt,mode);if(started.existing)return{runId:started.existing.id,status:started.existing.status,result:started.existing.result};const runId=started.run.id;
  try{
   const {data:campaign,error:ce}=await supabase.from("broadcast_campaigns").insert({business_id:businessId,name:draft.name,channel:draft.channel,message_template:draft.message,status:"review",opt_out_policy:draft.strictConsent?"strict":"allow_if_unknown",scheduled_at:draft.scheduledAt,created_by:userId}).select("id,name,channel,status,opt_out_policy,scheduled_at").single();
@@ -51,7 +51,7 @@ export async function runBroadcastBuild({businessId,userId,prompt,mode="ask_firs
  }catch(error){const message=error instanceof Error?error.message:"Broadcast build failed.";await supabase.from("ai_build_runs").update({status:"failed",error_message:message,finished_at:new Date().toISOString()}).eq("id",runId);throw new Error(message);}
 }
 export async function runCarbonReportBuild({businessId,userId,prompt,mode="auto_execute"}:{businessId:string;userId:string;prompt:string;mode?:BuildMode}){
- const supabase=createClient();const {data:business,error}=await supabase.from("businesses").select("id,name,workspace_id").eq("id",businessId).eq("owner_id",userId).single();if(error||!business)throw new Error("Business context is not available.");
+ const supabase=await createClient();const {data:business,error}=await supabase.from("businesses").select("id,name,workspace_id").eq("id",businessId).eq("owner_id",userId).single();if(error||!business)throw new Error("Business context is not available.");
  const draft=parseCarbonRequest(prompt),started=await start(supabase,business,userId,"carbon_report",prompt,mode);if(started.existing)return{runId:started.existing.id,status:started.existing.status,result:started.existing.result};const runId=started.run.id;
  try{
   const {data:entry,error:ee}=await supabase.from("carbon_activity_entries").insert({business_id:businessId,activity_type:draft.activityType,quantity:draft.quantity,unit:draft.unit,emission_factor:draft.factor,activity_date:draft.date,notes:draft.notes}).select("id,activity_type,quantity,unit,emission_factor,co2e_kg,activity_date").single();
@@ -65,7 +65,7 @@ export async function runCarbonReportBuild({businessId,userId,prompt,mode="auto_
  }catch(error){const message=error instanceof Error?error.message:"Carbon report build failed.";await supabase.from("ai_build_runs").update({status:"failed",error_message:message,finished_at:new Date().toISOString()}).eq("id",runId);throw new Error(message);}
 }
 export async function runFractionalCfoBuild({businessId,userId,prompt,mode="draft_only"}:{businessId:string;userId:string;prompt:string;mode?:BuildMode}){
- const supabase=createClient();const {data:business,error}=await supabase.from("businesses").select("id,name,currency,workspace_id").eq("id",businessId).eq("owner_id",userId).single();if(error||!business)throw new Error("Business context is not available.");
+ const supabase=await createClient();const {data:business,error}=await supabase.from("businesses").select("id,name,currency,workspace_id").eq("id",businessId).eq("owner_id",userId).single();if(error||!business)throw new Error("Business context is not available.");
  const started=await start(supabase,business,userId,"fractional_cfo",prompt,mode);if(started.existing)return{runId:started.existing.id,status:started.existing.status,result:started.existing.result};const runId=started.run.id;
  try{
   const end=new Date();const startDate=new Date(end.getFullYear(),end.getMonth()-2,1);const periodStart=startDate.toISOString().slice(0,10);const periodEnd=end.toISOString().slice(0,10);

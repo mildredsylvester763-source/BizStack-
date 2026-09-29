@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase-server";
 
 async function addCustomer(formData: FormData) {
   "use server";
-  const supabase = createClient();
+  const supabase = await await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
   const { data: business } = await supabase.from("businesses").select("id").eq("owner_id", user.id).single();
@@ -25,7 +25,7 @@ function money(value: number, currency: string) {
 }
 
 export default async function CustomersPage() {
-  const supabase = createClient();
+  const supabase = await await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 

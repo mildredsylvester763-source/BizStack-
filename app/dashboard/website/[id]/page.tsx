@@ -1,4 +1,3 @@
-// @ts-nocheck
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -6,7 +5,7 @@ import { createClient } from "@/lib/supabase-server";
 import { runWebsiteBuild } from "@/lib/ai/build-engine/runtime";
 
 async function ownerContext(){
-  const supabase=createClient();
+  const supabase=await createClient();
   const {data:{user}}=await supabase.auth.getUser();
   if(!user) redirect("/login");
   const {data:business}=await supabase.from("businesses").select("id,name").eq("owner_id",user.id).single();
@@ -85,7 +84,9 @@ async function publishWebsite(formData:FormData){
   revalidatePath("/site");
 }
 
-export default async function WebsiteEditor({params,searchParams}:{params:{id:string},searchParams:{page?:string}}){
+export default async function WebsiteEditor(props:{params: Promise<{id:string}>,searchParams: Promise<{page?:string}>}) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const {supabase,business}=await ownerContext();
   const {data:site}=await supabase.from("websites").select("id,name,status,subdomain,custom_domain,current_version,settings").eq("id",params.id).eq("business_id",business.id).single();
   if(!site) notFound();

@@ -17,7 +17,7 @@ const MODES = [
 ];
 
 export default async function AutomationSettingsPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user }

@@ -12,18 +12,18 @@ async function vercel(path:string, init:RequestInit={}) {
   return body;
 }
 
-export async function POST(req:NextRequest,context:{params:{projectId:string}}){
-  const supabase=createClient();
+export async function POST(req:NextRequest,context:{params: Promise<{projectId:string}>}){
+  const supabase=await createClient();
   const {data:{user}}=await supabase.auth.getUser();
   if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
-  const { data: projectAccess } = await supabase.from("ai_projects").select("id,business_id,status").eq("id",context.params.projectId).maybeSingle();
+  const { data: projectAccess } = await supabase.from("ai_projects").select("id,business_id,status").eq("id",(await context.params).projectId).maybeSingle();
   if(!projectAccess || projectAccess.status==="deleted") return NextResponse.json({error:"Project not found."},{status:404});
   const { data: canDeploy } = await supabase.rpc("user_can_business",{p_business_id:projectAccess.business_id,p_user_id:user.id,p_permission:"deploy_projects"});
   if(!canDeploy) return NextResponse.json({error:"You do not have permission to deploy this project."},{status:403});
   const body=await req.json().catch(()=>({}));
   const environment=body.environment==="production"?"production":"preview";
   const gitRef=typeof body.gitRef==="string"&&body.gitRef?body.gitRef:"main";
-  const {data:project,error:pe}=await supabase.from("ai_projects").select("id,name,slug,business_id,repository_name,default_branch").eq("id",context.params.projectId).single();
+  const {data:project,error:pe}=await supabase.from("ai_projects").select("id,name,slug,business_id,repository_name,default_branch").eq("id",(await context.params).projectId).single();
   if(pe||!project)return NextResponse.json({error:"Project not found."},{status:404});
   const {data:version}=await supabase.from("ai_project_versions").select("id,version_no").eq("project_id",project.id).order("version_no",{ascending:false}).limit(1).maybeSingle();
   if(!project.repository_name)return NextResponse.json({error:"Project has no linked Git repository. Link the source repository before deploying."},{status:409});
@@ -55,13 +55,13 @@ export async function POST(req:NextRequest,context:{params:{projectId:string}}){
   }
 }
 
-export async function GET(_req:NextRequest,context:{params:{projectId:string}}){
-  const supabase=createClient();
+export async function GET(_req:NextRequest,context:{params: Promise<{projectId:string}>}){
+  const supabase=await createClient();
   const {data:{user}}=await supabase.auth.getUser();
   if(!user)return NextResponse.json({error:"Unauthorized"},{status:401});
   const { data: project } = await supabase.from("ai_projects")
     .select("id,business_id,status")
-    .eq("id", context.params.projectId)
+    .eq("id", (await context.params).projectId)
     .maybeSingle();
   if (!project || project.status === "deleted") return NextResponse.json({error:"Project not found."},{status:404});
   const { data: canRead } = await supabase.rpc("user_can_business", {
@@ -70,7 +70,7 @@ export async function GET(_req:NextRequest,context:{params:{projectId:string}}){
     p_permission: "read_deployments"
   });
   if (!canRead) return NextResponse.json({error:"You do not have permission to view deployment history."},{status:403});
-  const {data:rows,error}=await supabase.from("ai_deployments").select("*").eq("project_id",context.params.projectId).order("created_at",{ascending:false}).limit(50);
+  const {data:rows,error}=await supabase.from("ai_deployments").select("*").eq("project_id",(await context.params).projectId).order("created_at",{ascending:false}).limit(50);
   if(error)throw error;
   return NextResponse.json({deployments:rows||[]});
 }

@@ -20,7 +20,7 @@ async function finish(supabase:any,businessId:string,runId:string,artifactType:s
 }
 
 export async function runSmsWalletBuild({businessId,userId,prompt,mode="ask_first"}:{businessId:string;userId:string;prompt:string;mode?:BuildMode}){
- const supabase=createClient(); const {data:business,error}=await supabase.from("businesses").select("id,name,currency,workspace_id").eq("id",businessId).eq("owner_id",userId).single(); if(error||!business)throw new Error("Business context is not available.");
+ const supabase=await createClient(); const {data:business,error}=await supabase.from("businesses").select("id,name,currency,workspace_id").eq("id",businessId).eq("owner_id",userId).single(); if(error||!business)throw new Error("Business context is not available.");
  const draft=parseSmsWalletRequest(prompt,business.currency||"USD"); const started=await start(supabase,business,userId,"sms_wallet",prompt,mode); if(started.existing)return{runId:started.existing.id,status:started.existing.status,result:started.existing.result}; const runId=started.run.id;
  try{
   const {data:wallet,error:we}=await supabase.from("sms_credit_wallets").upsert({business_id:businessId,currency:draft.currency,low_balance_threshold:draft.lowBalance},{onConflict:"business_id"}).select("id,business_id,currency,balance_credits,reserved_credits,low_balance_threshold,status").single();
@@ -32,7 +32,7 @@ export async function runSmsWalletBuild({businessId,userId,prompt,mode="ask_firs
 }
 
 export async function runAppointmentBuild({businessId,userId,prompt,mode="auto_execute"}:{businessId:string;userId:string;prompt:string;mode?:BuildMode}){
- const supabase=createClient(); const {data:business,error}=await supabase.from("businesses").select("id,name,currency,workspace_id").eq("id",businessId).eq("owner_id",userId).single(); if(error||!business)throw new Error("Business context is not available.");
+ const supabase=await createClient(); const {data:business,error}=await supabase.from("businesses").select("id,name,currency,workspace_id").eq("id",businessId).eq("owner_id",userId).single(); if(error||!business)throw new Error("Business context is not available.");
  const draft=parseAppointmentRequest(prompt,business.currency||"USD"); const started=await start(supabase,business,userId,"appointment",prompt,mode); if(started.existing)return{runId:started.existing.id,status:started.existing.status,result:started.existing.result}; const runId=started.run.id;
  try{
   let {data:service}=await supabase.from("appointment_services").select("id,name,duration_minutes,price,currency,deposit_type,deposit_value").eq("business_id",businessId).ilike("name","%"+draft.serviceName+"%").eq("active",true).limit(1).maybeSingle();
@@ -56,7 +56,7 @@ export async function runAppointmentBuild({businessId,userId,prompt,mode="auto_e
 }
 
 export async function runDigitalMenuBuild({businessId,userId,prompt,mode="auto_execute"}:{businessId:string;userId:string;prompt:string;mode?:BuildMode}){
- const supabase=createClient(); const {data:business,error}=await supabase.from("businesses").select("id,name,currency,workspace_id").eq("id",businessId).eq("owner_id",userId).single(); if(error||!business)throw new Error("Business context is not available.");
+ const supabase=await createClient(); const {data:business,error}=await supabase.from("businesses").select("id,name,currency,workspace_id").eq("id",businessId).eq("owner_id",userId).single(); if(error||!business)throw new Error("Business context is not available.");
  const draft=parseMenuRequest(prompt,business.currency||"USD"); const started=await start(supabase,business,userId,"digital_menu",prompt,mode); if(started.existing)return{runId:started.existing.id,status:started.existing.status,result:started.existing.result}; const runId=started.run.id;
  try{
   const {data:menu,error:me}=await supabase.from("digital_menus").upsert({business_id:businessId,name:draft.name,slug:draft.slug,currency:draft.currency,kitchen_flow_enabled:draft.kitchenFlowEnabled,status:"draft"},{onConflict:"business_id,slug"}).select("id,name,slug,status,qr_token,currency,kitchen_flow_enabled").single();
@@ -71,7 +71,7 @@ export async function runDigitalMenuBuild({businessId,userId,prompt,mode="auto_e
 }
 
 export async function runWaiverBuild({businessId,userId,prompt,mode="draft_only"}:{businessId:string;userId:string;prompt:string;mode?:BuildMode}){
- const supabase=createClient(); const {data:business,error}=await supabase.from("businesses").select("id,name,workspace_id").eq("id",businessId).eq("owner_id",userId).single(); if(error||!business)throw new Error("Business context is not available.");
+ const supabase=await createClient(); const {data:business,error}=await supabase.from("businesses").select("id,name,workspace_id").eq("id",businessId).eq("owner_id",userId).single(); if(error||!business)throw new Error("Business context is not available.");
  const draft=parseWaiverRequest(prompt); const started=await start(supabase,business,userId,"waiver",prompt,mode); if(started.existing)return{runId:started.existing.id,status:started.existing.status,result:started.existing.result}; const runId=started.run.id;
  try{
   const {data:previous}=await supabase.from("waivers").select("version").eq("business_id",businessId).eq("name",draft.name).order("version",{ascending:false}).limit(1).maybeSingle();

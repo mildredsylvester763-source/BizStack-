@@ -44,9 +44,9 @@ function classifyFailure(text: string) {
   return "build";
 }
 
-export async function GET(request: NextRequest, context: { params: { projectId: string } }) {
+export async function GET(request: NextRequest, context: { params: Promise<{ projectId: string }> }) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -57,7 +57,7 @@ export async function GET(request: NextRequest, context: { params: { projectId: 
       .from("ai_deployments")
       .select("*")
       .eq("id", deploymentId)
-      .eq("project_id", context.params.projectId)
+      .eq("project_id", (await context.params).projectId)
       .single();
 
     if (deploymentError || !deployment) {
@@ -109,7 +109,7 @@ export async function GET(request: NextRequest, context: { params: { projectId: 
       } else {
         const failureClass = classifyFailure(logs);
         const { data: created } = await supabase.from("ai_repair_runs").insert({
-          project_id: context.params.projectId,
+          project_id: (await context.params).projectId,
           deployment_id: deployment.id,
           status: "planned",
           failure_class: failureClass,

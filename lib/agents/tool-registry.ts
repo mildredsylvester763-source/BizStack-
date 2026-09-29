@@ -38,6 +38,7 @@ export const TOOL_REGISTRY: ToolDefinition[] = [
   { toolKey: "integrations.test", name: "Test Integration", riskLevel: "medium", permission: "write_integrations", description: "Verify a connected integration against its real provider API, update connection health, and record an auditable health-check event.", inputSchema: { type: "object", properties: { integration_id: { type: "string" } }, required: ["integration_id"] } },
   { toolKey: "integrations.sync", name: "Sync Connected Resource", riskLevel: "medium", permission: "write_integrations", description: "Run a governed sync for a connected custom connector resource and persist the external records, cursor, run evidence and errors.", inputSchema: { type: "object", properties: { integration_id: { type: "string" }, resource_key: { type: "string" } }, required: ["integration_id","resource_key"] } },
   { toolKey: "website.build", name: "Build Website", riskLevel: "medium", permission: "build_websites", description: "Create or modify a real BizStack website from natural language, optionally compiling the same design into an editable software project.", inputSchema: { type: "object", properties: { prompt: { type: "string" }, website_id: { type: "string" }, project_id: { type: "string" }, publish: { type: "boolean" } }, required: ["prompt"] } },
+  { toolKey: "website.actions.configure", name: "Website Business Actions", riskLevel: "high", permission: "build_websites", description: "Configure which published website actions are allowed to write into business state, with explicit authentication mode, idempotency and per-minute rate limits.", inputSchema: { type: "object", properties: { website_id: { type: "string" }, actions: { type: "array", items: { type: "object" } } }, required: ["website_id","actions"] } },
   { toolKey: "website.live_data.configure", name: "Website Live Business Data", riskLevel: "medium", permission: "build_websites", description: "Configure a published website to read an allowlisted, non-sensitive slice of the business in near real time, such as public products, availability and business profile data. Private invoices, balances and customer records are never exposed by this surface.", inputSchema: { type: "object", properties: { website_id: { type: "string" }, enabled: { type: "boolean" }, sources: { type: "array", items: { type: "object" } } }, required: ["website_id","sources"] } },
   { toolKey: "events.create", name: "Create Business Event", riskLevel: "low", permission: "draft_actions", description: "Record an auditable internal action, recommendation or handoff.", inputSchema: { type: "object", properties: { event_type: { type: "string" }, summary: { type: "string" }, category: { type: "string" }, priority: { type: "string" }, action_type: { type: "string" } }, required: ["summary"] } },
   { toolKey: "projects.list", name: "Project Directory", riskLevel: "low", permission: "read_projects", description: "Inspect persistent software projects and their verified deployment state.", inputSchema: emptyObject() },
@@ -78,7 +79,7 @@ export function buildPlan(input: string): { toolKey: string; input: Record<strin
 }
 
 export type RuntimeContext = {
-  supabase: ReturnType<typeof createClient>;
+  supabase: Awaited<ReturnType<typeof createClient>>;
   businessId: string;
   userId: string;
   projectId?: string | null;
@@ -243,12 +244,88 @@ export async function executeTool(toolKey: string, input: Record<string, unknown
     });
   }
 
+
+  if (toolKey === "website.actions.configure") {
+    const websiteId = String(input.website_id ?? "").trim();
+    if (!websiteId) throw new Error("Website ID is required.");
+    const { data: website, error: websiteError } = await supabase
+      .from("websites")
+      .select("id,status")
+      .eq("id", websiteId)
+      .eq("business_id", businessId)
+      .single();
+    if (websiteError || !website) throw new Error("Website not found for this business.");
+
+    const allowedActions = new Set(["booking_request", "order_request", "quote_request"]);
+    const rawActions = Array.isArray(input.actions) ? input.actions : [];
+    const actions = rawActions.map((raw) => {
+      const item = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+      const actionKey = String(item.action_key ?? "").trim();
+      if (!allowedActions.has(actionKey)) throw new Error("Unsupported website business action: " + actionKey);
+      const authMode = String(item.auth_mode ?? "public").trim();
+      if (!["public", "authenticated"].includes(authMode)) {
+        throw new Error("Website action auth_mode must be public or authenticated.");
+      }
+      const rateLimit = Math.max(1, Math.min(1000, Number(item.rate_limit_per_minute ?? 30)));
+      const enabled = item.enabled !== false;
+      const requireIdempotency = item.require_idempotency !== false;
+      const config = item.config && typeof item.config === "object" ? item.config : {};
+      return { actionKey, authMode, rateLimit, enabled, requireIdempotency, config };
+    });
+
+    for (const action of actions) {
+      const { error } = await supabase.from("website_action_bindings").upsert({
+        business_id: businessId,
+        website_id: websiteId,
+        action_key: action.actionKey,
+        enabled: action.enabled,
+        auth_mode: action.authMode,
+        rate_limit_per_minute: action.rateLimit,
+        require_idempotency: action.requireIdempotency,
+        config: action.config,
+        created_by: context.userId,
+        updated_at: new Date().toISOString()
+      }, { onConflict: "website_id,action_key" });
+      if (error) throw error;
+    }
+
+    const selected = actions.map((action) => action.actionKey);
+    let disableQuery = supabase.from("website_action_bindings")
+      .update({ enabled: false, updated_at: new Date().toISOString() })
+      .eq("website_id", websiteId)
+      .eq("business_id", businessId);
+    if (selected.length) disableQuery = disableQuery.not("action_key", "in", "(" + selected.join(",") + ")");
+    const { error: disableError } = await disableQuery;
+    if (disableError) throw disableError;
+
+    await supabase.from("events").insert({
+      business_id: businessId,
+      event_type: "website.actions_configured",
+      summary: "Configured governed website-to-business actions.",
+      evidence: { website_id: websiteId, actions },
+      status: "needs_approval",
+      priority: "high",
+      category: "website",
+      action_type: "configure_website_actions"
+    });
+
+    return {
+      websiteId,
+      actions,
+      disabledUnselected: true,
+      safety: {
+        idempotency: "Required by default.",
+        rateLimit: "Per-website, per-action, per-source-IP window.",
+        authentication: "Public actions are anonymous; authenticated mode validates the signed-in BizStack user against the business."
+      }
+    };
+  }
   if (toolKey === "website.live_data.configure") {
     const websiteId = String(input.website_id ?? "").trim();
     if (!websiteId) throw new Error("Website ID is required.");
     const { data: website, error: websiteError } = await supabase.from("websites").select("id,settings,status").eq("id", websiteId).eq("business_id", businessId).single();
     if (websiteError || !website) throw new Error("Website not found for this business.");
-    const allowed = new Set(["business_profile","products","inventory_availability"]);
+    const allowed = new Set(["business_profile","products","inventory_availability","services","locations","opening_hours","bookings","public_reviews"]);
     const rawSources = Array.isArray(input.sources) ? input.sources : [];
     const sources = rawSources.map((source) => {
       const item = source && typeof source === "object" ? source as Record<string, unknown> : {};
@@ -487,7 +564,7 @@ export async function executeTool(toolKey: string, input: Record<string, unknown
     const has = (name: string) => typeof packageJson?.scripts?.[name] === "string";
     const results: Array<Record<string, unknown>> = [];
 
-    const installCommand =
+    const installCommand: [string, string[]] =
       sourceFiles.some((file) => file.path === "package-lock.json") ? ["npm", ["ci"]] :
       sourceFiles.some((file) => file.path === "pnpm-lock.yaml") ? ["pnpm", ["install", "--frozen-lockfile"]] :
       sourceFiles.some((file) => file.path === "yarn.lock") ? ["yarn", ["install", "--frozen-lockfile"]] :

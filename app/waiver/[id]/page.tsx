@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase-server";
 
-export default async function PublicWaiverPage({params}:{params:{id:string}}){
- const supabase=createClient();
+export default async function PublicWaiverPage(props:{params: Promise<{id:string}>}) {
+ const params = await props.params;
+ const supabase=await createClient();
  const {data:waiver}=await supabase.from("waivers").select("id,title,body,version,required,status").eq("id",params.id).eq("status","published").single();
  if(!waiver)return <main className="min-h-screen bg-ledger grid place-items-center p-6"><div className="text-center"><h1 className="font-display text-3xl">Waiver unavailable</h1><p className="text-sm text-ink/50 mt-2">This waiver is not published.</p></div></main>;
  return <main className="min-h-screen bg-ledger"><section className="max-w-2xl mx-auto px-5 py-10"><div className="bg-white border border-rule p-7"><p className="text-xs uppercase tracking-[.16em] text-vault">Digital waiver</p><h1 className="font-display text-3xl mt-2">{waiver.title}</h1><p className="text-xs text-ink/40 mt-2">Version {waiver.version}{waiver.required?" · Required":""}</p><div className="mt-6 whitespace-pre-wrap text-sm text-ink/70 leading-7">{waiver.body}</div><div className="mt-8 border-t border-rule pt-6"><h2 className="font-medium">Signature capture</h2><p className="text-xs text-ink/45 mt-1">This public form records the signature against the exact published waiver version.</p><form action={"/api/public/waiver/"+waiver.id+"/sign"} method="post" className="mt-4 space-y-3"><input name="signerName" required placeholder="Full name" className="w-full border border-rule px-3 py-2.5 text-sm"/><input name="signerEmail" type="email" placeholder="Email" className="w-full border border-rule px-3 py-2.5 text-sm"/><input type="hidden" name="signatureType" value="typed"/><label className="block text-xs text-ink/50">Type your full name as your signature<input name="signatureValue" required className="mt-2 w-full border border-rule px-3 py-3 font-display text-2xl"/></label><button className="bg-vault text-white px-5 py-3 text-sm">Sign waiver</button></form></div></div></section></main>;

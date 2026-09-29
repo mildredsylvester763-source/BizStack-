@@ -4,10 +4,10 @@ import { decideAgentApproval, type ApprovalDecision } from "@/lib/agents/approva
 
 export async function POST(
   request: Request,
-  context: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
@@ -28,7 +28,7 @@ export async function POST(
     }
 
     const result = await decideAgentApproval({
-      approvalId: context.params.id,
+      approvalId: (await context.params).id,
       businessId: business.id,
       userId: user.id,
       decision

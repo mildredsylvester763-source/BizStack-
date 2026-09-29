@@ -14,7 +14,7 @@ function permissionAllows(agent: { permissions?: unknown }, permission: string) 
 }
 
 async function persistMemory(
-  supabase: ReturnType<typeof createClient>,
+  supabase: Awaited<ReturnType<typeof createClient>>,
   businessId: string,
   agentId: string,
   key: string,
@@ -61,7 +61,7 @@ export async function runAgent({
   userId: string;
   input: string;
 }) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: agent, error: agentError } = await supabase
     .from("ai_agents")
     .select("id,name,status,autonomy_mode,permissions,tools")

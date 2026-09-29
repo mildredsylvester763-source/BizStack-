@@ -9,7 +9,7 @@ const STATUS_STYLES: Record<string,string> = {
 };
 
 export default async function InvoicesPage() {
-  const supabase=createClient();
+  const supabase=await createClient();
   const {data:{user}}=await supabase.auth.getUser(); if(!user) redirect("/login");
   const {data:business}=await supabase.from("businesses").select("id,name").eq("owner_id",user.id).single();
   if(!business) redirect("/onboarding");

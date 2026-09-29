@@ -5,9 +5,11 @@ on:
     branches:
       - main
       - "feat/**"
+      - "preview/next16-verification"
   pull_request:
     branches:
       - main
+      - "preview/next16-verification"
 
 jobs:
   verify:
@@ -17,12 +19,12 @@ jobs:
       NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
       NEXT_PUBLIC_SUPABASE_ANON_KEY: build-placeholder
       SUPABASE_SERVICE_ROLE_KEY: build-placeholder
-      BIZSTACK_ENCRYPTION_KEY: 0
+      BIZSTACK_ENCRYPTION_KEY: 0000000000000000000000000000000000000000000000000000000000000000
       CRON_SECRET: build-placeholder
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - run: npm install
       - run: npm run build

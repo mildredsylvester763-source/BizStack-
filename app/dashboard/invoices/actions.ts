@@ -39,7 +39,7 @@ type CustomerActionRow = {
 };
 
 async function getBusinessContext() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user }
   } = await supabase.auth.getUser();
@@ -62,7 +62,7 @@ async function getBusinessContext() {
 }
 
 async function loadInvoiceForAction(
-  supabase: ReturnType<typeof createClient>,
+  supabase: Awaited<ReturnType<typeof createClient>>,
   businessId: string,
   invoiceId: string
 ) {

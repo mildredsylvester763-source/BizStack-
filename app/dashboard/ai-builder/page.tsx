@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase-server";
 import OperatorCockpit from "./operator-cockpit";
 
 export default async function AIBuilderPage() {
-  const supabase=createClient();
+  const supabase=await await createClient();
   const {data:{user}}=await supabase.auth.getUser();
   if(!user)redirect("/login");
   const {data:business}=await supabase.from("businesses").select("id,name").eq("owner_id",user.id).single();

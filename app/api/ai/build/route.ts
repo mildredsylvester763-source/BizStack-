@@ -18,7 +18,7 @@ import { runBusinessDocumentBuild } from '@/lib/ai/build-engine/business-documen
 import type { BuildMode } from '@/lib/ai/build-engine/types';
 
 export async function POST(request: Request) {
-  const supabase=createClient();
+  const supabase=await createClient();
   const {data:{user}}=await supabase.auth.getUser();
   if(!user) return NextResponse.json({error:'Unauthorized'},{status:401});
   const body=await request.json().catch(()=>({}));

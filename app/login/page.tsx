@@ -36,10 +36,7 @@ function FacebookIcon() {
 }
 
 export default function LoginPage() {
-  const router = useRouter();
-  const supabase = createClient();
-
-  const [email, setEmail] = useState("");
+  const router = useRouter();  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +46,7 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
 
+    const supabase = createClient();
     const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     setLoading(false);
@@ -63,6 +61,7 @@ export default function LoginPage() {
 
   async function handleOAuth(provider: "google" | "apple" | "facebook") {
     setError(null);
+    const supabase = createClient();
     await supabase.auth.signInWithOAuth({
       provider,
       options: {

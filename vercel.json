@@ -2,8 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "git": {
     "deploymentEnabled": {
-      "main": false,
-      "feat/bizstack-reconciliation-enterprise-feed": false
+      "chore/next-16-safe-migration": false
     }
   }
 }
