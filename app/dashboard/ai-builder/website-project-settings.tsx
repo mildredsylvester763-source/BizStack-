@@ -542,13 +542,26 @@ export default function WebsiteProjectSettings({ project, onAsk }: { project: Pr
 
   function resetSection() {
     if (!current) return;
+    if (current.key === "general") {
+      setSettings((value) => ({
+        ...value,
+        identity: {
+          ...DEFAULTS.identity,
+          appName: project.name,
+          shortName: project.name.slice(0, 12)
+        },
+        platform: {
+          ...DEFAULTS.platform,
+          shell: TYPE_META[project.project_type]?.shell || "web-app",
+          target: TYPE_META[project.project_type]?.target || "web"
+        }
+      }));
+      return;
+    }
     setSettings((value) => ({
       ...value,
-      [current.key]: { ...(DEFAULTS[current.key] || {}), ...(current.key === "general" ? value[current.key] : {}) }
+      [current.key]: { ...(DEFAULTS[current.key] || {}) }
     }));
-    if (current.key === "general") {
-      setSettings((value) => ({ ...value, identity: { ...DEFAULTS.identity, appName: project.name, shortName: project.name.slice(0, 12) }, platform: { ...DEFAULTS.platform, shell: TYPE_META[project.project_type]?.shell || "web-app", target: TYPE_META[project.project_type]?.target || "web" } }));
-    }
   }
 
   const filteredGroups = useMemo(() => {
