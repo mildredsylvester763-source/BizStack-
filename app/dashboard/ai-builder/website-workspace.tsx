@@ -355,15 +355,15 @@ export default function WebsiteWorkspace({
               )}
               {elementMap.map((item) => (
                 <button
-                  key={item.label}
-                  onClick={() => askPage("Update the " + item.prompt)}
+                  key={item.id}
+                  onClick={() => askPage("Update the " + item.prompt + ". Source line: " + item.line + ". Source excerpt: " + item.excerpt)}
                   className="w-full text-left rounded-xl border border-white/[.05] bg-white/[.02] hover:bg-white/[.045] px-3 py-2.5"
                 >
                   <div className="flex items-center gap-2">
                     <span className="text-[9px] text-white/55">{item.label}</span>
                     <span className="ml-auto text-[7px] text-indigo-200/60">{item.count}</span>
                   </div>
-                  <div className="text-[7px] text-white/20 mt-1">Ask Builder about these source-backed elements</div>
+                  <div className="text-[7px] text-white/20 mt-1">Line {item.line} · {item.excerpt || "source element"}</div>
                 </button>
               ))}
             </div>
