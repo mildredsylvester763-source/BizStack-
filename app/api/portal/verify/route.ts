@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
   const { error } = await (admin.from("customer_portal_sessions") as any).insert(sessionRecord);
   if (error) return NextResponse.json({ error: "Could not create the portal session." }, { status: 500 });
 
-  await admin.from("customer_portal_access_requests").update({ consumed_at: now }).eq("id", request.id);
+  await (admin.from("customer_portal_access_requests") as any).update({ consumed_at: now }).eq("id", request.id);
   const accessEvent = { portal_id: request.portal_id, customer_id: request.customer_id, event_type: "access_granted", metadata: {} };
   await (admin.from("customer_portal_events") as any).insert(accessEvent);
 
