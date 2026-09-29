@@ -6,7 +6,7 @@ export async function GET(
   context: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { data: project } = await supabase.from("ai_projects").select("id,name,slug,business_id,status").eq("id", (await context.params).projectId).single();
@@ -27,7 +27,7 @@ export async function POST(
   context: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
