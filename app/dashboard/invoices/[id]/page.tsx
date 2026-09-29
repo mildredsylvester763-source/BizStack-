@@ -4,6 +4,15 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase-server";
 import { sendEmail } from "@/lib/integrations/providers";
 
+const STATUS_STYLES: Record<string,string> = {
+  draft:"bg-[#eceae5] text-[#5e5b55] border-[#d9d6ce]",
+  sent:"bg-[#e8eef4] text-[#31536f] border-[#cbd9e5]",
+  partially_paid:"bg-[#f8edc8] text-[#7b611c] border-[#ead89b]",
+  paid:"bg-[#dcefe2] text-[#2f6b43] border-[#b9dcc5]",
+  overdue:"bg-[#f7dddd] text-[#a04444] border-[#e8bcbc]"
+};
+const STATUS_DOTS: Record<string,string> = {draft:"bg-[#8b887f]",sent:"bg-[#52799a]",partially_paid:"bg-[#c49a35]",paid:"bg-[#4f9965]",overdue:"bg-[#c95c5c]"};
+
 async function markSent(formData: FormData) {
   "use server";
   const supabase = await createClient();
@@ -97,6 +106,7 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
   const overdue = invoice.status !== "draft" && invoice.status !== "paid" && !!invoice.due_date && new Date(invoice.due_date + "T23:59:59") < new Date();
   const paid = Number(invoice.paid_amount || 0);
   const outstanding = Math.max(0, total - paid);
+  const displayStatus = overdue ? "overdue" : (paid >= total && total > 0 ? "paid" : (paid > 0 ? "partially_paid" : invoice.status));
   const paymentReady = (paymentIntegrations ?? []).some((item: { status?: string }) => item.status === "connected");
   const whatsappHref = customer?.phone ? "https://wa.me/" + customer.phone.replace(/\D/g, "") : "";
   const mailHref = customer?.email ? "mailto:" + customer.email + "?subject=" + encodeURIComponent("Invoice " + invoice.invoice_number + " from " + business.name) : "";
