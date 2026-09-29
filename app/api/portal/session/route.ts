@@ -5,11 +5,20 @@ import { createAdminClient } from "@/lib/supabase-admin";
 export const runtime = "nodejs";
 const hash=(v:string)=>crypto.createHash("sha256").update(v).digest("hex");
 
+type PortalSessionRecord = {
+  id:string;
+  portal_id:string;
+  customer_id:string;
+  expires_at:string;
+  revoked_at:string|null;
+};
+
 export async function GET(req:NextRequest){
   const token=req.cookies.get("bizstack_portal_session")?.value;
   if(!token)return NextResponse.json({authenticated:false});
   const admin=createAdminClient();
-  const {data:session}=await admin.from("customer_portal_sessions").select("id,portal_id,customer_id,expires_at,revoked_at").eq("session_hash",hash(token)).is("revoked_at",null).gt("expires_at",new Date().toISOString()).maybeSingle();
+  const {data:rawSession}=await admin.from("customer_portal_sessions").select("id,portal_id,customer_id,expires_at,revoked_at").eq("session_hash",hash(token)).is("revoked_at",null).gt("expires_at",new Date().toISOString()).maybeSingle();
+  const session=rawSession as PortalSessionRecord|null;
   if(!session)return NextResponse.json({authenticated:false});
   const [{data:portal},{data:customer},{data:invoices},{data:appointments},{data:messages},{data:orders}]=await Promise.all([
     admin.from("customer_portals").select("id,name,slug,status,settings").eq("id",session.portal_id).eq("status","published").single(),
