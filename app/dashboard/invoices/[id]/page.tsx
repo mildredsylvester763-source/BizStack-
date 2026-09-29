@@ -98,7 +98,7 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
   const paid = Number(invoice.paid_amount || 0);
   const outstanding = Math.max(0, total - paid);
   const paymentReady = (paymentIntegrations ?? []).some((item: { status?: string }) => item.status === "connected");
-  const whatsappHref = customer?.phone ? "https://wa.me/" + customer.phone.replace(/\\D/g, "") : "";
+  const whatsappHref = customer?.phone ? "https://wa.me/" + customer.phone.replace(/\D/g, "") : "";
   const mailHref = customer?.email ? "mailto:" + customer.email + "?subject=" + encodeURIComponent("Invoice " + invoice.invoice_number + " from " + business.name) : "";
   const callHref = customer?.phone ? "tel:" + customer.phone : "";
 
