@@ -11,6 +11,20 @@ type SelectedElement = {
   className: string;
   selector: string;
   href: string;
+  computed: {
+    width: string;
+    height: string;
+    display: string;
+    position: string;
+    color: string;
+    backgroundColor: string;
+    fontSize: string;
+    fontWeight: string;
+    lineHeight: string;
+    borderRadius: string;
+    padding: string;
+    margin: string;
+  };
 };
 
 function elementSelector(element: Element) {
