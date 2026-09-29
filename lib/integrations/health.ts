@@ -49,7 +49,7 @@ export async function verifyIntegrationHealth(supabase:any, integration:any, bus
   let request=ENDPOINTS[provider]?.(token,cfg);
   if(!request) throw new Error(`No health-check adapter is registered for ${provider} yet.`);
   if(provider==="shopify"){
-    const domain=String(cfg.shop_domain||cfg.shop||"").trim().replace(/^https?:\/\//,"").replace(/\\/$/,"");
+    const domain=String(cfg.shop_domain||cfg.shop||"").trim().replace(/^https?:\/\//,"").replace(/\/$/,"");
     if(!domain) throw new Error("Shopify shop domain is required.");
     request={url:`https://${domain}/admin/api/2025-10/shop.json`,headers:{Authorization:`Bearer ${token}`,Accept:"application/json"}};
   }
