@@ -39,7 +39,8 @@ export default function OperatorCockpit({
   const [terminalCommand,setTerminalCommand]=useState("npm run build"),[terminalOutput,setTerminalOutput]=useState(""),[terminalBusy,setTerminalBusy]=useState(false),[terminalPreview,setTerminalPreview]=useState("");
   const [previewUrl,setPreviewUrl]=useState("");
   const [aiProviders,setAiProviders]=useState<{provider:string;model:string;priority:number}[]>([]);
-  const [projectOpen,setProjectOpen]=useState(false),[newProject,setNewProject]=useState({name:"",slug:"",projectType:"app",framework:"Next.js",runtime:"Node.js"}),[projectCreating,setProjectCreating]=useState(false);\n  const [engineeringMode,setEngineeringMode]=useState<EngineeringMode>("plan"),[engineeringOutput,setEngineeringOutput]=useState(""),[engineeringBusy,setEngineeringBusy]=useState(false),[engineeringProvider,setEngineeringProvider]=useState("");\n  const [shipBusy,setShipBusy]=useState(false),[shipStatus,setShipStatus]=useState("");
+  const [projectOpen,setProjectOpen]=useState(false),[newProject,setNewProject]=useState({name:"",slug:"",projectType:"app",framework:"Next.js",runtime:"Node.js"}),[projectCreating,setProjectCreating]=useState(false);
+  const [engineeringMode,setEngineeringMode]=useState<EngineeringMode>("plan"),[engineeringOutput,setEngineeringOutput]=useState(""),[engineeringBusy,setEngineeringBusy]=useState(false),[engineeringProvider,setEngineeringProvider]=useState("");\n  const [shipBusy,setShipBusy]=useState(false),[shipStatus,setShipStatus]=useState("");
 
   const project=useMemo(()=>projects.find(p=>p.id===projectId)||null,[projects,projectId]);
   const selectedFile=useMemo(()=>files.find(f=>f.path===selectedPath)||null,[files,selectedPath]);
