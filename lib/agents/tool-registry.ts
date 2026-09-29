@@ -459,7 +459,7 @@ export async function executeTool(toolKey: string, input: Record<string, unknown
 
     const { data: files, error: filesError } = await supabase
       .from("ai_project_files")
-      .select("path,content,language,is_binary,version_no")
+      .select("id,path,content,language,is_binary,version_no")
       .eq("project_id", projectId)
       .order("path");
     if (filesError) throw filesError;
