@@ -272,7 +272,7 @@ export default function NewInvoicePage() {
                 <div><p className="text-[10px] uppercase tracking-[.18em] text-black/30">06 / Files</p><h2 className="font-display text-2xl mt-1">Attachments</h2><p className="text-xs text-black/40 mt-1">Keep briefs, purchase orders, references and supporting files beside the invoice.</p></div>
                 <label className="cursor-pointer rounded-xl border border-black/10 bg-white px-3.5 py-2 text-xs font-medium hover:bg-black/[.03]">
                   + Add attachment
-                  <input type="file" multiple className="hidden" onChange={e => setAttachmentNames(Array.from(e.target.files ?? []).map(file => file.name))} />
+                  <input type="file" multiple className="hidden" onChange={e => setFiles(e.target.files)} />
                 </label>
               </div>
               <div className="p-6 sm:p-7">
