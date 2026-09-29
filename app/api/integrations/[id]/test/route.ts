@@ -7,7 +7,7 @@ export const runtime="nodejs";
 
 export async function POST(req:NextRequest, props:{params: Promise<{id:string}>}) {
   const params = await props.params;
-  const supabase=createClient();
+  const supabase=await createClient();
   const {data:{user}}=await supabase.auth.getUser();
   if(!user) return NextResponse.json({error:"Unauthorized"},{status:401});
   const {data:integration,error}=await supabase.from("integrations").select("id,business_id,provider,connection_type,config").eq("id",params.id).single();
