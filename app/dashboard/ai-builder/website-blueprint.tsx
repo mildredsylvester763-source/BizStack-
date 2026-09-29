@@ -160,6 +160,38 @@ export default function WebsiteBlueprint({
               </div>
             </div>
 
+            <div className="rounded-2xl border border-white/[.06] bg-[#0c0f14] p-3 overflow-hidden">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-[8px] uppercase tracking-[.18em] text-indigo-100/55">Visual sitemap</div>
+                  <div className="text-[7px] text-white/20 mt-1">Routes become an interaction map before implementation.</div>
+                </div>
+                <span className="text-[7px] text-white/20">{blueprint.pages.length} pages</span>
+              </div>
+              <div className="mt-4 overflow-x-auto pb-2">
+                <div className="min-w-[680px] flex items-start gap-2">
+                  {blueprint.pages.map((page, index) => (
+                    <div key={page.id} className="flex items-start gap-2">
+                      <div className="w-[185px] rounded-2xl border border-white/[.07] bg-white/[.025] p-3 shadow-[0_12px_35px_rgba(0,0,0,.18)]">
+                        <div className="flex items-center gap-2">
+                          <span className="grid h-7 w-7 place-items-center rounded-lg bg-indigo-300/[.08] text-indigo-100/75 text-[8px]">{index + 1}</span>
+                          <div className="min-w-0">
+                            <div className="text-[8px] text-white/60 truncate">{page.name}</div>
+                            <div className="text-[6px] text-white/20 mt-0.5 truncate">{page.path}</div>
+                          </div>
+                        </div>
+                        <div className="text-[7px] text-white/25 leading-4 mt-2 line-clamp-3">{page.purpose}</div>
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {(page.sections || []).slice(0, 4).map(section => <span key={section.id} className="px-1.5 py-1 rounded-full bg-white/[.04] text-[5.5px] text-white/25">{section.name}</span>)}
+                        </div>
+                      </div>
+                      {index < blueprint.pages.length - 1 && <div className="pt-9 text-white/15 text-[12px]">→</div>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <div className="text-[8px] uppercase tracking-[.18em] text-white/20">Sitemap & sections</div>
               {blueprint.pages.map((page) => (
