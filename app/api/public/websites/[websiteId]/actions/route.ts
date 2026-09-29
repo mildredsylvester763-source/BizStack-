@@ -403,7 +403,7 @@ export async function POST(
         .eq("is_active", true);
       if (productError) throw productError;
 
-      const productMap = new Map((products ?? []).map((product: any) => [String(product.id), product]));
+      type WebsiteProduct = { id: string; name: string; unit: string | null; unit_price: number | string | null };\n      const productMap = new Map<string, WebsiteProduct>((products ?? []).map((product: WebsiteProduct) => [String(product.id), product]));
       if (productMap.size !== productIds.length) {
         return NextResponse.json({ error: "One or more requested products are unavailable." }, { status: 400 });
       }
