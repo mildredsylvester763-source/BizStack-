@@ -42,30 +42,30 @@ export default async function AutomationSettingsPage() {
     settings?.find((setting) => setting.action_type === actionType)?.mode ?? "ask_first";
 
   return (
-    <main className="min-h-screen bg-ledger">
-      <header className="border-b border-rule bg-white">
-        <div className="max-w-3xl mx-auto px-6 py-5 flex items-center justify-between">
-          <Link href="/dashboard" className="font-display text-lg text-ink">
+    <main className="min-h-screen bg-[#f3f0e8] text-[#171918]">
+      <header className="sticky top-0 z-30 border-b border-black/[.08] bg-[#f8f6f0]/90 backdrop-blur-xl">
+        <div className="max-w-[1280px] mx-auto h-[72px] px-4 sm:px-6 lg:px-8 flex items-center justify-between">
+          <Link href="/dashboard" className="font-display text-xl tracking-tight">
             {business.name}
           </Link>
-          <Link href="/dashboard" className="text-sm text-ink/45 hover:text-ink">
+          <Link href="/dashboard" className="rounded-full border border-black/10 bg-white/60 px-3 py-2 text-[11px] text-black/55 hover:text-black">
             Back to dashboard
           </Link>
         </div>
       </header>
 
-      <section className="max-w-3xl mx-auto px-6 py-12">
-        <h1 className="font-display text-3xl text-ink mb-1">Automation settings</h1>
-        <p className="text-ink/60 mb-10">
+      <section className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+        <h1 className="font-display text-[42px] sm:text-[54px] leading-[.98] tracking-[-.035em]">Automation settings</h1>
+        <p className="text-[15px] leading-6 text-black/50 mt-4 mb-9 max-w-2xl">
           Choose how much BizStack does on its own for each kind of action.
         </p>
 
-        <div className="divide-y divide-rule border-t border-b border-rule">
+        <div className="rounded-[28px] border border-black/[.08] bg-[#fcfaf5] shadow-[0_20px_70px_rgba(25,24,20,.05)] overflow-hidden divide-y divide-black/[.07]">
           {ACTION_TYPES.map((action) => (
-            <div key={action.key} className="py-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div key={action.key} className="p-5 sm:px-7 sm:py-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 hover:bg-white/40 transition-colors">
               <div>
-                <p className="text-ink font-medium">{action.label}</p>
-                <p className="text-sm text-ink/55 mt-0.5">{action.description}</p>
+                <p className="font-medium">{action.label}</p>
+                <p className="text-sm text-black/45 mt-1 leading-5">{action.description}</p>
               </div>
 
               <form action={updateAutomationMode} className="shrink-0 flex items-center gap-2">
@@ -77,7 +77,7 @@ export default async function AutomationSettingsPage() {
                   id={"mode-" + action.key}
                   name="mode"
                   defaultValue={modeFor(action.key)}
-                  className="border border-rule px-4 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-vault/25"
+                  className="rounded-xl border border-black/10 bg-white px-3.5 py-2.5 text-sm focus:outline-none focus:ring-4 focus:ring-black/[.04]"
                 >
                   {MODES.map((mode) => (
                     <option key={mode.value} value={mode.value}>
@@ -87,7 +87,7 @@ export default async function AutomationSettingsPage() {
                 </select>
                 <button
                   type="submit"
-                  className="border border-rule bg-white px-4 py-2 text-sm text-ink hover:border-vault hover:text-vault transition-colors"
+                  className="rounded-xl bg-[#171918] text-white px-4 py-2.5 text-sm hover:bg-[#202725] transition-colors"
                 >
                   Save
                 </button>
