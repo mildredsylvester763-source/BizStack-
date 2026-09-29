@@ -1,47 +1,26 @@
-// @ts-nocheck
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase-server";
-
-async function changeStatus(formData:FormData){
-  "use server";
-  const supabase=await createClient();
-  const {data:{user}}=await supabase.auth.getUser();if(!user)redirect("/login");
-  const {data:business}=await supabase.from("businesses").select("id").eq("owner_id",user.id).single();if(!business)redirect("/onboarding");
-  const id=String(formData.get("id")||""),status=String(formData.get("status")||"draft");
-  if(!["draft","review","approved","archived"].includes(status))throw new Error("Invalid document status.");
-  const {error}=await supabase.from("ai_business_documents").update({status,updated_at:new Date().toISOString()}).eq("id",id).eq("business_id",business.id);
-  if(error)throw new Error(error.message);
-  revalidatePath("/dashboard/documents");
-}
-
-async function buildDocument(formData:FormData){
-  "use server";
-  const supabase=await createClient();
-  const {data:{user}}=await supabase.auth.getUser();if(!user)redirect("/login");
-  const {data:business}=await supabase.from("businesses").select("id").eq("owner_id",user.id).single();if(!business)redirect("/onboarding");
-  const prompt=String(formData.get("prompt")||"").trim();if(!prompt)throw new Error("Describe the document you need.");
-  const {runBusinessDocumentBuild}=await import("@/lib/ai/build-engine/business-document-runtime");
-  await runBusinessDocumentBuild({businessId:business.id,userId:user.id,prompt,mode:"draft_only"});
-  revalidatePath("/dashboard/documents");
-  revalidatePath("/dashboard/ai-builder");
-}
+import { BizIcon, BizPanel, BizSection, BizStatus, BizTabs } from "@/components/ui/BizStackVisual";
 
 export default async function DocumentsPage(){
  const supabase=await createClient();
- const {data:{user}}=await supabase.auth.getUser();if(!user)redirect("/login");
- const {data:business}=await supabase.from("businesses").select("id,name").eq("owner_id",user.id).single();if(!business)redirect("/onboarding");
+ const {data:{user}}=await supabase.auth.getUser(); if(!user)redirect("/login");
+ const {data:business}=await supabase.from("businesses").select("id,name").eq("owner_id",user.id).single(); if(!business)redirect("/onboarding");
  const {data:documents}=await supabase.from("ai_business_documents").select("id,document_type,title,status,version,audience,funder_name,content,assumptions,validation,created_at,updated_at").eq("business_id",business.id).order("updated_at",{ascending:false});
- return <main className="min-h-screen bg-ledger">
-  <header className="border-b border-rule bg-white"><div className="max-w-6xl mx-auto px-6 py-5 flex justify-between items-center"><div><Link href="/dashboard" className="text-xs text-ink/45">← Dashboard</Link><h1 className="font-display text-2xl mt-1">AI Business Documents</h1></div><Link href="/dashboard/ai-builder" className="text-xs text-vault">AI Builder</Link></div></header>
-  <section className="max-w-6xl mx-auto px-6 py-8 space-y-6">
-   <form action={buildDocument} className="bg-ink text-mist p-6"><p className="text-xs uppercase tracking-[.16em] text-mist/50">Document compiler</p><h2 className="font-display text-3xl mt-2">Draft a business plan, grant, loan pack or CFO brief.</h2><p className="text-sm text-mist/55 mt-2">The compiler creates structured sections, explicit assumptions and a submission-readiness boundary. It does not invent external evidence.</p><textarea name="prompt" required rows={6} className="mt-5 w-full bg-white/10 border border-white/10 px-4 py-3 text-sm text-white placeholder:text-white/30" placeholder="Create a grant application draft for a ₦5,000,000 expansion project. Target a youth enterprise fund. Focus on job creation, digital operations and measurable revenue growth."/><button className="mt-4 bg-vault text-white px-5 py-3 text-sm">Generate draft</button></form>
-
-   <div className="space-y-5">{(documents||[]).map((d:any)=><article key={d.id} className="bg-white border border-rule">
-    <div className="p-5 border-b border-rule flex flex-col md:flex-row md:items-start md:justify-between gap-4"><div><p className="text-xs uppercase tracking-[.14em] text-vault">{d.document_type.replace("_"," ")}</p><h2 className="font-display text-2xl mt-1">{d.title}</h2><p className="text-xs text-ink/45 mt-1">Version {d.version} · {d.status}{d.audience?" · "+d.audience:""}{d.funder_name?" · "+d.funder_name:""}</p></div><div className="flex flex-wrap gap-2">{d.status!=="approved"&&<form action={changeStatus}><input type="hidden" name="id" value={d.id}/><input type="hidden" name="status" value={d.status==="draft"?"review":"approved"}/><button className="bg-ink text-white px-3 py-2 text-xs">{d.status==="draft"?"Move to review":"Approve"}</button></form>}{d.status!=="archived"&&<form action={changeStatus}><input type="hidden" name="id" value={d.id}/><input type="hidden" name="status" value="archived"/><button className="border border-rule px-3 py-2 text-xs">Archive</button></form>}</div></div>
-    <div className="p-5 grid lg:grid-cols-2 gap-5"><div className="space-y-3">{Object.entries(d.content?.sections||{}).map(([key,value]:any)=><details key={key} className="border border-rule p-3"><summary className="cursor-pointer text-sm font-medium">{key.replaceAll("_"," ")}</summary><pre className="mt-3 text-xs text-ink/60 whitespace-pre-wrap font-sans">{typeof value==="string"?value:JSON.stringify(value,null,2)}</pre></details>)}</div><div className="bg-mist border border-rule p-4 h-fit"><p className="text-xs uppercase tracking-[.14em] text-alert">Evidence boundary</p><p className="text-sm text-ink/65 mt-2">{d.validation?.reason}</p><p className="text-xs text-ink/45 mt-3">Assumptions</p><ul className="text-xs text-ink/55 mt-2 space-y-1">{(d.assumptions||[]).map((a:string,i:number)=><li key={i}>{a}</li>)}</ul></div></div>
-   </article>)}{!(documents||[]).length&&<p className="bg-white border border-rule p-8 text-sm text-ink/45">No AI business documents yet.</p>}</div>
-  </section>
- </main>;
+ const docs=documents||[];
+ return <div className="biz-content">
+  <BizSection number="7" title="File Management" subtitle="Store, organize and use business files as governed AI context.">
+   <div className="flex flex-wrap justify-between gap-3 mb-3"><BizTabs items={["All Files","Documents","Spreadsheets","Images","Videos","Archives","Shared","Trash"]}/><Link href="/dashboard/ai-builder"><span className="biz-button bg-gradient-to-r from-blue-600 to-violet-600 text-white">+ Upload / Use in AI Builder</span></Link></div>
+   <div className="grid xl:grid-cols-[260px_1fr] gap-3">
+    <BizPanel title="Libraries" subtitle="Organize business knowledge">
+      <div className="p-3 space-y-1.5">{["AI Files","Documents","Images","Videos","Archives","Shared","Trash"].map((x,i)=><div key={x} className={"flex items-center gap-2 rounded-xl px-3 py-2.5 "+(i===0?"bg-blue-500/10 border border-blue-400/15":"bg-white/[.02] border border-transparent")}><BizIcon tone={i===0?"blue":"slate"} size="sm">{x.slice(0,1)}</BizIcon><span className="text-[8px] text-white/55">{x}</span><span className="ml-auto text-[7px] text-white/15">{i===0?docs.length:"—"}</span></div>)}</div>
+    </BizPanel>
+    <BizPanel title="AI Business Documents" subtitle="Structured drafts produced from real business context">
+      {docs.length===0?<div className="p-8 text-center"><BizIcon tone="purple" size="lg">□</BizIcon><div className="mt-3 text-[10px] text-white/55">No AI business documents yet</div><p className="mt-1 text-[8px] text-white/20">Build a plan, grant pack, loan brief or CFO document from the AI Builder.</p><Link href="/dashboard/ai-builder" className="mt-3 inline-flex"><span className="biz-button bg-gradient-to-r from-blue-600 to-violet-600 text-white">Create document</span></Link></div>:
+      docs.map((d:any)=><Link href="/dashboard/documents" key={d.id} className="biz-list-row px-4 py-4 hover:bg-white/[.025]"><BizIcon tone={d.status==="approved"?"green":"purple"} size="md">□</BizIcon><div className="min-w-0 flex-1"><div className="text-[9px] text-white/70 truncate">{d.title}</div><div className="text-[7px] text-white/20 mt-1">{d.document_type.replaceAll("_"," ")} · version {d.version} · updated {new Date(d.updated_at).toLocaleDateString()}</div></div><BizStatus tone={d.status==="approved"?"green":"blue"}>{d.status}</BizStatus><span className="text-white/15">›</span></Link>)}
+    </BizPanel>
+   </div>
+  </BizSection>
+ </div>;
 }
