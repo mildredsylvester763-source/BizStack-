@@ -10,6 +10,8 @@ export type WebsiteSection = {
   items?: Array<Record<string, unknown>>;
   button?: string;
   url?: string;
+  imageUrl?: string;
+  imageAlt?: string;
 };
 
 export type WebsitePageSpec = {
