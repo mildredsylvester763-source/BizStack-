@@ -35,7 +35,7 @@ export type GraphFile = {
 
 function routeFromFile(path: string): RouteEntry | null {
   if (path.startsWith("app/") && /(?:^|\/)page\.(tsx|ts|jsx|js|mdx)$/.test(path)) {
-    const relative = path.slice(4).replace(/\/g, "/").replace(/\/page\.(tsx|ts|jsx|js|mdx)$/, "");
+    const relative = path.slice(4).replace(/\\/g, "/").replace(/\/page\.(tsx|ts|jsx|js|mdx)$/, "");
     const segments = relative.split("/").filter(Boolean).filter((s) => !/^\(.+\)$/.test(s)).map((s) => {
       if (/^\[\[\.\.\..+\]\]$/.test(s) || /^\[\.\.\..+\]$/.test(s)) return ":catchall";
       if (/^\[.+\]$/.test(s)) return ":" + s.slice(1, -1);
