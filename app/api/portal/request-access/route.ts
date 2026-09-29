@@ -55,10 +55,14 @@ export async function POST(req: NextRequest) {
   if (!slug || !email || !email.includes("@")) return NextResponse.json({ error: "Enter the portal link and your email address." }, { status: 400 });
 
   const admin = createAdminClient();
-  const { data: portal } = await admin.from("customer_portals").select("id,business_id,name,status,slug,settings").eq("slug", slug).maybeSingle();
+  type PortalAccessRecord = { id: string; business_id: string; name: string; status: string; slug: string; settings: Record<string, unknown> | null };
+  type CustomerAccessRecord = { id: string; name: string | null; email: string | null; billing_email: string | null };
+  const { data: portalData } = await admin.from("customer_portals").select("id,business_id,name,status,slug,settings").eq("slug", slug).maybeSingle();
+  const portal = portalData as PortalAccessRecord | null;
   if (!portal || portal.status !== "published") return NextResponse.json({ message: "If that email is registered for this portal, a secure access link will be sent." });
 
-  const { data: customer } = await admin.from("customers").select("id,name,email,billing_email").eq("business_id", portal.business_id).or("email.ilike."+email+",billing_email.ilike."+email).limit(1).maybeSingle();
+  const { data: customerData } = await admin.from("customers").select("id,name,email,billing_email").eq("business_id", portal.business_id).or("email.ilike."+email+",billing_email.ilike."+email).limit(1).maybeSingle();
+  const customer = customerData as CustomerAccessRecord | null;
   if (!customer) return NextResponse.json({ message: "If that email is registered for this portal, a secure access link will be sent." });
 
   const rawToken = crypto.randomBytes(32).toString("base64url");
