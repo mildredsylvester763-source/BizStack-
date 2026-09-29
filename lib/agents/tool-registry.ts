@@ -94,6 +94,7 @@ export function buildPlan(input: string): { toolKey: string; input: Record<strin
     });
   }
   if (/(enable live selection|live canvas|select elements on canvas|click elements in preview|install design bridge|interactive design mode)/.test(text) && /website|design|preview|canvas/.test(text)) plan.push({ toolKey: "website.design.bridge", input: { project_id: undefined } });
+  if (/(apply|implement|add|configure|install).*(seo|aeo|structured data|schema|metadata|canonical|sitemap|robots|open graph)/i.test(text) && /website|page|site/.test(text)) plan.push({ toolKey: "website.seo.apply", input: { project_id: undefined, route: "" } });
   if (/(live|real.?time|sync|dynamic|update.*website|website.*business data|products.*website)/.test(text) && /website/.test(text)) plan.push({ toolKey: "website.live_data.configure", input: {} });
   if (/(record this|log this|create an action|create a task|note this|add to timeline)/.test(text)) {
     plan.push({ toolKey: "events.create", input: { event_type: "agent.requested_action", summary: input.trim(), category: "agent", priority: "normal", action_type: "agent_followup" } });
@@ -442,6 +443,133 @@ export async function executeTool(toolKey: string, input: Record<string, unknown
     }
 
     return { installed: true, changed: true, bridge_path: WEBSITE_DESIGN_BRIDGE_PATH, layout_path: layout.path, verification };
+  }
+
+
+  if (toolKey === "website.seo.apply") {
+    const projectId = String(input.project_id ?? context.projectId ?? "").trim();
+    const instruction = String(input.instruction ?? "").trim();
+    const requestedRoute = String(input.route ?? "").trim();
+    let sourcePath = String(input.source_path ?? "").trim().replace(/\\+/g, "/").replace(/^\\+/, "");
+    if (!projectId || !instruction) throw new Error("project_id and instruction are required.");
+
+    const { data: project, error: projectError } = await supabase
+      .from("ai_projects")
+      .select("id,business_id,name,framework,metadata,status")
+      .eq("id", projectId)
+      .eq("business_id", businessId)
+      .neq("status", "deleted")
+      .single();
+    if (projectError || !project) throw new Error("Project not found.");
+
+    const { data: files, error: filesError } = await supabase
+      .from("ai_project_files")
+      .select("id,path,content,language,is_binary,version_no")
+      .eq("project_id", projectId)
+      .order("path");
+    if (filesError) throw filesError;
+
+    const metadata = project.metadata && typeof project.metadata === "object" ? project.metadata as Record<string, unknown> : {};
+    const seoSystem = metadata.seo_system ?? {};
+
+    if (!sourcePath) {
+      const graph = buildProjectGraph(projectId, (files ?? []).map((file: any) => ({
+        path: String(file.path),
+        content: file.content,
+        language: file.language
+      })));
+      const routeMatch = requestedRoute
+        ? graph.routes.find((entry: any) => String(entry.path) === requestedRoute)
+        : null;
+      sourcePath = String(routeMatch?.source || "");
+    }
+
+    if (!sourcePath) {
+      const layoutCandidates = [
+        "app/layout.tsx","app/layout.ts","app/layout.jsx","app/layout.js",
+        "src/app/layout.tsx","src/app/layout.ts","src/app/layout.jsx","src/app/layout.js"
+      ];
+      sourcePath = String((files ?? []).find((file: any) => layoutCandidates.includes(String(file.path)))?.path || "");
+    }
+
+    const current = (files ?? []).find((file: any) => String(file.path) === sourcePath);
+    if (!current || current.is_binary || typeof current.content !== "string") {
+      throw new Error("A writable SEO source file could not be resolved.");
+    }
+
+    const messages: BizStackModelMessage[] = [
+      {
+        role: "system",
+        content: [
+          "You are BizStack SEO/AEO implementation mode operating on real source code.",
+          "Return ONLY JSON with fields: summary, content, affected_areas, verification_focus.",
+          "The content field must be the complete updated source file, not markdown and not a diff.",
+          "Preserve all existing behavior, imports, data bindings, accessibility and rendering.",
+          "Implement only the saved SEO/AEO requirements that make sense for the selected source.",
+          "Use Next.js metadata conventions when the project is Next.js.",
+          "Add structured data only when safe and based on known project/business facts; never invent claims.",
+          "Do not claim ranking improvements."
+        ].join("\n")
+      },
+      {
+        role: "user",
+        content: [
+          "Project: " + project.name,
+          "Framework: " + (project.framework || "unknown"),
+          "Route: " + (requestedRoute || "site-wide"),
+          "Instruction: " + instruction,
+          "Saved SEO/AEO system: " + JSON.stringify(seoSystem),
+          "Source path: " + sourcePath,
+          "Current source:\n" + current.content
+        ].join("\n\n")
+      }
+    ];
+
+    const result = await runBizStackModel(messages, []);
+    const raw = String(result.message?.content || "").trim();
+    let parsed: any = null;
+    try { parsed = JSON.parse(raw); } catch {}
+    const updatedSource = typeof parsed?.content === "string" ? parsed.content : "";
+    if (!updatedSource || updatedSource.length > 2_000_000) throw new Error("SEO/AEO mode returned invalid source.");
+
+    if (updatedSource === current.content) {
+      return { applied: false, source_path: sourcePath, summary: String(parsed?.summary || "No source change was necessary.") };
+    }
+
+    await executeTool("project.version.create", { project_id: projectId, message: "SEO/AEO checkpoint before " + sourcePath }, context);
+
+    const checksum = createHash("sha256").update(updatedSource, "utf8").digest("hex");
+    const { data: saved, error: saveError } = await supabase.from("ai_project_files").upsert({
+      id: current.id,
+      project_id: projectId,
+      path: sourcePath,
+      content: updatedSource,
+      content_sha: checksum,
+      language: current.language || null,
+      size_bytes: Buffer.byteLength(updatedSource, "utf8"),
+      is_binary: false,
+      version_no: Number(current.version_no ?? 0) + 1,
+      updated_by: userId,
+      updated_at: new Date().toISOString()
+    }, { onConflict: "project_id,path" });
+    if (saveError) throw saveError;
+
+    let verification: Record<string, unknown> | null = null;
+    try {
+      verification = await executeTool("project.runtime.verify", { project_id: projectId, include_tests: false }, context) as Record<string, unknown>;
+    } catch (error) {
+      verification = { ok: false, error: error instanceof Error ? error.message : "Verification failed." };
+    }
+
+    return {
+      applied: true,
+      source_path: sourcePath,
+      summary: String(parsed?.summary || "SEO/AEO source change applied."),
+      affected_areas: Array.isArray(parsed?.affected_areas) ? parsed.affected_areas.map(String).slice(0, 20) : [],
+      verification_focus: Array.isArray(parsed?.verification_focus) ? parsed.verification_focus.map(String).slice(0, 20) : [],
+      file: saved,
+      verification
+    };
   }
 
   if (toolKey === "website.design.apply") {
