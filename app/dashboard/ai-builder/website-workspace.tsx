@@ -166,6 +166,7 @@ export default function WebsiteWorkspace({
   onAskAI: (prompt: string) => void;
   onCreateProject: () => void;
   onCheckpoint?: () => void | Promise<void>;
+  onUndo?: () => void | Promise<void>;
   onTalk?: () => void;
   isGenerating?: boolean;
 }) {
@@ -442,6 +443,7 @@ export default function WebsiteWorkspace({
           </div>
           <div className="ml-auto flex items-center gap-1.5">
             <button onClick={() => onTalk?.()} className="hidden sm:inline-flex px-2.5 py-1.5 rounded-lg border border-indigo-300/[.1] bg-indigo-300/[.05] text-[7px] text-indigo-100/70">Talk to BizStack</button>
+            <button onClick={() => onUndo?.()} disabled={!onUndo} title="Restore the previous saved checkpoint" className="hidden sm:inline-flex px-2.5 py-1.5 rounded-lg border border-white/[.06] text-[7px] text-white/35 disabled:opacity-30">Undo</button>
             <button onClick={() => onCheckpoint?.()} disabled={!onCheckpoint} className="hidden sm:inline-flex px-2.5 py-1.5 rounded-lg border border-white/[.06] text-[7px] text-white/35 disabled:opacity-30">Checkpoint</button>
             <button onClick={() => setBlueprintOpen(true)} className={blueprintOpen ? "px-2.5 py-1.5 rounded-lg bg-indigo-300/[.09] border border-indigo-300/[.1] text-[7px] text-indigo-100" : "px-2.5 py-1.5 rounded-lg border border-white/[.06] text-[7px] text-white/35"}>Blueprint</button>
             {(Object.entries(DEVICES) as [DeviceKey, { label: string; width: number }][]).map(([key, value]) => (
