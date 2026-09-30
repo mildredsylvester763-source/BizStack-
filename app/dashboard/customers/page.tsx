@@ -33,7 +33,8 @@ export default async function CustomersPage() {
   const COLORS = ["#5B6EF5","#8B5CF6","#22C55E","#F5A524","#EF4444","#06B6D4","#EC4899","#14B8A6"];
 
   return (
-    <div className="min-h-screen p-5 lg:p-6 relative"><div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-[radial-gradient(circle_at_45%_0%,rgba(37,99,235,.12),transparent_62%)]" />>
+    <div className="min-h-screen p-5 lg:p-6 relative">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-[radial-gradient(circle_at_45%_0%,rgba(37,99,235,.12),transparent_62%)]" />>
       <div className="relative flex items-center justify-between mb-5 pb-5 border-b border-white/[.055]">
         <div>
           <h1 className="text-xl font-semibold text-white">Customers</h1>
