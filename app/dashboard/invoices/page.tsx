@@ -40,11 +40,11 @@ export default async function InvoicesPage() {
   ];
 
   return (
-    <div className="p-6">
+    <div className="min-h-screen p-5 lg:p-6 relative"><div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-[radial-gradient(circle_at_45%_0%,rgba(37,99,235,.12),transparent_62%)]" />
       <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="text-xl font-semibold text-white">Invoices</h1>
-          <p className="text-sm text-textMuted mt-0.5">Create, manage and track your invoices. Get paid faster.</p>
+          <p className="text-sm text-slate-500 mt-0.5">Create, manage and track your invoices. Get paid faster.</p>
         </div>
         <Link href="/dashboard/invoices/new">
           <button className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white" style={{background:"#5B6EF5"}}>
@@ -55,36 +55,36 @@ export default async function InvoicesPage() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {stats.map((s) => (
-          <div key={s.label} className="bg-surface border border-line rounded-xl p-4">
-            <p className="text-xs text-textMuted mb-1">{s.label}</p>
+          <div key={s.label} className="bg-[#0b1220]/90 border border-white/[.06] rounded-xl p-4 shadow-[0_12px_35px_rgba(0,0,0,.13)]">
+            <p className="text-xs text-slate-500 mb-1">{s.label}</p>
             <p className="text-2xl font-bold text-white">{s.value}</p>
             <p className={`text-xs mt-1.5 ${s.up ? "text-success" : "text-danger"}`}>{s.trend} vs last 30 days</p>
           </div>
         ))}
       </div>
 
-      <div className="bg-surface border border-line rounded-xl overflow-hidden">
-        <div className="flex items-center gap-3 p-4 border-b border-line">
-          <input placeholder="Search invoices..." className="flex-1 bg-bg border border-line rounded-lg px-3 py-2 text-sm text-text placeholder:text-textMuted focus:outline-none focus:border-primary"/>
-          <select className="bg-bg border border-line text-textMuted text-sm rounded-lg px-3 py-2 focus:outline-none"><option>All Status</option><option>Paid</option><option>Sent</option><option>Draft</option><option>Overdue</option></select>
-          <select className="bg-bg border border-line text-textMuted text-sm rounded-lg px-3 py-2 focus:outline-none"><option>This Month</option><option>Last Month</option><option>All Time</option></select>
+      <div className="bg-[#0b1220]/90 border border-white/[.06] rounded-xl overflow-hidden shadow-[0_16px_45px_rgba(0,0,0,.14)]">
+        <div className="flex items-center gap-3 p-4 border-b border-white/[.055]">
+          <input placeholder="Search invoices..." className="flex-1 bg-bg border border-white/[.055] rounded-lg px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-primary"/>
+          <select className="bg-bg border border-white/[.055] text-slate-500 text-sm rounded-lg px-3 py-2 focus:outline-none"><option>All Status</option><option>Paid</option><option>Sent</option><option>Draft</option><option>Overdue</option></select>
+          <select className="bg-bg border border-white/[.055] text-slate-500 text-sm rounded-lg px-3 py-2 focus:outline-none"><option>This Month</option><option>Last Month</option><option>All Time</option></select>
         </div>
 
         <table className="w-full">
           <thead>
-            <tr className="border-b border-line">
+            <tr className="border-b border-white/[.055]">
               <th className="px-4 py-3 text-left"><input type="checkbox" className="rounded"/></th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-textMuted">Invoice #</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-textMuted">Customer</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-textMuted">Date</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-textMuted">Amount</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-textMuted">Status</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-textMuted">Actions</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-slate-500">Invoice #</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-slate-500">Customer</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-slate-500">Date</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-slate-500">Amount</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-slate-500">Status</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-slate-500">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-line">
+          <tbody className="divide-y divide-white/[.055]">
             {rows.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-textMuted">No invoices yet — create the first one.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-slate-500">No invoices yet — create the first one.</td></tr>
             )}
             {rows.map((inv: any) => {
               const customer = inv.customer as { name: string } | null;
@@ -93,19 +93,19 @@ export default async function InvoicesPage() {
               const statusKey = overdue ? "overdue" : inv.status;
               const sc = STATUS_CONFIG[statusKey] ?? STATUS_CONFIG.draft;
               return (
-                <tr key={inv.id} className="hover:bg-white/3 cursor-pointer" onClick={undefined}>
+                <tr key={inv.id} className="hover:bg-white/[.025] cursor-pointer" onClick={undefined}>
                   <td className="px-4 py-3"><input type="checkbox" className="rounded"/></td>
                   <td className="px-4 py-3">
-                    <Link href={`/dashboard/invoices/${inv.id}`} className="text-sm font-medium text-primary hover:underline">{inv.invoice_number}</Link>
+                    <Link href={`/dashboard/invoices/${inv.id}`} className="text-sm font-medium text-indigo-300 hover:underline">{inv.invoice_number}</Link>
                   </td>
-                  <td className="px-4 py-3 text-sm text-text">{customer?.name ?? "—"}</td>
-                  <td className="px-4 py-3 text-sm text-textMuted">{new Date(inv.created_at).toLocaleDateString("en-US", {month:"short",day:"numeric",year:"numeric"})}</td>
+                  <td className="px-4 py-3 text-sm text-slate-200">{customer?.name ?? "—"}</td>
+                  <td className="px-4 py-3 text-sm text-slate-500">{new Date(inv.created_at).toLocaleDateString("en-US", {month:"short",day:"numeric",year:"numeric"})}</td>
                   <td className="px-4 py-3 text-sm font-semibold text-white">${total.toFixed(2)}</td>
                   <td className="px-4 py-3">
                     <span className="text-xs px-2.5 py-1 rounded-full font-medium" style={{background:sc.bg,color:sc.text}}>{sc.label}</span>
                   </td>
                   <td className="px-4 py-3">
-                    <button className="text-textMuted hover:text-white text-lg leading-none">...</button>
+                    <button className="text-slate-500 hover:text-white text-lg leading-none">...</button>
                   </td>
                 </tr>
               );
