@@ -38,16 +38,17 @@ export default function AIAssistantPage() {
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-5">
-        <h1 className="text-xl font-semibold text-white">AI Assistant &amp; Automation</h1>
-        <p className="text-sm text-textMuted mt-0.5">Let AI handle the work. Build, plan, and automate your business.</p>
+    <div className="min-h-screen p-5 lg:p-6 relative">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-48 bg-[radial-gradient(circle_at_35%_0%,rgba(79,70,229,.13),transparent_60%)]" />
+      <div className="relative mb-5 pb-5 border-b border-white/[.055]">
+        <div className="flex items-center gap-3"><div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-400/25 to-cyan-400/10 border border-indigo-200/10 grid place-items-center text-indigo-100/80">✦</div><div><h1 className="text-[19px] font-semibold tracking-[-.02em] text-white">AI &amp; Automation Ecosystem</h1>
+        <p className="text-[11px] text-slate-500 mt-1">AI agents, tools and automation that work for your business.</p></div></div>
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-4">
-        <div className="bg-surface border border-line rounded-xl flex flex-col" style={{height:"560px"}}>
-          <div className="px-4 py-3 border-b border-line">
-            <h2 className="text-sm font-semibold text-white">AI Chat</h2>
+      <div className="grid lg:grid-cols-3 gap-3 relative">
+        <div className="bg-[#0a1220]/95 border border-cyan-300/[.12] rounded-xl flex flex-col shadow-[0_18px_50px_rgba(0,0,0,.18)]" style={{height:"560px"}}>
+          <div className="px-4 py-3 border-b border-white/[.06] bg-white/[.012]">
+            <div><h2 className="text-[11px] font-semibold text-white">3.1 AI Chat &amp; Assistant</h2><p className="text-[8px] text-slate-600 mt-1">Natural language, business context and multi-step planning</p></div>
           </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {messages.map((m, i) => (
@@ -62,31 +63,31 @@ export default function AIAssistantPage() {
           <div className="p-3 border-t border-line">
             <div className="flex gap-2">
               <input value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => e.key==="Enter" && send()}
-                placeholder="Ask anything..." className="flex-1 bg-bg border border-line rounded-xl px-3 py-2 text-sm text-text placeholder:text-textMuted focus:outline-none focus:border-primary"/>
-              <button onClick={send} className="px-3 py-2 rounded-xl text-white text-sm" style={{background:"#5B6EF5"}}>↑</button>
+                placeholder="Ask anything..." className="flex-1 bg-[#070c15] border border-white/[.07] rounded-xl px-3 py-2 text-[10px] text-text placeholder:text-textMuted focus:outline-none focus:border-primary"/>
+              <button onClick={send} className="px-3 py-2 rounded-xl text-white text-[10px] border border-indigo-200/10" style={{background:"linear-gradient(135deg,#4f63ff,#6d3be8)"}}>↑</button>
             </div>
           </div>
         </div>
 
-        <div className="bg-surface border border-line rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-line flex items-center justify-between">
-            <div className="flex gap-1">
+        <div className="bg-[#0a1220]/95 border border-cyan-300/[.12] rounded-xl overflow-hidden shadow-[0_18px_50px_rgba(0,0,0,.18)]">
+          <div className="px-4 py-3 border-b border-white/[.06] flex items-center justify-between bg-white/[.012]">
+            <div><h2 className="text-[11px] font-semibold text-white">3.3 Automation Workflows</h2><p className="text-[8px] text-slate-600 mt-1">Triggers, templates and execution history</p></div><div className="flex gap-1">
               {["Workflows","Templates","History"].map(t => (
                 <button key={t} onClick={() => setWorkflowTab(t)}
                   className={`px-3 py-1.5 rounded-lg text-xs transition-colors ${workflowTab===t?"text-white":"text-textMuted hover:text-white"}`}
                   style={workflowTab===t?{background:"rgba(91,110,245,0.2)"}:{}}>{t}</button>
               ))}
             </div>
-            <button className="text-xs px-2.5 py-1.5 rounded-lg text-white font-medium" style={{background:"#5B6EF5"}}>+ New Workflow</button>
+            <button className="text-[9px] px-2.5 py-1.5 rounded-lg text-white font-medium border border-indigo-200/[.08]" style={{background:"linear-gradient(135deg,#4f63ff,#6d3be8)"}}>+ New Workflow</button>
           </div>
           <div className="divide-y divide-line">
             {WORKFLOWS.map(w => (
-              <div key={w.name} className="px-4 py-3 flex items-center justify-between hover:bg-white/3">
+              <div key={w.name} className="px-3 py-3 flex items-center justify-between hover:bg-white/[.035] border-b border-white/[.045]">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-sm" style={{background:"rgba(91,110,245,0.2)"}}>⚡</div>
+                  <div className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-[10px] border border-white/[.06]" style={{background:"rgba(91,110,245,0.2)"}}>⚡</div>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-white">{w.name}</p>
-                    <p className="text-[11px] text-textMuted truncate">{w.trigger}</p>
+                    <p className="text-[10px] font-medium text-white">{w.name}</p>
+                    <p className="text-[8px] text-slate-500 truncate">{w.trigger}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -115,7 +116,7 @@ export default function AIAssistantPage() {
             {AGENTS.map(a => (
               <div key={a.name} className="px-4 py-3 flex items-center justify-between hover:bg-white/3">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-white text-xs font-bold" style={{background:a.color}}>{a.name.charAt(0)}</div>
+                  <div className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-white text-[10px] font-bold border border-white/[.08]" style={{background:a.color}}>{a.name.charAt(0)}</div>
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-white">{a.name}</p>
                     <p className="text-[11px] text-textMuted truncate">{a.desc}</p>
