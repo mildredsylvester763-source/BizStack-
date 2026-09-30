@@ -417,3 +417,21 @@ body {
   .biz-grid-5,
   .biz-grid-6 { grid-template-columns: 1fr; }
 }
+
+
+/* BizStack interaction polish */
+html { scrollbar-color: rgba(96,165,250,.28) rgba(255,255,255,.025); scrollbar-width: thin; }
+::-webkit-scrollbar { width: 7px; height: 7px; }
+::-webkit-scrollbar-track { background: rgba(255,255,255,.015); }
+::-webkit-scrollbar-thumb { background: rgba(96,165,250,.22); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(129,140,248,.38); }
+button, a, input, textarea, select { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline: 1px solid rgba(129,140,248,.55);
+  outline-offset: 2px;
+}
+.safe-area-bottom { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+@media (max-width: 760px) {
+  .biz-search { width: min(56vw, 260px); }
+  .biz-content { padding-bottom: 84px; }
+}
