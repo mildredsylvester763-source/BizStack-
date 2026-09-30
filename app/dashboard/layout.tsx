@@ -13,6 +13,9 @@ const NAV = [
   { href: "/dashboard/marketing", label: "Marketing" },
   { href: "/dashboard/actions", label: "Automation" },
   { href: "/dashboard/integrations", label: "Integrations" },
+  { href: "/dashboard/documents", label: "Files & Knowledge" },
+  { href: "/dashboard/reports", label: "Reports & Analytics" },
+  { href: "/dashboard/billing", label: "Plans & Pricing" },
   { href: "/dashboard/settings", label: "Settings" }
 ];
 
