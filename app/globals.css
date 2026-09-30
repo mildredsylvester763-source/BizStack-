@@ -3,6 +3,8 @@
 @tailwind utilities;
 
 :root {
+  --font-display: "Space Grotesk", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
   color-scheme: dark;
   --biz-bg: #050914;
   --biz-surface: #0a1224;
