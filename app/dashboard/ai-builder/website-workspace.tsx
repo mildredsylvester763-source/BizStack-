@@ -165,6 +165,9 @@ export default function WebsiteWorkspace({
   onPreviewUrlChange: (url: string) => void;
   onAskAI: (prompt: string) => void;
   onCreateProject: () => void;
+  onCheckpoint?: () => void | Promise<void>;
+  onTalk?: () => void;
+  isGenerating?: boolean;
 }) {
   const [device, setDevice] = useState<DeviceKey>("desktop");
   const [route, setRoute] = useState("/");
@@ -188,6 +191,8 @@ export default function WebsiteWorkspace({
   } | null>(null);
   const [graphBusy, setGraphBusy] = useState(false);
   const [graphError, setGraphError] = useState("");
+  const [toast, setToast] = useState("");
+  const [previewRefreshKey, setPreviewRefreshKey] = useState(0);
 
   useEffect(() => {
     if (!project?.id) {
@@ -310,7 +315,7 @@ export default function WebsiteWorkspace({
   function askPage(action: string) {
     const routeLabel = selectedRoute?.path || "/";
     const source = selectedRoute?.source ? " Source: " + selectedRoute.source + "." : "";
-    onAskAI(action + " on the " + routeLabel + " page." + source);
+    requestEdit(action + " on the " + routeLabel + " page." + source);
   }
 
   if (!project) {
@@ -331,6 +336,22 @@ export default function WebsiteWorkspace({
   }
 
   const previewUrl = buildRouteUrl(basePreviewUrl, selectedRoute?.path || "/", designModeOpen);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(""), 2600);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
+  function requestEdit(prompt: string) {
+    setToast("Edit request added to BizStack AI.");
+    onAskAI(prompt);
+  }
+
+  function refreshPreview() {
+    setPreviewRefreshKey(value => value + 1);
+    setToast("Refreshing the live preview…");
+  }
 
   return (
     <div className="min-h-[680px] flex flex-col lg:flex-row bg-[#090b0f] text-white">
@@ -408,24 +429,32 @@ export default function WebsiteWorkspace({
         </div>
       </aside>
 
-      <section className="min-w-0 flex-1 flex flex-col">
+      <section className="min-w-0 flex-1 flex flex-col relative">
+        {toast && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 rounded-full border border-indigo-300/[.16] bg-[#11151d]/[.96] px-3 py-1.5 text-[7px] text-indigo-100/75 shadow-[0_12px_35px_rgba(0,0,0,.35)] backdrop-blur-xl">
+            {toast}
+          </div>
+        )}
         <div className="h-12 px-3 border-b border-white/[.06] flex items-center gap-2">
           <div className="min-w-0">
             <div className="text-[9px] text-white/55 truncate">{selectedRoute?.label || "Home"}</div>
             <div className="text-[7px] text-white/20 truncate">{selectedRoute?.source || "Project source"}</div>
           </div>
           <div className="ml-auto flex items-center gap-1.5">
+            <button onClick={() => onTalk?.()} className="hidden sm:inline-flex px-2.5 py-1.5 rounded-lg border border-indigo-300/[.1] bg-indigo-300/[.05] text-[7px] text-indigo-100/70">Talk to BizStack</button>
+            <button onClick={() => onCheckpoint?.()} disabled={!onCheckpoint} className="hidden sm:inline-flex px-2.5 py-1.5 rounded-lg border border-white/[.06] text-[7px] text-white/35 disabled:opacity-30">Checkpoint</button>
             <button onClick={() => setBlueprintOpen(true)} className={blueprintOpen ? "px-2.5 py-1.5 rounded-lg bg-indigo-300/[.09] border border-indigo-300/[.1] text-[7px] text-indigo-100" : "px-2.5 py-1.5 rounded-lg border border-white/[.06] text-[7px] text-white/35"}>Blueprint</button>
             {(Object.entries(DEVICES) as [DeviceKey, { label: string; width: number }][]).map(([key, value]) => (
               <button
                 key={key}
-                onClick={() => setDevice(key)}
-                className={"px-2.5 py-1.5 rounded-lg text-[7px] border " + (device === key ? "bg-white/[.09] border-white/[.11] text-white/65" : "border-transparent text-white/20 hover:text-white/45")}
+                onClick={() => { setDevice(key); setToast(value.label + " preview selected."); }}
+                aria-label={"Preview at " + value.label}
+                className={"px-2.5 py-1.5 rounded-lg text-[7px] border transition " + (device === key ? "bg-white/[.09] border-white/[.11] text-white/65" : "border-transparent text-white/20 hover:text-white/45")}
               >
-                {value.label}
+                {key === "wide" ? "↔" : key === "desktop" ? "▣" : key === "tablet" ? "▤" : "▯"} {value.label}
               </button>
             ))}
-            <button onClick={() => void startPreview()} disabled={previewBusy || !project} className="ml-1 px-3 py-1.5 rounded-lg bg-white text-black text-[8px] disabled:opacity-30">
+            <button onClick={() => { if (basePreviewUrl) refreshPreview(); else void startPreview(); }} disabled={previewBusy || !project} className="ml-1 px-3 py-1.5 rounded-lg bg-white text-black text-[8px] disabled:opacity-30">
               {previewBusy ? "Starting…" : basePreviewUrl ? "Refresh preview" : "Start preview"}
             </button>
           </div>
@@ -473,10 +502,17 @@ export default function WebsiteWorkspace({
                       </div>
                     </div>
                   ) : (
-                    <iframe title={"Website preview " + (selectedRoute?.path || "/")} src={previewUrl} className="w-full min-h-[560px] border-0 bg-white" />
+                    <iframe key={previewRefreshKey} title={"Website preview " + (selectedRoute?.path || "/")} src={previewUrl} className="w-full min-h-[560px] border-0 bg-white" />
                   )}
                 </div>
               </div>
+              {isGenerating && (
+                <div className="max-w-[1440px] mx-auto mt-3 rounded-xl border border-indigo-300/[.12] bg-indigo-300/[.045] px-3 py-2 flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-indigo-300 animate-pulse" />
+                  <span className="text-[7px] uppercase tracking-[.16em] text-indigo-100/65">BizStack is working</span>
+                  <span className="text-[7px] text-white/25">Inspecting source → applying changes → verifying the result</span>
+                </div>
+              )}
               <div className="max-w-[1440px] mx-auto mt-3 flex flex-wrap gap-2 items-center justify-between">
                 <div className="text-[7px] text-white/20">
                   {deviceSpec.label} · {deviceSpec.width}px target viewport · route {selectedRoute?.path || "/"}
@@ -552,6 +588,24 @@ export default function WebsiteWorkspace({
         <div className="mt-3 rounded-2xl border border-white/[.06] bg-white/[.02] p-3">
           <div className="text-[8px] text-white/25">Change contract</div>
           <div className="text-[8px] leading-4 text-white/30 mt-2">AI changes should target the actual source behind this page, preserve existing navigation and data, then verify the build before shipping.</div>
+        </div>
+
+        <div className="mt-3 rounded-2xl border border-indigo-300/[.08] bg-indigo-300/[.025] p-3">
+          <div className="text-[8px] text-indigo-100/65">AI edit suggestions</div>
+          <div className="text-[7px] text-white/22 mt-1">Suggestions target the current route and can be reviewed in chat before the Operator changes source.</div>
+          <div className="grid grid-cols-2 gap-1.5 mt-2">
+            {[
+              ["Hero", "Refine the hero hierarchy, spacing and visual impact while preserving the existing content."],
+              ["Navigation", "Improve the navigation clarity and responsive behavior without changing routes."],
+              ["Spacing", "Audit vertical rhythm, container widths and section spacing for this route."],
+              ["Conversion", "Improve CTA hierarchy and conversion flow without inventing business claims."]
+            ].map(([label,prompt]) => (
+              <button key={label} onClick={() => requestEdit(prompt + " Target route: " + (selectedRoute?.path || "/") + ".")}
+                className="rounded-lg border border-white/[.05] bg-white/[.02] px-2 py-2 text-left text-[7px] text-white/40 hover:bg-white/[.05] hover:text-white/65">
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="mt-3 space-y-2">
