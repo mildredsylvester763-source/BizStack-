@@ -75,9 +75,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </div>
       </aside>
 
-      <div className="flex-1 md:pl-[232px] min-w-0 overflow-x-hidden relative z-10">
+      <div className="flex-1 md:pl-[232px] min-w-0 overflow-x-hidden relative z-10 pb-20 md:pb-0">
         {children}
       </div>
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 border-t border-white/[.08] bg-[#060b15]/95 backdrop-blur-xl px-2 py-2 safe-area-bottom shadow-[0_-18px_45px_rgba(0,0,0,.38)]">
+        <div className="grid grid-cols-5 gap-1">
+          <Link key="/dashboard" href="/dashboard" className="flex flex-col items-center gap-1 rounded-xl py-1.5 text-[8px] text-slate-500 hover:text-white hover:bg-white/[.04] transition-all"><span className="text-[14px] text-indigo-200/65">⌂</span><span>Home</span></Link><Link key="/dashboard/ai-assistant" href="/dashboard/ai-assistant" className="flex flex-col items-center gap-1 rounded-xl py-1.5 text-[8px] text-slate-500 hover:text-white hover:bg-white/[.04] transition-all"><span className="text-[14px] text-indigo-200/65">✦</span><span>AI</span></Link><Link key="/dashboard/website-builder" href="/dashboard/website-builder" className="flex flex-col items-center gap-1 rounded-xl py-1.5 text-[8px] text-slate-500 hover:text-white hover:bg-white/[.04] transition-all"><span className="text-[14px] text-indigo-200/65">▣</span><span>Build</span></Link><Link key="/dashboard/customers" href="/dashboard/customers" className="flex flex-col items-center gap-1 rounded-xl py-1.5 text-[8px] text-slate-500 hover:text-white hover:bg-white/[.04] transition-all"><span className="text-[14px] text-indigo-200/65">◌</span><span>CRM</span></Link><Link key="/dashboard/settings" href="/dashboard/settings" className="flex flex-col items-center gap-1 rounded-xl py-1.5 text-[8px] text-slate-500 hover:text-white hover:bg-white/[.04] transition-all"><span className="text-[14px] text-indigo-200/65">⋯</span><span>More</span></Link>
+        </div>
+      </nav>
     </div>
   );
 }
