@@ -46,16 +46,16 @@ export default function ReportsPage() {
   const TABS = ["Overview","Invoices","Customers","Products","Marketing"];
 
   return (
-    <div className="p-6">
+    <div className="min-h-screen p-5 lg:p-6 relative">
       <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="text-xl font-semibold text-white">Reports &amp; Analytics</h1>
           <p className="text-sm text-textMuted mt-0.5">Make better decisions with real-time insights.</p>
         </div>
-        <select className="bg-surface border border-line text-textMuted text-sm rounded-lg px-3 py-2 focus:outline-none"><option>This Month</option><option>Last Month</option><option>Last Quarter</option></select>
+        <select className="bg-[#0b1220]/90 border border-white/[.065] text-textMuted text-sm rounded-lg px-3 py-2 focus:outline-none"><option>This Month</option><option>Last Month</option><option>Last Quarter</option></select>
       </div>
 
-      <div className="flex gap-1 mb-6 bg-surface border border-line rounded-xl p-1 w-fit">
+      <div className="flex gap-1 mb-6 bg-[#0b1220]/90 border border-white/[.065] rounded-xl p-1 w-fit">
         {TABS.map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-2 rounded-lg text-sm transition-colors ${tab===t?"text-white":"text-textMuted hover:text-white"}`}
@@ -69,7 +69,7 @@ export default function ReportsPage() {
           { label:"Expenses",   value:"$8,340",  trend:"-",     color:"#8B92B0" },
           { label:"Net Profit", value:"$16,240", trend:"+19%",  color:"#5B6EF5" },
         ].map(s => (
-          <div key={s.label} className="bg-surface border border-line rounded-xl p-5">
+          <div key={s.label} className="bg-[#0b1220]/90 border border-white/[.065] rounded-xl p-5">
             <p className="text-xs text-textMuted mb-1">{s.label}</p>
             <div className="flex items-baseline gap-2">
               <p className="text-2xl font-bold text-white">{s.value}</p>
@@ -80,12 +80,12 @@ export default function ReportsPage() {
       </div>
 
       <div className="grid lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 bg-surface border border-line rounded-xl p-5">
+        <div className="lg:col-span-2 bg-[#0b1220]/90 border border-white/[.065] rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold text-white">Revenue vs Expenses</h2>
             <div className="flex gap-3 text-xs">
-              <span className="flex items-center gap-1.5 text-textMuted"><span className="w-2 h-2 rounded-full inline-block bg-primary"/> Revenue</span>
-              <span className="flex items-center gap-1.5 text-textMuted"><span className="w-2 h-2 rounded-full inline-block bg-accent"/> Expenses</span>
+              <span className="flex items-center gap-1.5 text-textMuted"><span className="w-2 h-2 rounded-full inline-block bg-indigo-500"/> Revenue</span>
+              <span className="flex items-center gap-1.5 text-textMuted"><span className="w-2 h-2 rounded-full inline-block bg-violet-500"/> Expenses</span>
             </div>
           </div>
           <svg viewBox="0 0 420 100" className="w-full h-28">
@@ -102,7 +102,7 @@ export default function ReportsPage() {
           </svg>
         </div>
 
-        <div className="bg-surface border border-line rounded-xl p-5">
+        <div className="bg-[#0b1220]/90 border border-white/[.065] rounded-xl p-5">
           <h2 className="text-sm font-semibold text-white mb-4">Revenue by Source</h2>
           <div className="flex items-center gap-4">
             <DonutChart />
