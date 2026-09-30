@@ -2,69 +2,117 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase-server";
 import { calculateInvoiceTotal, isOverdue } from "@/lib/invoices";
-import { BizIcon, BizMetric, BizPanel, BizSection, BizStatus, BizTabs } from "@/components/ui/BizStackVisual";
 
-type CustomerRef = { name: string } | null;
-type ItemRow = { quantity: number; unit_price: number };
+const STATUS_CONFIG: Record<string, { bg: string; text: string; label: string }> = {
+  paid:    { bg: "rgba(34,197,94,0.15)",  text: "#22C55E", label: "Paid" },
+  sent:    { bg: "rgba(91,110,245,0.15)",  text: "#5B6EF5", label: "Sent" },
+  draft:   { bg: "rgba(139,146,176,0.15)", text: "#8B92B0", label: "Draft" },
+  overdue: { bg: "rgba(239,68,68,0.15)",   text: "#EF4444", label: "Overdue" },
+  partial: { bg: "rgba(245,165,36,0.15)",  text: "#F5A524", label: "Partial" }
+};
 
 export default async function InvoicesPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-
-  const { data: business } = await supabase.from("businesses").select("id,name,currency").eq("owner_id", user.id).single();
+  const { data: business } = await supabase.from("businesses").select("id, name, currency").eq("owner_id", user.id).single();
   if (!business) redirect("/onboarding");
 
   const { data: invoices } = await supabase
     .from("invoices")
-    .select("id,invoice_number,status,due_date,currency,created_at,total,paid_amount,payment_methods,customer:customers(name),invoice_items(quantity,unit_price)")
+    .select("id, invoice_number, status, due_date, currency, created_at, customer:customers(name), invoice_items(quantity, unit_price)")
     .eq("business_id", business.id)
     .order("created_at", { ascending: false });
 
   const rows = invoices ?? [];
-  const totalValue = rows.reduce((s:any, inv:any) => s + (Number(inv.total||0) || calculateInvoiceTotal(inv.invoice_items||[])), 0);
-  const collected = rows.reduce((s:any, inv:any) => s + Number(inv.paid_amount||0), 0);
-  const overdueCount = rows.filter((x:any)=>isOverdue(x.status,x.due_date)).length;
-  const draftCount = rows.filter((x:any)=>x.status==="draft").length;
+  type InvRow = { status: string; due_date: string | null; invoice_items: {quantity:number;unit_price:number}[]|null };
+  const getTotal = (inv: InvRow) => calculateInvoiceTotal(inv.invoice_items ?? []);
+  const totalAmt  = rows.reduce((s: number, inv: any) => s + getTotal(inv), 0);
+  const paidAmt   = rows.filter((inv: any) => inv.status === "paid").reduce((s: number, inv: any) => s + getTotal(inv), 0);
+  const overdueAmt = rows.filter((inv: any) => isOverdue(inv.status, inv.due_date)).reduce((s: number, inv: any) => s + getTotal(inv), 0);
+  const pendingAmt = rows.filter((inv: any) => inv.status === "sent" && !isOverdue(inv.status, inv.due_date)).reduce((s: number, inv: any) => s + getTotal(inv), 0);
 
-  return <div className="biz-content">
-    <BizSection number="5.1" title="Invoices" subtitle="Create, send, collect and track what the business is owed.">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-        <BizTabs items={["All invoices","Drafts","Sent","Paid","Overdue"]}/>
-        <Link href="/dashboard/invoices/new"><span className="biz-button bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 text-white">+ New invoice</span></Link>
+  const stats = [
+    { label: "Total Invoices", value: `$${totalAmt.toFixed(0)}`, trend: "+13%", up: true },
+    { label: "Paid",           value: `$${paidAmt.toFixed(0)}`,   trend: "+18%", up: true },
+    { label: "Pending",        value: `$${pendingAmt.toFixed(0)}`, trend: "-2%",  up: false },
+    { label: "Overdue",        value: `$${overdueAmt.toFixed(0)}`, trend: "-5%",  up: false }
+  ];
+
+  return (
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <h1 className="text-xl font-semibold text-white">Invoices</h1>
+          <p className="text-sm text-textMuted mt-0.5">Create, manage and track your invoices. Get paid faster.</p>
+        </div>
+        <Link href="/dashboard/invoices/new">
+          <button className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white" style={{background:"#5B6EF5"}}>
+            + New Invoice
+          </button>
+        </Link>
       </div>
 
-      <div className="biz-grid biz-grid-4">
-        <BizMetric label="Invoice value" value={totalValue.toFixed(2)+" "+business.currency} delta="Current invoice records" tone="blue" icon="¤"/>
-        <BizMetric label="Collected" value={collected.toFixed(2)+" "+business.currency} delta="Recorded payments" tone="green" icon="✓"/>
-        <BizMetric label="Outstanding" value={Math.max(totalValue-collected,0).toFixed(2)+" "+business.currency} delta={overdueCount?String(overdueCount)+" overdue":"No overdue invoices"} tone="orange" icon="!"/>
-        <BizMetric label="Drafts" value={String(draftCount)} delta="Invoices not sent yet" tone="purple" icon="□"/>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        {stats.map((s) => (
+          <div key={s.label} className="bg-surface border border-line rounded-xl p-4">
+            <p className="text-xs text-textMuted mb-1">{s.label}</p>
+            <p className="text-2xl font-bold text-white">{s.value}</p>
+            <p className={`text-xs mt-1.5 ${s.up ? "text-success" : "text-danger"}`}>{s.trend} vs last 30 days</p>
+          </div>
+        ))}
       </div>
 
-      <BizPanel className="mt-3" title="Invoice register" subtitle="Payment methods selected on each invoice stay attached to the record.">
-        {rows.length===0 ? (
-          <div className="p-10 text-center"><BizIcon tone="blue" size="lg">▤</BizIcon><div className="mt-3 text-[10px] text-white/55">No invoices yet</div><p className="mt-1 text-[8px] text-white/22">Create the first invoice with bank transfer, QR payment, card payment or any combination.</p><Link href="/dashboard/invoices/new" className="mt-3 inline-flex"><span className="biz-button bg-white text-slate-900">Create invoice</span></Link></div>
-        ) : (
-          <>
-            <div className="hidden md:grid grid-cols-[110px_1fr_120px_115px_170px] gap-3 px-4 py-2 border-b border-white/[.07] text-[7px] uppercase tracking-[.13em] text-white/20"><span>Invoice</span><span>Customer</span><span>Amount</span><span>Due</span><span>Payment routes</span></div>
-            {rows.map((inv:any)=>{
-              const customer=inv.customer as unknown as CustomerRef;
-              const items=(inv.invoice_items??[]) as ItemRow[];
-              const total=Number(inv.total||0)>0?Number(inv.total):calculateInvoiceTotal(items);
-              const overdue=isOverdue(inv.status,inv.due_date);
-              const displayStatus=overdue?"overdue":inv.status;
-              const methods=Array.isArray(inv.payment_methods)?inv.payment_methods:[];
-              return <Link key={inv.id} href={"/dashboard/invoices/"+inv.id} className="grid md:grid-cols-[110px_1fr_120px_115px_170px] gap-3 px-4 py-4 items-center border-t border-white/[.05] hover:bg-white/[.025]">
-                <div><div className="text-[9px] font-medium text-white/65">{inv.invoice_number}</div><div className="text-[7px] text-white/18 mt-1">{new Date(inv.created_at).toLocaleDateString()}</div></div>
-                <div className="min-w-0"><div className="text-[9px] text-white/55 truncate">{customer?.name||"No customer"}</div><div className="mt-1"><BizStatus tone={displayStatus==="paid"?"green":displayStatus==="overdue"?"red":displayStatus==="sent"?"blue":"slate"}>{displayStatus}</BizStatus></div></div>
-                <div className="text-[9px] text-white/65">{total.toFixed(2)} {inv.currency}</div>
-                <div className="text-[8px] text-white/30">{inv.due_date?new Date(inv.due_date).toLocaleDateString():"—"}</div>
-                <div className="flex flex-wrap gap-1">{methods.length?methods.map((m:string)=><span key={m} className="biz-chip">{m==="bank_transfer"?"Bank":m==="qr"?"QR":m==="card"?"Card":m}</span>):<span className="biz-chip">None</span>}</div>
-              </Link>
+      <div className="bg-surface border border-line rounded-xl overflow-hidden">
+        <div className="flex items-center gap-3 p-4 border-b border-line">
+          <input placeholder="Search invoices..." className="flex-1 bg-bg border border-line rounded-lg px-3 py-2 text-sm text-text placeholder:text-textMuted focus:outline-none focus:border-primary"/>
+          <select className="bg-bg border border-line text-textMuted text-sm rounded-lg px-3 py-2 focus:outline-none"><option>All Status</option><option>Paid</option><option>Sent</option><option>Draft</option><option>Overdue</option></select>
+          <select className="bg-bg border border-line text-textMuted text-sm rounded-lg px-3 py-2 focus:outline-none"><option>This Month</option><option>Last Month</option><option>All Time</option></select>
+        </div>
+
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-line">
+              <th className="px-4 py-3 text-left"><input type="checkbox" className="rounded"/></th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-textMuted">Invoice #</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-textMuted">Customer</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-textMuted">Date</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-textMuted">Amount</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-textMuted">Status</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-textMuted">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line">
+            {rows.length === 0 && (
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-textMuted">No invoices yet — create the first one.</td></tr>
+            )}
+            {rows.map((inv: any) => {
+              const customer = inv.customer as { name: string } | null;
+              const total = calculateInvoiceTotal(inv.invoice_items ?? []);
+              const overdue = isOverdue(inv.status, inv.due_date);
+              const statusKey = overdue ? "overdue" : inv.status;
+              const sc = STATUS_CONFIG[statusKey] ?? STATUS_CONFIG.draft;
+              return (
+                <tr key={inv.id} className="hover:bg-white/3 cursor-pointer" onClick={undefined}>
+                  <td className="px-4 py-3"><input type="checkbox" className="rounded"/></td>
+                  <td className="px-4 py-3">
+                    <Link href={`/dashboard/invoices/${inv.id}`} className="text-sm font-medium text-primary hover:underline">{inv.invoice_number}</Link>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-text">{customer?.name ?? "—"}</td>
+                  <td className="px-4 py-3 text-sm text-textMuted">{new Date(inv.created_at).toLocaleDateString("en-US", {month:"short",day:"numeric",year:"numeric"})}</td>
+                  <td className="px-4 py-3 text-sm font-semibold text-white">${total.toFixed(2)}</td>
+                  <td className="px-4 py-3">
+                    <span className="text-xs px-2.5 py-1 rounded-full font-medium" style={{background:sc.bg,color:sc.text}}>{sc.label}</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <button className="text-textMuted hover:text-white text-lg leading-none">...</button>
+                  </td>
+                </tr>
+              );
             })}
-          </>
-        )}
-      </BizPanel>
-    </BizSection>
-  </div>;
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }

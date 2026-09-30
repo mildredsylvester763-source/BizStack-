@@ -1,98 +1,137 @@
 "use client";
-
-import Link from "next/link";
 import { useState } from "react";
-import { BizIcon, BizPanel, BizSection, BizStatus } from "@/components/ui/BizStackVisual";
 
-const capabilities = [
-  ["Natural language", "Describe the outcome you need", "blue", "NL"],
-  ["Business context", "Use the business records already in BizStack", "cyan", "CTX"],
-  ["Multi-step planning", "Break a request into executable steps", "purple", "PLAN"],
-  ["File analysis", "Read supported files and attachments", "green", "DOC"],
-  ["Web search", "Research when a task needs current external information", "blue", "WEB"],
-  ["Code generation", "Build or change software through AI Builder", "purple", "CODE"],
-  ["Image creation", "Create bespoke visual assets for projects", "orange", "IMG"],
-  ["Voice input", "Talk to BizStack instead of typing", "cyan", "MIC"]
+type Message = { role: "user" | "assistant"; text: string };
+
+const AGENTS = [
+  { name:"Business Analyst",  desc:"Market research, reports, insights",    color:"#F5A524", active:true  },
+  { name:"Marketing Agent",   desc:"Campaigns, content, social media",        color:"#5B6EF5", active:true  },
+  { name:"Sales Agent",       desc:"Leads, follow-ups, proposals",            color:"#22C55E", active:true  },
+  { name:"Support Agent",     desc:"Customer support, tickets",               color:"#8B5CF6", active:true  },
+  { name:"Developer Agent",   desc:"Code, fix, deploy, maintain",             color:"#06B6D4", active:true  },
+];
+
+const WORKFLOWS = [
+  { name:"Invoice Reminder",  trigger:"1h: When invoice is overdue",         active:true  },
+  { name:"Welcome Email",     trigger:"1st: When new customer is added",       active:true  },
+  { name:"Low Stock Alert",   trigger:"1h: When stock is below threshold",     active:true  },
+  { name:"Social Media Post", trigger:"Daily at 9:00 AM",                    active:false },
+  { name:"Inventory Alert",   trigger:"Weekly stock reconciliation",           active:true  },
 ];
 
 export default function AIAssistantPage() {
-  const [draft, setDraft] = useState("");
-  const [messages, setMessages] = useState([
-    { role: "assistant", text: "Tell BizStack what you need. For real build, file, runtime and project execution, open AI Builder; this page is your business-facing command desk." }
+  const [messages, setMessages] = useState<Message[]>([
+    { role:"assistant", text:"Hi! I'm your AI business assistant. Ask me to create a marketing plan, write a product description, analyze your sales data, or automate any workflow." }
   ]);
+  const [draft, setDraft] = useState("");
+  const [agentTab, setAgentTab] = useState("All Agents");
+  const [workflowTab, setWorkflowTab] = useState("Workflows");
 
-  function submit() {
-    const text = draft.trim();
-    if (!text) return;
-    setMessages(prev => [...prev, { role: "user", text }]);
+  function send() {
+    if (!draft.trim()) return;
+    const newMsgs: Message[] = [...messages, { role:"user", text:draft }];
+    setMessages(newMsgs);
     setDraft("");
+    setTimeout(() => {
+      setMessages(prev => [...prev, { role:"assistant", text:`I'm working on: "${draft}". This is a visual preview — the AI model connection will be wired in the next module.` }]);
+    }, 800);
   }
 
   return (
-    <div className="biz-content">
-      <BizSection number="3.1" title="AI Chat & Assistant" subtitle="A business-facing command desk for planning, analysis and hand-off into the full AI Builder runtime.">
-        <div className="grid xl:grid-cols-[1.15fr_.75fr_.85fr] gap-3">
-          <BizPanel title="BizStack AI" subtitle="Natural language workspace">
-            <div className="p-3">
-              <div className="rounded-2xl border border-blue-400/15 bg-gradient-to-br from-blue-500/[.09] via-indigo-500/[.04] to-violet-500/[.08] p-4 min-h-[390px] flex flex-col">
-                <div className="flex items-start justify-between gap-3">
-                  <div><div className="text-[8px] uppercase tracking-[.18em] text-blue-200/45">Business copilot</div><div className="mt-1 text-[11px] font-semibold text-white/80">What should BizStack work on?</div></div>
-                  <BizStatus tone="green">Ready</BizStatus>
+    <div className="p-6">
+      <div className="mb-5">
+        <h1 className="text-xl font-semibold text-white">AI Assistant &amp; Automation</h1>
+        <p className="text-sm text-textMuted mt-0.5">Let AI handle the work. Build, plan, and automate your business.</p>
+      </div>
+
+      <div className="grid lg:grid-cols-3 gap-4">
+        <div className="bg-surface border border-line rounded-xl flex flex-col" style={{height:"560px"}}>
+          <div className="px-4 py-3 border-b border-line">
+            <h2 className="text-sm font-semibold text-white">AI Chat</h2>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {messages.map((m, i) => (
+              <div key={i} className={`flex ${m.role==="user"?"justify-end":"justify-start"}`}>
+                <div className={`max-w-[85%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed ${m.role==="user"?"text-white rounded-br-sm":"text-text rounded-bl-sm bg-surfaceAlt"}`}
+                  style={m.role==="user"?{background:"#5B6EF5"}:{}}>
+                  {m.text}
                 </div>
-                <div className="flex-1 mt-4 space-y-2 overflow-y-auto pr-1">
-                  {messages.map((m, i) => (
-                    <div key={i} className={"max-w-[88%] rounded-2xl px-3 py-2.5 text-[8px] leading-4 " + (m.role === "assistant" ? "border border-white/[.07] bg-white/[.035] text-white/55" : "ml-auto bg-gradient-to-r from-blue-600 to-violet-600 text-white")}>
-                      {m.text}
-                    </div>
-                  ))}
+              </div>
+            ))}
+          </div>
+          <div className="p-3 border-t border-line">
+            <div className="flex gap-2">
+              <input value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => e.key==="Enter" && send()}
+                placeholder="Ask anything..." className="flex-1 bg-bg border border-line rounded-xl px-3 py-2 text-sm text-text placeholder:text-textMuted focus:outline-none focus:border-primary"/>
+              <button onClick={send} className="px-3 py-2 rounded-xl text-white text-sm" style={{background:"#5B6EF5"}}>↑</button>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-surface border border-line rounded-xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-line flex items-center justify-between">
+            <div className="flex gap-1">
+              {["Workflows","Templates","History"].map(t => (
+                <button key={t} onClick={() => setWorkflowTab(t)}
+                  className={`px-3 py-1.5 rounded-lg text-xs transition-colors ${workflowTab===t?"text-white":"text-textMuted hover:text-white"}`}
+                  style={workflowTab===t?{background:"rgba(91,110,245,0.2)"}:{}}>{t}</button>
+              ))}
+            </div>
+            <button className="text-xs px-2.5 py-1.5 rounded-lg text-white font-medium" style={{background:"#5B6EF5"}}>+ New Workflow</button>
+          </div>
+          <div className="divide-y divide-line">
+            {WORKFLOWS.map(w => (
+              <div key={w.name} className="px-4 py-3 flex items-center justify-between hover:bg-white/3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-sm" style={{background:"rgba(91,110,245,0.2)"}}>⚡</div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-white">{w.name}</p>
+                    <p className="text-[11px] text-textMuted truncate">{w.trigger}</p>
+                  </div>
                 </div>
-                <div className="mt-3 rounded-2xl border border-white/[.08] bg-[#070c18] p-2">
-                  <textarea value={draft} onChange={e=>setDraft(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();submit();}}} rows={2} placeholder="Ask about invoices, customers, marketing, research, software or operations…" className="w-full resize-none bg-transparent outline-none text-[9px] leading-4 text-white/70 placeholder:text-white/20" />
-                  <div className="flex items-center gap-1.5 mt-1.5">
-                    <button onClick={submit} className="rounded-lg bg-white text-slate-900 px-3 py-2 text-[8px] font-semibold">Send</button>
-                    <button onClick={()=>location.href="/dashboard/ai-builder"} className="rounded-lg border border-white/[.07] bg-white/[.035] px-3 py-2 text-[8px] text-white/45">Open AI Builder</button>
-                    <span className="ml-auto text-[7px] text-white/15">Enter run · Shift+Enter newline</span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full ${w.active?"text-success":"text-textMuted"}`} style={w.active?{background:"rgba(34,197,94,0.15)"}:{background:"rgba(139,146,176,0.1)"}}>{w.active?"Active":"Paused"}</span>
+                  <div className={`w-8 h-4 rounded-full relative cursor-pointer transition-colors ${w.active?"bg-success":"bg-surfaceAlt"}`}>
+                    <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all ${w.active?"left-[18px]":"left-0.5"}`}/>
                   </div>
                 </div>
               </div>
-            </div>
-          </BizPanel>
-
-          <BizPanel title="Assistant actions" subtitle="Fast paths into the business workspace">
-            <div className="p-3 space-y-2">
-              {[
-                ["Create a marketing plan", "/dashboard/marketing", "Plan", "blue"],
-                ["Build a customer email", "/dashboard/ai-builder", "Build", "cyan"],
-                ["Analyze sales data", "/dashboard", "Analyze", "purple"],
-                ["Create an automation workflow", "/dashboard/actions", "Automate", "green"],
-                ["Research a business question", "/dashboard/ai-builder", "Research", "orange"],
-                ["Work with files", "/dashboard/ai-builder", "Files", "blue"]
-              ].map(([label, href, badge, tone]) => (
-                <Link key={label} href={href} className="flex items-center gap-2 rounded-2xl border border-white/[.06] bg-white/[.02] p-3 hover:border-blue-400/20">
-                  <BizIcon tone={tone as any} size="sm">✦</BizIcon>
-                  <div className="min-w-0 flex-1"><div className="text-[9px] text-white/65">{label}</div><div className="text-[7px] text-white/20 mt-1">Open {badge}</div></div>
-                  <span className="text-white/15 text-[10px]">›</span>
-                </Link>
-              ))}
-            </div>
-          </BizPanel>
-
-          <BizPanel title="AI capability surface" subtitle="The building blocks the command desk can route into.">
-            <div className="p-3 grid grid-cols-2 gap-2">
-              {capabilities.map(([name, detail, tone, icon]) => (
-                <div key={name} className="rounded-2xl border border-white/[.06] bg-white/[.02] p-3">
-                  <BizIcon tone={tone as any} size="sm">{icon}</BizIcon>
-                  <div className="mt-2 text-[8px] text-white/65">{name}</div>
-                  <div className="mt-1 text-[7px] leading-3.5 text-white/20">{detail}</div>
-                </div>
-              ))}
-            </div>
-            <div className="border-t border-white/[.07] p-3">
-              <Link href="/dashboard/ai-builder" className="block text-center rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 py-2.5 text-[8px] font-semibold text-white">Continue in full AI Builder</Link>
-            </div>
-          </BizPanel>
+            ))}
+          </div>
         </div>
-      </BizSection>
+
+        <div className="bg-surface border border-line rounded-xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-line flex items-center justify-between">
+            <div className="flex gap-1">
+              {["All Agents","Custom","Templates"].map(t => (
+                <button key={t} onClick={() => setAgentTab(t)}
+                  className={`px-3 py-1.5 rounded-lg text-xs transition-colors ${agentTab===t?"text-white":"text-textMuted hover:text-white"}`}
+                  style={agentTab===t?{background:"rgba(91,110,245,0.2)"}:{}}>{t}</button>
+              ))}
+            </div>
+            <button className="text-xs px-2.5 py-1.5 rounded-lg text-white font-medium" style={{background:"#5B6EF5"}}>+ Create Agent</button>
+          </div>
+          <div className="divide-y divide-line">
+            {AGENTS.map(a => (
+              <div key={a.name} className="px-4 py-3 flex items-center justify-between hover:bg-white/3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-white text-xs font-bold" style={{background:a.color}}>{a.name.charAt(0)}</div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-white">{a.name}</p>
+                    <p className="text-[11px] text-textMuted truncate">{a.desc}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-[10px] px-2 py-0.5 rounded-full text-success" style={{background:"rgba(34,197,94,0.15)"}}>Active</span>
+                  <div className="w-8 h-4 rounded-full relative cursor-pointer bg-success">
+                    <div className="absolute top-0.5 left-[18px] w-3 h-3 rounded-full bg-white shadow"/>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

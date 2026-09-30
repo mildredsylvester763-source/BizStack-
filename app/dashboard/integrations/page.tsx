@@ -1,174 +1,96 @@
-import Link from "next/link";
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase-server";
-import { INTEGRATION_CATALOG } from "@/lib/integrations/catalog";
-import { BizIcon, BizPanel, BizSection, BizStatus, BizTabs } from "@/components/ui/BizStackVisual";
+"use client";
+import { useState } from "react";
 
-const FEATURED = [
-  { provider: "github", name: "GitHub", category: "Development", detail: "Code & repositories", tone: "slate" as const, icon: "GH" },
-  { provider: "vercel", name: "Vercel", category: "Development", detail: "Deploy & hosting", tone: "slate" as const, icon: "▲" },
-  { provider: "supabase", name: "Supabase", category: "Data", detail: "Database & backend", tone: "green" as const, icon: "S" },
-  { provider: "stripe", name: "Stripe", category: "Finance", detail: "Payments", tone: "purple" as const, icon: "S" },
-  { provider: "google-drive", name: "Google Drive", category: "Storage", detail: "Files & documents", tone: "blue" as const, icon: "G" },
-  { provider: "slack", name: "Slack", category: "Communication", detail: "Team communication", tone: "orange" as const, icon: "✦" },
-  { provider: "notion", name: "Notion", category: "Productivity", detail: "Notes & knowledge", tone: "slate" as const, icon: "N" },
-  { provider: "paypal", name: "PayPal", category: "Finance", detail: "Payments", tone: "blue" as const, icon: "P" },
-  { provider: "figma", name: "Figma", category: "Design", detail: "Design files", tone: "purple" as const, icon: "F" }
+const CATEGORIES = ["All (48)","Popular","Development","Communication","Finance","Marketing","Storage","Productivity","E-commerce"];
+
+const CONNECTORS = [
+  { name:"GitHub",       cat:"Development",     color:"#1a1a2e", letter:"G",  connected:false },
+  { name:"GitLab",       cat:"Development",     color:"#FC6D26", letter:"GL", connected:false },
+  { name:"Bitbucket",    cat:"Development",     color:"#0052CC", letter:"B",  connected:false },
+  { name:"Vercel",       cat:"Hosting",         color:"#000000", letter:"▲",  connected:true  },
+  { name:"Supabase",     cat:"Database",        color:"#3ECF8E", letter:"S",  connected:true  },
+  { name:"Figma",        cat:"Design",          color:"#F24E1E", letter:"F",  connected:false },
+  { name:"Linear",       cat:"Project Mgmt",    color:"#5E6AD2", letter:"L",  connected:false },
+  { name:"Jira",         cat:"Project Mgmt",    color:"#0052CC", letter:"J",  connected:false },
+  { name:"Slack",        cat:"Communication",   color:"#4A154B", letter:"S",  connected:false },
+  { name:"Google Drive", cat:"Storage",         color:"#4285F4", letter:"G",  connected:false },
+  { name:"AWS",          cat:"Cloud",           color:"#FF9900", letter:"A",  connected:false },
+  { name:"Stripe",       cat:"Payments",        color:"#635BFF", letter:"S",  connected:false },
+  { name:"PayPal",       cat:"Payments",        color:"#003087", letter:"P",  connected:false },
+  { name:"QuickBooks",   cat:"Accounting",      color:"#2CA01C", letter:"Q",  connected:false },
+  { name:"Xero",         cat:"Accounting",      color:"#13B5EA", letter:"X",  connected:false },
+  { name:"Mailchimp",    cat:"Marketing",       color:"#FFE01B", letter:"M",  connected:false },
+  { name:"Twilio",       cat:"Communication",   color:"#F22F46", letter:"T",  connected:false },
+  { name:"Notion",       cat:"Productivity",    color:"#ffffff", letter:"N",  connected:false },
+  { name:"Dropbox",      cat:"Storage",         color:"#0061FF", letter:"D",  connected:false },
+  { name:"Microsoft 365",cat:"Productivity",    color:"#D83B01", letter:"M",  connected:false },
+  { name:"Shopify",      cat:"E-commerce",      color:"#96BF48", letter:"S",  connected:false },
+  { name:"WooCommerce",  cat:"E-commerce",      color:"#7F54B3", letter:"W",  connected:false },
+  { name:"Paystack",     cat:"Payments",        color:"#00C3F7", letter:"P",  connected:false },
+  { name:"Flutterwave",  cat:"Payments",        color:"#F5A623", letter:"F",  connected:false },
 ];
 
-const categories = ["All", "Popular", "Development", "Communication", "Finance", "Marketing", "Storage", "Productivity", "Design", "CRM"];
+export default function IntegrationsPage() {
+  const [activeTab, setActiveTab] = useState("All (48)");
+  const [search, setSearch] = useState("");
 
-function normalizeProvider(provider: string) {
-  return provider.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-}
-
-export default async function IntegrationsPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: business } = await supabase
-    .from("businesses")
-    .select("id,name")
-    .eq("owner_id", user.id)
-    .single();
-  if (!business) redirect("/onboarding");
-
-  const { data: connections } = await supabase
-    .from("integrations")
-    .select("id,provider,display_name,status,account_label,external_account_email,last_verified_at,last_synced_at")
-    .eq("business_id", business.id)
-    .order("updated_at", { ascending: false });
-
-  const rows = connections || [];
-  const connected = new Map(rows.map((x: any) => [normalizeProvider(x.provider), x]));
-  const catalog = INTEGRATION_CATALOG.slice(0, 24);
+  const filtered = CONNECTORS.filter(c =>
+    (activeTab.startsWith("All") || c.cat.toLowerCase().includes(activeTab.toLowerCase()) || c.name.toLowerCase().includes(activeTab.toLowerCase())) &&
+    (c.name.toLowerCase().includes(search.toLowerCase()) || c.cat.toLowerCase().includes(search.toLowerCase()))
+  );
 
   return (
-    <div className="biz-content">
-      <BizSection number="4" title="Integrations, Apps & Connectors" subtitle="Connect your tools, apps and services. Build a more powerful business.">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-          <BizTabs items={categories} />
-          <Link href="/dashboard/ai-builder"><span className="biz-button bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 text-white">Open AI Builder</span></Link>
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-1">
+        <div>
+          <h1 className="text-xl font-semibold text-white">Integrations &amp; Connectors</h1>
+          <p className="text-sm text-textMuted mt-0.5">Connect your favorite tools, apps and services. All in one place.</p>
         </div>
+        <button className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white" style={{background:"#5B6EF5"}}>+ New</button>
+      </div>
 
-        <div className="grid xl:grid-cols-[1.55fr_.9fr] gap-3">
-          <BizPanel title="Connector Marketplace" subtitle="Connect company systems, productivity tools, payments and business services.">
-            <div className="p-3">
-              <div className="flex items-center gap-2 mb-3 rounded-xl border border-white/[.07] bg-white/[.025] px-3 py-2.5">
-                <span className="text-[10px] text-white/20">⌕</span>
-                <input aria-label="Search connectors" placeholder="Search connectors, products or service…" className="w-full bg-transparent outline-none text-[8px] text-white/65 placeholder:text-white/20" />
-                <span className="biz-chip">{catalog.length + FEATURED.length}+</span>
-              </div>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                {FEATURED.map(item => {
-                  const c = connected.get(normalizeProvider(item.provider));
-                  const isConnected = c?.status === "connected";
-                  return (
-                    <div key={item.provider} className="rounded-2xl border border-blue-400/10 bg-white/[.02] p-3 hover:border-blue-400/25 transition">
-                      <div className="flex items-start gap-2.5">
-                        <BizIcon tone={item.tone} size="md">{item.icon}</BizIcon>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-[9px] font-semibold text-white/75">{item.name}</div>
-                          <div className="text-[7px] text-white/22 mt-1">{item.detail}</div>
-                        </div>
-                        {isConnected && <BizStatus tone="green">Connected</BizStatus>}
-                      </div>
-                      <div className="mt-3 flex items-center justify-between">
-                        <span className="text-[7px] text-white/20">{item.category}</span>
-                        <Link href={item.provider === "stripe" ? "/dashboard/settings/payments" : "/dashboard/ai-builder"} className="rounded-lg bg-blue-500/10 border border-blue-400/15 px-3 py-1.5 text-[7px] text-blue-200">
-                          {isConnected ? "Manage" : "Connect"}
-                        </Link>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="mt-3 grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                {catalog.map(item => {
-                  const c = connected.get(normalizeProvider(item.provider));
-                  return (
-                    <div key={item.provider} className="biz-card-link">
-                      <div className="flex items-center gap-2">
-                        <BizIcon tone={item.category === "payments" ? "purple" : item.category === "developer" ? "blue" : item.category === "communications" ? "cyan" : "slate"} size="sm">{item.name.slice(0, 1)}</BizIcon>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-[8px] text-white/65">{item.name}</div>
-                          <div className="text-[7px] text-white/22 truncate">{item.category.replace("_", " ")}</div>
-                        </div>
-                        {c?.status === "connected" ? <span className="text-[7px] text-emerald-300">●</span> : <span className="text-[7px] text-white/15">○</span>}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </BizPanel>
+      <div className="mt-4 mb-4">
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search connectors, apps or services..."
+          className="w-full bg-surface border border-line rounded-xl px-4 py-2.5 text-sm text-text placeholder:text-textMuted focus:outline-none focus:border-primary"
+        />
+      </div>
 
-          <BizPanel title="Connected Apps" subtitle="Accounts authorized for this business workspace.">
-            <div>
-              {rows.length === 0 ? (
-                <div className="p-5 text-[9px] text-white/25">No connected services yet. Connect an account from the marketplace or open AI Builder for the guided account setup.</div>
-              ) : rows.map((c: any) => (
-                <div className="biz-list-row" key={c.id}>
-                  <BizIcon tone={c.status === "connected" ? "green" : c.status === "error" ? "red" : "orange"} size="sm">{String(c.display_name || c.provider).slice(0, 1)}</BizIcon>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[8px] text-white/65 truncate">{c.display_name || c.provider}</div>
-                    <div className="text-[7px] text-white/20 truncate">{c.account_label || c.external_account_email || "Account not identified"}</div>
-                  </div>
-                  <BizStatus tone={c.status === "connected" ? "green" : c.status === "error" ? "red" : "orange"}>{c.status}</BizStatus>
-                </div>
-              ))}
-              <div className="p-3 border-t border-white/[.07]">
-                <Link href="/dashboard/ai-builder" className="block text-center rounded-xl border border-white/[.08] bg-white/[.035] py-2.5 text-[8px] text-white/55 hover:text-white/75">+ Add new connection</Link>
-              </div>
-            </div>
-          </BizPanel>
-        </div>
-      </BizSection>
-
-      <BizSection number="4.2" title="Integration control plane" subtitle="Connection state, permissions and data movement remain visible instead of being hidden behind a generic “connected” badge.">
-        <div className="grid xl:grid-cols-3 gap-3">
-          <BizPanel title="Integration Settings" subtitle="Permission and webhook controls">
-            <div className="p-4 space-y-2">
-              {["General", "Webhooks", "API Keys", "Permission scopes", "Sync schedules", "Audit events"].map((x, i) => (
-                <div key={x} className="flex items-center justify-between rounded-xl border border-white/[.06] bg-white/[.02] px-3 py-2.5">
-                  <span className="text-[8px] text-white/55">{x}</span>
-                  <span className={i < 2 ? "text-[7px] text-emerald-300" : "text-[7px] text-white/20"}>{i < 2 ? "Enabled" : "Configure"}</span>
-                </div>
-              ))}
-              <div className="mt-2 text-[7px] leading-4 text-white/22">Changes remain scoped to this business. Credentials are handled by the secure integration runtime rather than exposed in page markup.</div>
-            </div>
-          </BizPanel>
-
-          <BizPanel title="Data & Database Integration" subtitle="Import, sync and inspect business data sources">
-            <div className="p-4 grid grid-cols-2 gap-2">
-              {[["PostgreSQL","db"],["MySQL","db"],["MongoDB","db"],["Supabase","data"],["Firebase","data"],["Custom API","api"]].map(([name,icon]) => (
-                <Link key={name} href="/dashboard/ai-builder" className="biz-card-link">
-                  <BizIcon tone={icon === "db" ? "cyan" : icon === "api" ? "orange" : "green"} size="sm">{name.slice(0, 1)}</BizIcon>
-                  <div className="mt-2 text-[8px] text-white/60">{name}</div>
-                  <div className="mt-1 text-[7px] text-white/20">Connect / inspect</div>
-                </Link>
-              ))}
-            </div>
-          </BizPanel>
-
-          <BizPanel title="Developer Tools" subtitle="API, SDK and webhook surfaces">
-            <div className="p-4 space-y-2">
-              {["API", "SDKs", "Webhooks", "Docs", "Postman collection", "Rate limits", "Authentication"].map((x, i) => (
-                <div key={x} className="rounded-xl border border-white/[.06] bg-white/[.02] px-3 py-2.5">
-                  <div className="text-[8px] text-white/60">{x}</div>
-                  <div className="text-[7px] text-white/20 mt-1">{i === 0 ? "GET /v1/invoices" : "Available through the connected runtime"}</div>
-                </div>
-              ))}
-            </div>
-          </BizPanel>
-        </div>
-      </BizSection>
-
-      <div className="mt-1 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
-        {[["Connected", String(rows.filter((x:any)=>x.status==="connected").length)],["Pending",String(rows.filter((x:any)=>x.status==="pending").length)],["Errors",String(rows.filter((x:any)=>x.status==="error").length)],["Catalog",String(INTEGRATION_CATALOG.length)]].map(([label,value])=>(
-          <div key={label} className="biz-metric !min-h-0"><div className="biz-metric-label">{label}</div><div className="biz-metric-value !text-[15px]">{value}</div></div>
+      <div className="flex items-center gap-1 flex-wrap mb-6">
+        {CATEGORIES.map(c => (
+          <button key={c} onClick={() => setActiveTab(c)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${activeTab===c?"text-white border border-primary/50":"text-textMuted border border-transparent hover:border-line hover:text-white"}`}
+            style={activeTab===c ? {background:"rgba(91,110,245,0.15)"} : {}}>
+            {c}
+          </button>
         ))}
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+        {filtered.map(c => (
+          <div key={c.name} className="bg-surface border border-line rounded-xl p-4 hover:border-primary/40 transition-colors">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm mb-3 shadow-glow" style={{background:c.color}}>
+              {c.letter.length > 1 ? <span className="text-xs">{c.letter}</span> : c.letter}
+            </div>
+            <p className="text-sm font-medium text-white truncate">{c.name}</p>
+            <p className="text-[10px] text-textMuted mb-3 truncate">{c.cat}</p>
+            {c.connected ? (
+              <span className="text-[10px] px-2 py-0.5 rounded-full" style={{background:"rgba(34,197,94,0.15)",color:"#22C55E"}}>● Connected</span>
+            ) : (
+              <button className="w-full py-1.5 rounded-lg text-xs font-medium text-white transition-colors hover:opacity-90" style={{background:"rgba(91,110,245,0.25)",color:"#5B6EF5"}}>Connect</button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-6 flex items-center gap-4 text-xs text-textMuted border-t border-line pt-4">
+        <button className="hover:text-white">+ Add Custom Connector</button>
+        <span>|</span>
+        <button className="hover:text-white">Manage Connectors</button>
+        <span>|</span>
+        <button className="hover:text-white text-primary">View All 48 Integrations</button>
       </div>
     </div>
   );

@@ -1,8 +1,7 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase-server";
-import { BizIcon, BizMetric, BizPanel, BizSection, BizStatus, BizTabs } from "@/components/ui/BizStackVisual";
+import Link from "next/link";
 
 async function addCustomer(formData: FormData) {
   "use server";
@@ -11,12 +10,7 @@ async function addCustomer(formData: FormData) {
   if (!user) return;
   const { data: business } = await supabase.from("businesses").select("id").eq("owner_id", user.id).single();
   if (!business) return;
-  await supabase.from("customers").insert({
-    business_id: business.id,
-    name: String(formData.get("name") || "").trim(),
-    email: String(formData.get("email") || "").trim() || null,
-    phone: String(formData.get("phone") || "").trim() || null
-  });
+  await supabase.from("customers").insert({ business_id: business.id, name: formData.get("name") as string, email: (formData.get("email") as string)||null, phone: (formData.get("phone") as string)||null });
   revalidatePath("/dashboard/customers");
 }
 
@@ -24,40 +18,89 @@ export default async function CustomersPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-  const { data: business } = await supabase.from("businesses").select("id,name").eq("owner_id", user.id).single();
+  const { data: business } = await supabase.from("businesses").select("id, name").eq("owner_id", user.id).single();
   if (!business) redirect("/onboarding");
-  const { data: customers } = await supabase.from("customers").select("id,name,email,phone,status,company_name,created_at,last_contact_at").eq("business_id", business.id).order("created_at",{ascending:false});
-  const list=customers||[];
-  const active=list.filter((c:any)=>c.status==="active").length;
 
-  return <div className="biz-content">
-    <BizSection number="8" title="Customers & CRM" subtitle="Manage your customer records, relationships and business activity in one place.">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-3"><BizTabs items={["Customers","Companies","Leads","Segments"]}/><Link href="/dashboard/ai-builder"><span className="biz-button bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 text-white">+ Ask AI to manage CRM</span></Link></div>
-      <div className="biz-grid biz-grid-4">
-        <BizMetric label="Customers" value={String(list.length)} delta="Total records" tone="blue" icon="◎"/>
-        <BizMetric label="Active" value={String(active)} delta="Current customer status" tone="green" icon="✓"/>
-        <BizMetric label="Companies" value={String(new Set(list.map((c:any)=>c.company_name).filter(Boolean)).size)} delta="Distinct companies" tone="purple" icon="▦"/>
-        <BizMetric label="Recent contacts" value={String(list.filter((c:any)=>c.last_contact_at).length)} delta="Records with contact history" tone="cyan" icon="◌"/>
+  const { data: customers } = await supabase.from("customers").select("id, name, email, phone, created_at").eq("business_id", business.id).order("created_at", { ascending: false });
+  const { data: invoices } = await supabase.from("invoices").select("id, customer_id, status").eq("business_id", business.id);
+
+  const totalCount = (customers ?? []).length;
+  const invoiceMap: Record<string, number> = {};
+  for (const inv of invoices ?? []) {
+    if (inv.customer_id) invoiceMap[inv.customer_id] = (invoiceMap[inv.customer_id] ?? 0) + 1;
+  }
+
+  const COLORS = ["#5B6EF5","#8B5CF6","#22C55E","#F5A524","#EF4444","#06B6D4","#EC4899","#14B8A6"];
+
+  return (
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-2">
+        <div>
+          <h1 className="text-xl font-semibold text-white">Customers</h1>
+          <p className="text-sm text-textMuted mt-0.5">Manage your customers, track progress and build lasting relationships.</p>
+        </div>
+        <button className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white" style={{background:"#5B6EF5"}}>+ Add Customer</button>
       </div>
 
-      <div className="grid xl:grid-cols-[1fr_320px] gap-3 mt-3">
-        <BizPanel title="Customer directory" subtitle="Searchable business records">
-          <div className="p-3 border-b border-white/[.07] flex gap-2"><input placeholder="Search customers…" className="flex-1 rounded-xl border border-white/[.08] bg-white/[.025] px-3 py-2.5 text-[8px] text-white outline-none"/><span className="biz-chip">{list.length} records</span></div>
-          {list.length===0?<div className="p-8 text-center text-[9px] text-white/25">No customers yet.</div>:list.map((c:any)=><div key={c.id} className="biz-list-row px-4 py-3.5"><BizIcon tone={c.status==="active"?"green":"slate"} size="md">{(c.name||"C").slice(0,1).toUpperCase()}</BizIcon><div className="min-w-0 flex-1"><div className="text-[9px] font-medium text-white/70 truncate">{c.name}</div><div className="text-[7px] text-white/22 mt-1 truncate">{c.company_name||c.email||c.phone||"No additional details"}</div></div><BizStatus tone={c.status==="active"?"green":"slate"}>{c.status}</BizStatus><Link href={"/dashboard/customers/"+c.id} className="text-[8px] text-blue-300">View</Link></div>)}
-        </BizPanel>
-
-        <BizPanel title="Add customer" subtitle="Create a real CRM record">
-          <div className="p-4">
-            <form action={addCustomer} className="space-y-2.5">
-              <input name="name" required placeholder="Name" className="w-full rounded-xl border border-white/[.08] bg-white/[.025] px-3 py-3 text-[9px] text-white outline-none"/>
-              <input name="email" type="email" placeholder="Email" className="w-full rounded-xl border border-white/[.08] bg-white/[.025] px-3 py-3 text-[9px] text-white outline-none"/>
-              <input name="phone" placeholder="Phone" className="w-full rounded-xl border border-white/[.08] bg-white/[.025] px-3 py-3 text-[9px] text-white outline-none"/>
-              <button className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 py-3 text-[8px] font-semibold text-white">Add customer</button>
-            </form>
-            <div className="mt-4 grid grid-cols-2 gap-2">{[["Profile","Identity & contact"],["Invoices","Payment history"],["Portal","Secure customer workspace"],["AI","Automated follow-up"]].map(([a,b],i)=><div key={a} className="rounded-xl border border-white/[.06] bg-white/[.02] p-3"><BizIcon tone={["blue","green","purple","cyan"][i] as any} size="sm">{a[0]}</BizIcon><div className="mt-2 text-[8px] text-white/55">{a}</div><div className="mt-1 text-[7px] text-white/20">{b}</div></div>)}</div>
-          </div>
-        </BizPanel>
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="bg-surface border border-line rounded-xl p-4"><p className="text-xs text-textMuted mb-1">Total Customers</p><p className="text-2xl font-bold text-white">{totalCount}</p></div>
+        <div className="bg-surface border border-line rounded-xl p-4"><p className="text-xs text-textMuted mb-1">Active</p><p className="text-2xl font-bold text-white">{totalCount}</p></div>
+        <div className="bg-surface border border-line rounded-xl p-4"><p className="text-xs text-textMuted mb-1">New This Month</p><p className="text-2xl font-bold text-white">{(customers ?? []).filter(c => new Date(c.created_at) > new Date(Date.now() - 30*86400000)).length}</p></div>
       </div>
-    </BizSection>
-  </div>;
+
+      <div className="bg-surface border border-line rounded-xl overflow-hidden mb-6">
+        <div className="flex items-center gap-3 p-4 border-b border-line">
+          <input placeholder="Search customers..." className="flex-1 bg-bg border border-line rounded-lg px-3 py-2 text-sm text-text placeholder:text-textMuted focus:outline-none focus:border-primary"/>
+          <select className="bg-bg border border-line text-textMuted text-sm rounded-lg px-3 py-2 focus:outline-none"><option>All Customers</option></select>
+          <select className="bg-bg border border-line text-textMuted text-sm rounded-lg px-3 py-2 focus:outline-none"><option>Newest</option></select>
+          <button className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{background:"#5B6EF5"}}>+ Add Customer</button>
+        </div>
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-line">
+              <th className="px-4 py-3 text-left text-xs font-medium text-textMuted">Customer</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-textMuted">Email</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-textMuted">Phone</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-textMuted">Total Invoices</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-textMuted">Status</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-textMuted">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line">
+            {!(customers ?? []).length && <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-textMuted">No customers yet.</td></tr>}
+            {(customers ?? []).map((c, i) => (
+              <tr key={c.id} className="hover:bg-white/3">
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0" style={{background: COLORS[i % COLORS.length]}}>{c.name.charAt(0).toUpperCase()}</div>
+                    <span className="text-sm font-medium text-text">{c.name}</span>
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-sm text-textMuted">{c.email ?? "—"}</td>
+                <td className="px-4 py-3 text-sm text-textMuted">{c.phone ?? "—"}</td>
+                <td className="px-4 py-3 text-sm text-textMuted">{invoiceMap[c.id] ?? 0}</td>
+                <td className="px-4 py-3"><span className="text-xs px-2.5 py-1 rounded-full" style={{background:"rgba(34,197,94,0.15)",color:"#22C55E"}}>Active</span></td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-1">
+                    <Link href={`/dashboard/invoices/new`} className="text-[11px] px-2 py-1 rounded bg-surface border border-line text-textMuted hover:text-white">Create Invoice</Link>
+                    <button className="text-textMuted hover:text-white text-lg leading-none ml-1">...</button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="bg-surface border border-line rounded-xl p-5">
+        <h2 className="text-sm font-semibold text-white mb-4">Add New Customer</h2>
+        <form action={addCustomer} className="grid sm:grid-cols-[1fr_1fr_1fr_auto] gap-3">
+          <input name="name" required placeholder="Full name" className="bg-bg border border-line rounded-lg px-3 py-2 text-sm text-text placeholder:text-textMuted focus:outline-none focus:border-primary"/>
+          <input name="email" type="email" placeholder="Email address" className="bg-bg border border-line rounded-lg px-3 py-2 text-sm text-text placeholder:text-textMuted focus:outline-none focus:border-primary"/>
+          <input name="phone" placeholder="Phone number" className="bg-bg border border-line rounded-lg px-3 py-2 text-sm text-text placeholder:text-textMuted focus:outline-none focus:border-primary"/>
+          <button type="submit" className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{background:"#5B6EF5"}}>Add</button>
+        </form>
+      </div>
+    </div>
+  );
 }
