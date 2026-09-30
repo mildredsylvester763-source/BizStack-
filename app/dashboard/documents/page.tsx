@@ -10,9 +10,9 @@ export default async function DocumentsPage(){
  const {data:documents}=await supabase.from("ai_business_documents").select("id,document_type,title,status,version,audience,funder_name,content,assumptions,validation,created_at,updated_at").eq("business_id",business.id).order("updated_at",{ascending:false});
  const docs=documents||[];
  return <div className="biz-content">
-  <BizSection number="7" title="File Management" subtitle="Store, organize and use business files as governed AI context.">
+  <BizSection number="7" title="Files & Knowledge" subtitle="Store, organize, search and safely reuse business files as governed AI context.">
    <div className="flex flex-wrap justify-between gap-3 mb-3"><BizTabs items={["All Files","Documents","Spreadsheets","Images","Videos","Archives","Shared","Trash"]}/><Link href="/dashboard/ai-builder"><span className="biz-button bg-gradient-to-r from-blue-600 to-violet-600 text-white">+ Upload / Use in AI Builder</span></Link></div>
-   <div className="grid xl:grid-cols-[260px_1fr] gap-3">
+   <div className="grid xl:grid-cols-[260px_1fr] gap-3"><div className="xl:col-span-2 grid grid-cols-2 lg:grid-cols-4 gap-2.5 mb-0">{[["Files","All business files","blue"],["AI Context","Governed knowledge","purple"],["Shared","Team-accessible","cyan"],["Versions","Recoverable history","green"]].map(([a,b,c])=><div key={a} className="rounded-xl border border-white/[.055] bg-[#0a111e]/80 p-3"><div className="text-[7px] uppercase tracking-[.16em] text-white/25">{a}</div><div className="text-[11px] text-white/70 mt-1">{a==="Files"?docs.length:"—"}</div><div className="text-[7px] text-slate-600 mt-1">{b}</div></div>)}</div>
     <BizPanel title="Libraries" subtitle="Organize business knowledge">
       <div className="p-3 space-y-1.5">{["AI Files","Documents","Images","Videos","Archives","Shared","Trash"].map((x,i)=><div key={x} className={"flex items-center gap-2 rounded-xl px-3 py-2.5 "+(i===0?"bg-blue-500/10 border border-blue-400/15":"bg-white/[.02] border border-transparent")}><BizIcon tone={i===0?"blue":"slate"} size="sm">{x.slice(0,1)}</BizIcon><span className="text-[8px] text-white/55">{x}</span><span className="ml-auto text-[7px] text-white/15">{i===0?docs.length:"—"}</span></div>)}</div>
     </BizPanel>
