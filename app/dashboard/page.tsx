@@ -62,7 +62,7 @@ export default async function DashboardHome() {
                   <stop offset="100%" stopColor={s.color} stopOpacity="0"/>
                 </linearGradient>
               </defs>
-              <polygon points={`0,40 0,30 28,22 56,28 84,10 112,20 140,5 168,15 200,8 200,40`} fill={`url(#grad-${s.label.replace(/ /g,"")})`}/>
+              <polygon points="0,40 0,30 28,22 56,28 84,10 112,20 140,5 168,15 200,8 200,40" fill={`url(#grad-${s.label.replace(/ /g,"")})`}/>
               <polyline points="0,30 28,22 56,28 84,10 112,20 140,5 168,15 200,8" fill="none" stroke={s.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
             <p className={`text-[11px] ${s.up ? "text-success" : "text-danger"}`}>{s.sub}</p>
@@ -79,7 +79,7 @@ export default async function DashboardHome() {
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2.5 mb-5">
         {[
           ["AI Assistant","Plan, analyze, execute","/dashboard/ai-assistant","✦"],
-          ["Website Builder","Build with AI","/dashboard/website-builder","▣"],
+          ["AI Builder","Build with AI","/dashboard/website-builder","▣"],
           ["Customers","Relationships & CRM","/dashboard/customers","◌"],
           ["Inventory","Products & stock","/dashboard/products","□"],
           ["Invoices","Get paid faster","/dashboard/invoices","▤"],
@@ -109,7 +109,7 @@ export default async function DashboardHome() {
               <linearGradient id="rg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#5B6EF5" stopOpacity="0.25"/><stop offset="100%" stopColor="#5B6EF5" stopOpacity="0"/></linearGradient>
               <linearGradient id="eg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.15"/><stop offset="100%" stopColor="#8B5CF6" stopOpacity="0"/></linearGradient>
             </defs>
-            {[30,60,90].map(y => <line key={y} x1="0" y1={y} x2="460" y2={y} stroke="#232B4D" strokeWidth="1"/>)}
+            {[30,60,90].map(y => <line key={y} x1="0" y1={y} x2="460" y2={y} stroke="#232B4D" strokeWidth="1"/>)} 
             <polygon points="0,120 30,85 90,75 150,45 210,65 270,25 330,50 390,15 460,35 460,120" fill="url(#rg)"/>
             <polyline points="30,85 90,75 150,45 210,65 270,25 330,50 390,15 460,35" fill="none" stroke="#5B6EF5" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
             <polygon points="0,120 30,95 90,90 150,78 210,88 270,70 330,80 390,65 460,72 460,120" fill="url(#eg)"/>
