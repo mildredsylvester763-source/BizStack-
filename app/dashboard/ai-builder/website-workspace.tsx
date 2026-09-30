@@ -169,6 +169,7 @@ export default function WebsiteWorkspace({
   onPreviewUrlChange: (url: string) => void;
   onAskAI: (prompt: string) => void;
   onCreateProject: () => void;
+  onCheckpoint?: () => void | Promise<void>;
   onUndo?: () => void | Promise<void>;
   onTalk?: () => void;
   isGenerating?: boolean;
