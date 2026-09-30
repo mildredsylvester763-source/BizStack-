@@ -33,7 +33,7 @@ export default async function CustomersPage() {
   const COLORS = ["#5B6EF5","#8B5CF6","#22C55E","#F5A524","#EF4444","#06B6D4","#EC4899","#14B8A6"];
 
   return (
-    <div className="min-h-screen p-5 lg:p-6 relative">
+    <div className="min-h-screen p-5 lg:p-6 relative"><div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-[radial-gradient(circle_at_45%_0%,rgba(37,99,235,.12),transparent_62%)]" />>
       <div className="relative flex items-center justify-between mb-5 pb-5 border-b border-white/[.055]">
         <div>
           <h1 className="text-xl font-semibold text-white">Customers</h1>
@@ -43,16 +43,16 @@ export default async function CustomersPage() {
       </div>
 
       <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-[#0b1220]/90 border border-white/[.065] rounded-xl p-4"><p className="text-xs text-slate-500 mb-1">Total Customers</p><p className="text-2xl font-bold text-white">{totalCount}</p></div>
-        <div className="bg-[#0b1220]/90 border border-white/[.065] rounded-xl p-4"><p className="text-xs text-slate-500 mb-1">Active</p><p className="text-2xl font-bold text-white">{totalCount}</p></div>
-        <div className="bg-[#0b1220]/90 border border-white/[.065] rounded-xl p-4"><p className="text-xs text-slate-500 mb-1">New This Month</p><p className="text-2xl font-bold text-white">{(customers ?? []).filter(c => new Date(c.created_at) > new Date(Date.now() - 30*86400000)).length}</p></div>
+        <div className="bg-[#0b1220]/90 border border-white/[.06] rounded-xl p-4 shadow-[0_12px_35px_rgba(0,0,0,.13)] hover:border-indigo-300/[.14] transition-all"><p className="text-xs text-slate-500 mb-1">Total Customers</p><p className="text-2xl font-bold text-white">{totalCount}</p></div>
+        <div className="bg-[#0b1220]/90 border border-white/[.06] rounded-xl p-4 shadow-[0_12px_35px_rgba(0,0,0,.13)] hover:border-indigo-300/[.14] transition-all"><p className="text-xs text-slate-500 mb-1">Active</p><p className="text-2xl font-bold text-white">{totalCount}</p></div>
+        <div className="bg-[#0b1220]/90 border border-white/[.06] rounded-xl p-4 shadow-[0_12px_35px_rgba(0,0,0,.13)] hover:border-indigo-300/[.14] transition-all"><p className="text-xs text-slate-500 mb-1">New This Month</p><p className="text-2xl font-bold text-white">{(customers ?? []).filter(c => new Date(c.created_at) > new Date(Date.now() - 30*86400000)).length}</p></div>
       </div>
 
-      <div className="bg-[#0b1220]/90 border border-white/[.065] rounded-xl overflow-hidden mb-6">
+      <div className="bg-[#0b1220]/90 border border-white/[.06] rounded-xl overflow-hidden mb-6 shadow-[0_16px_45px_rgba(0,0,0,.14)]">
         <div className="flex items-center gap-3 p-4 border-b border-white/[.065]">
-          <input placeholder="Search customers..." className="flex-1 bg-[#070c16] border border-white/[.065] rounded-lg px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-indigo-400/30"/>
-          <select className="bg-[#070c16] border border-white/[.065] text-slate-500 text-sm rounded-lg px-3 py-2 focus:outline-none"><option>All Customers</option></select>
-          <select className="bg-[#070c16] border border-white/[.065] text-slate-500 text-sm rounded-lg px-3 py-2 focus:outline-none"><option>Newest</option></select>
+          <input placeholder="Search customers..." className="flex-1 bg-[#070c16] border border-white/[.06] rounded-lg px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-indigo-400/30"/>
+          <select className="bg-[#070c16] border border-white/[.06] text-slate-500 text-sm rounded-lg px-3 py-2 focus:outline-none"><option>All Customers</option></select>
+          <select className="bg-[#070c16] border border-white/[.06] text-slate-500 text-sm rounded-lg px-3 py-2 focus:outline-none"><option>Newest</option></select>
           <button className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{background:"#5B6EF5"}}>+ Add Customer</button>
         </div>
         <table className="w-full">
@@ -66,7 +66,7 @@ export default async function CustomersPage() {
               <th className="px-4 py-3 text-left text-xs font-medium text-slate-500">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-line">
+          <tbody className="divide-y divide-white/[.055]">
             {!(customers ?? []).length && <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-slate-500">No customers yet.</td></tr>}
             {(customers ?? []).map((c, i) => (
               <tr key={c.id} className="hover:bg-white/[.025]">
@@ -92,12 +92,12 @@ export default async function CustomersPage() {
         </table>
       </div>
 
-      <div className="bg-[#0b1220]/90 border border-white/[.065] rounded-xl p-5">
+      <div className="bg-[#0b1220]/90 border border-white/[.06] rounded-xl p-5 shadow-[0_16px_45px_rgba(0,0,0,.14)]">
         <h2 className="text-sm font-semibold text-white mb-4">Add New Customer</h2>
         <form action={addCustomer} className="grid sm:grid-cols-[1fr_1fr_1fr_auto] gap-3">
-          <input name="name" required placeholder="Full name" className="bg-[#070c16] border border-white/[.065] rounded-lg px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-indigo-400/30"/>
-          <input name="email" type="email" placeholder="Email address" className="bg-[#070c16] border border-white/[.065] rounded-lg px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-indigo-400/30"/>
-          <input name="phone" placeholder="Phone number" className="bg-[#070c16] border border-white/[.065] rounded-lg px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-indigo-400/30"/>
+          <input name="name" required placeholder="Full name" className="bg-[#070c16] border border-white/[.06] rounded-lg px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-indigo-400/30"/>
+          <input name="email" type="email" placeholder="Email address" className="bg-[#070c16] border border-white/[.06] rounded-lg px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-indigo-400/30"/>
+          <input name="phone" placeholder="Phone number" className="bg-[#070c16] border border-white/[.06] rounded-lg px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-indigo-400/30"/>
           <button type="submit" className="px-4 py-2 rounded-lg text-sm font-medium text-white" style={{background:"#5B6EF5"}}>Add</button>
         </form>
       </div>
