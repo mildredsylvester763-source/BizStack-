@@ -286,6 +286,14 @@ export default function OperatorCockpit({
     finally{setRestoringVersion(false)}
   }
 
+  async function undoToPreviousCheckpoint(){
+    if(!project||restoringVersion||versioning||versions.length<2)return;
+    const ordered=[...versions].sort((a,b)=>Number(a.version_no||0)-Number(b.version_no||0));
+    const previous=ordered[ordered.length-2];
+    if(!previous?.id)return;
+    await restoreVersion(String(previous.id));
+  }
+
   async function createProject(){
     const name=newProject.name.trim(),slug=(newProject.slug.trim()||name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")).toLowerCase();
     if(!name||!slug)return;
@@ -457,7 +465,17 @@ export default function OperatorCockpit({
             {approval&&<div className="p-3 rounded-xl border border-amber-300/20 bg-amber-300/[.05]"><div className="text-[8px] text-amber-200 uppercase">Approval required</div><p className="text-[10px] mt-2">{approval.action}</p><button className="mt-3 bg-white text-black rounded-lg px-3 py-2 text-[9px]" onClick={async()=>{setBusy(true);try{const r=await fetch("/api/assistant/approve",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:approval.runId})});const x=await r.json().catch(()=>({}));setApproval(x.approval||null);setMessages(v=>[...v,{role:"assistant",content:x.message||"Approved action completed."}]);await loadProjects(projectId||undefined).catch(()=>null)}finally{setBusy(false)}}}>Approve</button></div>}
             {busy&&<div className="flex gap-3 items-center py-2"><div className="w-7 h-7 rounded-lg bg-indigo-400/10 flex items-center justify-center text-[8px] text-indigo-200 animate-pulse">B</div><div className="text-[9px] text-white/30">BizStack is working across the workspace…</div></div>}<div ref={end}/>
           </div>}
-          {tab==="website"&&<WebsiteWorkspace project={project} files={files} initialPreviewUrl={previewUrl} onPreviewUrlChange={setPreviewUrl} onAskAI={setInput} onCreateProject={()=>setProjectOpen(true)}/>}\n          {tab==="code"&&<div className="h-full min-h-[620px] flex">
+          {tab==="website"&&<WebsiteWorkspace
+  project={project}
+  files={files}
+  initialPreviewUrl={previewUrl}
+  onPreviewUrlChange={setPreviewUrl}
+  onAskAI={setInput}
+  onCreateProject={()=>setProjectOpen(true)}
+  onCheckpoint={snapshot}
+  onTalk={()=>setTab("chat")}
+  isGenerating={busy}
+/>}\n          {tab==="code"&&<div className="h-full min-h-[620px] flex">
             <div className="w-56 shrink-0 border-r border-white/[.06] bg-[#0f1115] overflow-y-auto"><div className="px-3 py-2 border-b border-white/[.05] text-[8px] uppercase tracking-[.15em] text-white/20">{project?.name||"No project"}</div>{!project&&<div className="p-3 text-[9px] text-white/25">Create or select a project to open its real source tree.</div>}{project&&files.map(f=><button key={f.path} onClick={()=>{setSelectedPath(f.path);setEditor(String(f.content??""));setFileDirty(false)}} className={selectedPath===f.path?"w-full text-left px-3 py-2 bg-white/[.07] text-[9px] text-white":"w-full text-left px-3 py-2 text-[9px] text-white/35 hover:bg-white/[.04]"}>{f.path}</button>)}{project&&files.length===0&&<div className="p-3 text-[9px] text-white/20">No source files yet. Ask the Operator to create the project files.</div>}</div>
             <div className="flex-1 flex flex-col min-w-0"><div className="h-10 px-3 border-b border-white/[.06] flex items-center gap-2"><span className="text-[9px] text-white/40 truncate">{selectedPath||"Select a file"}</span>{selectedFile&&<span className="text-[8px] text-white/15 ml-auto">v{selectedFile.version_no} · {selectedFile.content_sha?.slice(0,10)||"no checksum"}</span>}{fileDirty&&<span className="text-[8px] text-amber-200">unsaved</span>}<button onClick={()=>void snapshot()} disabled={!project||versioning||saving} className="ml-auto px-2.5 py-1.5 rounded-lg bg-indigo-400/10 text-[8px] text-indigo-200 disabled:opacity-20">Snapshot</button><button onClick={()=>void saveFile()} disabled={!project||!selectedPath||!fileDirty||saving} className="px-2.5 py-1.5 rounded-lg bg-white text-black text-[8px] disabled:opacity-20">{saving?"Saving…":"Save"}</button></div><textarea value={editor} onChange={e=>{setEditor(e.target.value);setFileDirty(true)}} spellCheck={false} disabled={!selectedFile} placeholder={project?"Select a source file":"Select a project"} className="flex-1 min-h-[570px] resize-none bg-[#0b0d11] px-4 py-4 font-mono text-[11px] leading-5 text-white/75 outline-none"/></div>
           </div>}
