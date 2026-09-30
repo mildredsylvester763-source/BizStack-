@@ -32,7 +32,7 @@ export default async function ActionCenterPage() {
     <div>
       <h2 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color }}>{title}</h2>
       {events.length === 0 ? (
-        <p className="text-sm text-textMuted">Nothing here.</p>
+        <p className="text-sm text-slate-500">Nothing here.</p>
       ) : (
         <div className="space-y-2">
           {events.map(e => (
@@ -40,12 +40,12 @@ export default async function ActionCenterPage() {
               <div className="flex items-start gap-3">
                 <span className="text-xl shrink-0 mt-0.5">{EVENT_ICONS[e.event_type] ?? EVENT_ICONS.default}</span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-text leading-snug">{e.summary}</p>
-                  <p className="text-xs text-textMuted mt-1">{new Date(e.created_at).toLocaleString()}</p>
+                  <p className="text-sm text-slate-200 leading-snug">{e.summary}</p>
+                  <p className="text-xs text-slate-500 mt-1">{new Date(e.created_at).toLocaleString()}</p>
                   {Object.keys(e.evidence ?? {}).length > 0 && (
                     <details className="mt-2">
-                      <summary className="text-xs text-primary cursor-pointer">Show evidence</summary>
-                      <pre className="mt-1.5 bg-bg border border-line rounded-lg p-2 text-[10px] text-textMuted overflow-x-auto">{JSON.stringify(e.evidence, null, 2)}</pre>
+                      <summary className="text-xs text-indigo-300 cursor-pointer">Show evidence</summary>
+                      <pre className="mt-1.5 bg-bg border border-line rounded-lg p-2 text-[10px] text-slate-500 overflow-x-auto">{JSON.stringify(e.evidence, null, 2)}</pre>
                     </details>
                   )}
                   {e.status === "needs_approval" && (
@@ -58,7 +58,7 @@ export default async function ActionCenterPage() {
                       <form action={updateEventStatus}>
                         <input type="hidden" name="id" value={e.id}/>
                         <input type="hidden" name="status" value="dismissed"/>
-                        <button type="submit" className="px-3 py-1.5 rounded-lg text-xs text-textMuted bg-surface border border-line hover:text-white">Dismiss</button>
+                        <button type="submit" className="px-3 py-1.5 rounded-lg text-xs text-slate-500 bg-[#0b1220]/90 border border-white/[.065] hover:text-white">Dismiss</button>
                       </form>
                     </div>
                   )}
@@ -80,7 +80,7 @@ export default async function ActionCenterPage() {
       <div className="grid lg:grid-cols-3 gap-3 mb-6 relative">
         {[{label:"Needs Approval",value:needsApproval.length,color:"#F5A524"},{label:"Auto Handled",value:autoHandled.length,color:"#22C55E"},{label:"Total Events",value:all.length,color:"#5B6EF5"}].map(s=>(
           <div key={s.label} className="bg-[#0a1220]/95 border border-white/[.06] rounded-xl p-4 shadow-[0_14px_42px_rgba(0,0,0,.15)]">
-            <p className="text-xs text-textMuted mb-1">{s.label}</p>
+            <p className="text-xs text-slate-500 mb-1">{s.label}</p>
             <p className="text-2xl font-bold text-white">{s.value}</p>
           </div>
         ))}
