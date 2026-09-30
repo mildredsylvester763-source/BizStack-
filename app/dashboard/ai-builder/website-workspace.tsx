@@ -157,7 +157,11 @@ export default function WebsiteWorkspace({
   initialPreviewUrl,
   onPreviewUrlChange,
   onAskAI,
-  onCreateProject
+  onCreateProject,
+  onCheckpoint,
+  onUndo,
+  onTalk,
+  isGenerating = false
 }: {
   project: Project | null;
   files: ProjectFile[];
@@ -165,7 +169,6 @@ export default function WebsiteWorkspace({
   onPreviewUrlChange: (url: string) => void;
   onAskAI: (prompt: string) => void;
   onCreateProject: () => void;
-  onCheckpoint?: () => void | Promise<void>;
   onUndo?: () => void | Promise<void>;
   onTalk?: () => void;
   isGenerating?: boolean;
@@ -194,6 +197,16 @@ export default function WebsiteWorkspace({
   const [graphError, setGraphError] = useState("");
   const [toast, setToast] = useState("");
   const [previewRefreshKey, setPreviewRefreshKey] = useState(0);
+  const [inspectorTab, setInspectorTab] = useState<"design" | "content" | "ai">("design");
+  const [selectedPanel, setSelectedPanel] = useState<"canvas" | "navigator">("canvas");
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const [selectionPulse, setSelectionPulse] = useState(false);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(""), 2600);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   useEffect(() => {
     if (!project?.id) {
@@ -338,12 +351,6 @@ export default function WebsiteWorkspace({
 
   const previewUrl = buildRouteUrl(basePreviewUrl, selectedRoute?.path || "/", designModeOpen);
 
-  useEffect(() => {
-    if (!toast) return;
-    const timer = window.setTimeout(() => setToast(""), 2600);
-    return () => window.clearTimeout(timer);
-  }, [toast]);
-
   function requestEdit(prompt: string) {
     setToast("Edit request added to BizStack AI.");
     onAskAI(prompt);
@@ -352,6 +359,13 @@ export default function WebsiteWorkspace({
   function refreshPreview() {
     setPreviewRefreshKey(value => value + 1);
     setToast("Refreshing the live preview…");
+  }
+
+  function selectElementForEdit(item: { label: string; line: number; excerpt: string }) {
+    setSelectionPulse(true);
+    setInspectorTab("ai");
+    setToast(item.label + " selected.");
+    window.setTimeout(() => setSelectionPulse(false), 900);
   }
 
   return (
@@ -406,7 +420,7 @@ export default function WebsiteWorkspace({
               {elementMap.map((item) => (
                 <button
                   key={item.id}
-                  onClick={() => askPage("Update the " + item.prompt + ". Source line: " + item.line + ". Source excerpt: " + item.excerpt)}
+                  onClick={() => { selectElementForEdit(item); askPage("Update the " + item.prompt + ". Source line: " + item.line + ". Source excerpt: " + item.excerpt); }}
                   className="w-full text-left rounded-xl border border-white/[.05] bg-white/[.02] hover:bg-white/[.045] px-3 py-2.5"
                 >
                   <div className="flex items-center gap-2">
@@ -436,10 +450,43 @@ export default function WebsiteWorkspace({
             {toast}
           </div>
         )}
-        <div className="h-12 px-3 border-b border-white/[.06] flex items-center gap-2">
-          <div className="min-w-0">
-            <div className="text-[9px] text-white/55 truncate">{selectedRoute?.label || "Home"}</div>
-            <div className="text-[7px] text-white/20 truncate">{selectedRoute?.source || "Project source"}</div>
+        <div className="h-[52px] px-4 border-b border-white/[.07] flex items-center gap-3 bg-[#0c0f14]">
+          <div className="flex items-center gap-2">
+            <button onClick={() => setSelectedPanel("navigator")} className="h-8 w-8 rounded-lg border border-white/[.07] bg-white/[.025] text-white/35 lg:hidden">☰</button>
+            <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-indigo-300/[.28] to-cyan-300/[.08] border border-indigo-200/[.12] grid place-items-center text-[7px] font-semibold text-indigo-100/80">B</div>
+            <div className="hidden sm:block">
+              <div className="text-[8px] uppercase tracking-[.18em] text-white/25">Website Creator</div>
+              <div className="text-[9px] text-white/60 mt-0.5">{project.name}</div>
+            </div>
+          </div>
+          <div className="h-5 w-px bg-white/[.07] hidden sm:block" />
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-[7px] text-white/20">Pages</span><span className="text-white/15">/</span>
+            <span className="text-[8px] text-white/55 truncate max-w-[170px]">{selectedRoute?.label || "Home"}</span>
+          </div>
+          <div className="ml-auto flex items-center gap-1.5">
+            <button onClick={() => setNotificationOpen(v => !v)} className="relative h-8 w-8 rounded-lg border border-white/[.06] bg-white/[.025] text-white/35 hover:text-white/65">♧<span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-indigo-300" /></button>
+            <button onClick={() => onTalk?.()} className="hidden md:inline-flex items-center gap-1.5 px-3 h-8 rounded-lg border border-indigo-300/[.12] bg-indigo-300/[.055] text-[7px] text-indigo-100/75">← Talk to BizStack</button>
+            <button onClick={() => onUndo?.()} disabled={!onUndo} className="hidden md:inline-flex px-2.5 h-8 rounded-lg border border-white/[.06] text-[7px] text-white/35 disabled:opacity-30">Undo</button>
+            <button onClick={() => onCheckpoint?.()} disabled={!onCheckpoint} className="hidden md:inline-flex px-2.5 h-8 rounded-lg border border-white/[.06] text-[7px] text-white/35 disabled:opacity-30">Save</button>
+          </div>
+          {notificationOpen && (
+            <div className="absolute right-3 top-[46px] z-50 w-[250px] rounded-2xl border border-white/[.08] bg-[#11151b]/[.98] p-3 shadow-[0_24px_70px_rgba(0,0,0,.55)] backdrop-blur-xl">
+              <div className="flex items-center justify-between"><span className="text-[8px] text-white/60">Activity</span><button onClick={() => setNotificationOpen(false)} className="text-white/25">×</button></div>
+              <div className="mt-3 rounded-xl border border-indigo-300/[.08] bg-indigo-300/[.035] p-2.5"><div className="text-[7px] text-indigo-100/65">Website workspace ready</div><div className="text-[7px] text-white/25 mt-1">Source graph, preview and visual editing controls are connected to this project.</div></div>
+              <div className="mt-2 text-[7px] text-white/20">Route: {selectedRoute?.path || "/"}</div>
+            </div>
+          )}
+        </div>
+
+        <div className="h-10 px-4 border-b border-white/[.055] bg-[#0a0d12] flex items-center gap-2">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+            <button className="h-6 w-6 rounded-md text-white/20 hover:bg-white/[.04]">‹</button>
+            <button className="h-6 w-6 rounded-md text-white/20 hover:bg-white/[.04]">›</button>
+            <div className="h-6 flex-1 max-w-[520px] rounded-md border border-white/[.055] bg-black/[.18] flex items-center px-2.5 gap-2">
+              <span className="text-[7px] text-emerald-300/55">●</span>
+              <span className="text-[7px] text-white/30 truncate">{previewUrl || "Preview not started"}{selectedRoute?.path || "/"}</span>
+            </div>
           </div>
           <div className="ml-auto flex items-center gap-1.5">
             <button onClick={() => onTalk?.()} className="hidden sm:inline-flex px-2.5 py-1.5 rounded-lg border border-indigo-300/[.1] bg-indigo-300/[.05] text-[7px] text-indigo-100/70">Talk to BizStack</button>
@@ -462,7 +509,7 @@ export default function WebsiteWorkspace({
           </div>
         </div>
 
-        <div className="flex-1 overflow-auto p-4 bg-[#06080b]">
+        <div className="flex-1 overflow-auto p-5 bg-[radial-gradient(circle_at_50%_0%,rgba(99,102,241,.09),transparent_34%),#06080b]">
           {!basePreviewUrl ? (
             <div className="h-full min-h-[560px] grid place-items-center">
               <div className="max-w-md text-center">
@@ -480,12 +527,18 @@ export default function WebsiteWorkspace({
           ) : (
             <div className="min-h-[560px]">
               <div className="mx-auto transition-all duration-300" style={{ width: "min(100%, " + deviceSpec.width + "px)" }}>
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <span className="h-1 w-1 rounded-full bg-indigo-300/70" />
+                  <span className="text-[7px] uppercase tracking-[.18em] text-white/20">Live canvas</span>
+                  <span className="text-[7px] text-white/10">·</span>
+                  <span className="text-[7px] text-white/15">{deviceSpec.width}px</span>
+                </div>
                 <div className="rounded-[18px] overflow-hidden border border-white/[.08] bg-white shadow-[0_20px_70px_rgba(0,0,0,.35)]">
-                  <div className="h-8 px-3 flex items-center gap-2 border-b border-black/10 bg-[#f6f7f8]">
+                  <div className="h-9 px-3 flex items-center gap-2 border-b border-black/10 bg-[#f4f5f7]">
                     <span className="w-2 h-2 rounded-full bg-black/10" />
                     <span className="w-2 h-2 rounded-full bg-black/10" />
                     <span className="w-2 h-2 rounded-full bg-black/10" />
-                    <span className="ml-2 flex-1 text-[7px] text-black/35 truncate">{previewUrl}</span>
+                    <span className="ml-2 flex-1 h-5 rounded-md bg-black/[.035] px-2 flex items-center text-[7px] text-black/35 truncate">{previewUrl}</span>
                     <a href={previewUrl} target="_blank" rel="noreferrer" className="text-[7px] text-black/45">Open</a>
                   </div>
                   {selectedRoute?.dynamic ? (
@@ -504,7 +557,10 @@ export default function WebsiteWorkspace({
                       </div>
                     </div>
                   ) : (
-                    <iframe key={previewRefreshKey} title={"Website preview " + (selectedRoute?.path || "/")} src={previewUrl} className="w-full min-h-[560px] border-0 bg-white" />
+                    <div className={"relative " + (selectionPulse ? "ring-2 ring-indigo-300/70 ring-offset-2 ring-offset-[#06080b]" : "")}>
+                      <iframe key={previewRefreshKey} title={"Website preview " + (selectedRoute?.path || "/")} src={previewUrl} className="w-full min-h-[560px] border-0 bg-white" />
+                      {selectionPulse && <div className="absolute top-4 left-4 rounded-lg bg-indigo-600 text-white px-2 py-1 text-[7px] shadow-lg">Selected element · Edit with AI</div>}
+                    </div>
                   )}
                 </div>
               </div>
