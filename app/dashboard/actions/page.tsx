@@ -36,7 +36,7 @@ export default async function ActionCenterPage() {
       ) : (
         <div className="space-y-2">
           {events.map(e => (
-            <div key={e.id} className="bg-surface border border-line rounded-xl p-4 hover:border-primary/30 transition-colors">
+            <div key={e.id} className="bg-[#0a1220]/95 border border-white/[.06] rounded-xl p-4 hover:border-indigo-300/[.16] transition-all shadow-[0_10px_30px_rgba(0,0,0,.12)]">
               <div className="flex items-start gap-3">
                 <span className="text-xl shrink-0 mt-0.5">{EVENT_ICONS[e.event_type] ?? EVENT_ICONS.default}</span>
                 <div className="flex-1 min-w-0">
@@ -72,14 +72,14 @@ export default async function ActionCenterPage() {
   );
 
   return (
-    <div className="p-6">
-      <div className="mb-5">
-        <h1 className="text-xl font-semibold text-white">Automation Center</h1>
-        <p className="text-sm text-textMuted mt-0.5">What BizStack noticed, recommended, and already handled.</p>
+    <div className="min-h-screen p-5 lg:p-6 relative"><div className="pointer-events-none absolute inset-x-0 top-0 h-48 bg-[radial-gradient(circle_at_50%_0%,rgba(37,99,235,.12),transparent_60%)]" />
+      <div className="relative mb-5 pb-5 border-b border-white/[.055]">
+        <div className="flex items-center gap-3"><div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-400/20 to-cyan-400/10 border border-indigo-200/10 grid place-items-center text-indigo-100/80">⌁</div><div><h1 className="text-[19px] font-semibold tracking-[-.02em] text-white">Automation &amp; Activity</h1>
+        <p className="text-[11px] text-slate-500 mt-1">What BizStack noticed, recommended, and already handled.</p></div></div>
       </div>
-      <div className="grid lg:grid-cols-3 gap-4 mb-6">
+      <div className="grid lg:grid-cols-3 gap-3 mb-6 relative">
         {[{label:"Needs Approval",value:needsApproval.length,color:"#F5A524"},{label:"Auto Handled",value:autoHandled.length,color:"#22C55E"},{label:"Total Events",value:all.length,color:"#5B6EF5"}].map(s=>(
-          <div key={s.label} className="bg-surface border border-line rounded-xl p-4">
+          <div key={s.label} className="bg-[#0a1220]/95 border border-white/[.06] rounded-xl p-4 shadow-[0_14px_42px_rgba(0,0,0,.15)]">
             <p className="text-xs text-textMuted mb-1">{s.label}</p>
             <p className="text-2xl font-bold text-white">{s.value}</p>
           </div>
