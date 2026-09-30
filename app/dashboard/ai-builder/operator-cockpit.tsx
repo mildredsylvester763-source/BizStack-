@@ -473,6 +473,7 @@ export default function OperatorCockpit({
   onAskAI={setInput}
   onCreateProject={()=>setProjectOpen(true)}
   onCheckpoint={snapshot}
+  onUndo={undoToPreviousCheckpoint}
   onTalk={()=>setTab("chat")}
   isGenerating={busy}
 />}\n          {tab==="code"&&<div className="h-full min-h-[620px] flex">
