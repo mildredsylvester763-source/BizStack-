@@ -20,6 +20,8 @@ const WORKFLOWS = [
 ];
 
 export default function AIAssistantPage() {
+  // This surface intentionally remains a real interaction preview until the
+  // provider-backed assistant/action execution layer is connected.
   const [messages, setMessages] = useState<Message[]>([
     { role:"assistant", text:"Hi! I'm your AI business assistant. Ask me to create a marketing plan, write a product description, analyze your sales data, or automate any workflow." }
   ]);
@@ -53,17 +55,17 @@ export default function AIAssistantPage() {
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role==="user"?"justify-end":"justify-start"}`}>
-                <div className={`max-w-[85%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed ${m.role==="user"?"text-white rounded-br-sm":"text-text rounded-bl-sm bg-surfaceAlt"}`}
+                <div className={`max-w-[85%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed ${m.role==="user"?"text-white rounded-br-sm":"text-slate-200 rounded-bl-sm bg-[#101a2b]"}`}
                   style={m.role==="user"?{background:"#5B6EF5"}:{}}>
                   {m.text}
                 </div>
               </div>
             ))}
           </div>
-          <div className="p-3 border-t border-line">
+          <div className="p-3 border-t border-white/[.06]">
             <div className="flex gap-2">
               <input value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => e.key==="Enter" && send()}
-                placeholder="Ask anything..." className="flex-1 bg-[#070c15] border border-white/[.07] rounded-xl px-3 py-2 text-[10px] text-text placeholder:text-textMuted focus:outline-none focus:border-primary"/>
+                placeholder="Ask anything..." className="flex-1 bg-[#070c15] border border-white/[.07] rounded-xl px-3 py-2 text-[10px] text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-primary"/>
               <button onClick={send} className="px-3 py-2 rounded-xl text-white text-[10px] border border-indigo-200/10" style={{background:"linear-gradient(135deg,#4f63ff,#6d3be8)"}}>↑</button>
             </div>
           </div>
@@ -74,13 +76,13 @@ export default function AIAssistantPage() {
             <div><h2 className="text-[11px] font-semibold text-white">3.3 Automation Workflows</h2><p className="text-[8px] text-slate-600 mt-1">Triggers, templates and execution history</p></div><div className="flex gap-1">
               {["Workflows","Templates","History"].map(t => (
                 <button key={t} onClick={() => setWorkflowTab(t)}
-                  className={`px-3 py-1.5 rounded-lg text-xs transition-colors ${workflowTab===t?"text-white":"text-textMuted hover:text-white"}`}
+                  className={`px-3 py-1.5 rounded-lg text-xs transition-colors ${workflowTab===t?"text-white":"text-slate-500 hover:text-white"}`}
                   style={workflowTab===t?{background:"rgba(91,110,245,0.2)"}:{}}>{t}</button>
               ))}
             </div>
             <button className="text-[9px] px-2.5 py-1.5 rounded-lg text-white font-medium border border-indigo-200/[.08]" style={{background:"linear-gradient(135deg,#4f63ff,#6d3be8)"}}>+ New Workflow</button>
           </div>
-          <div className="divide-y divide-line">
+          <div className="divide-y divide-white/[.05]">
             {WORKFLOWS.map(w => (
               <div key={w.name} className="px-3 py-3 flex items-center justify-between hover:bg-white/[.035] border-b border-white/[.045]">
                 <div className="flex items-center gap-2.5 min-w-0">
@@ -91,8 +93,8 @@ export default function AIAssistantPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full ${w.active?"text-success":"text-textMuted"}`} style={w.active?{background:"rgba(34,197,94,0.15)"}:{background:"rgba(139,146,176,0.1)"}}>{w.active?"Active":"Paused"}</span>
-                  <div className={`w-8 h-4 rounded-full relative cursor-pointer transition-colors ${w.active?"bg-success":"bg-surfaceAlt"}`}>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full ${w.active?"text-emerald-400":"text-slate-500"}`} style={w.active?{background:"rgba(34,197,94,0.15)"}:{background:"rgba(139,146,176,0.1)"}}>{w.active?"Active":"Paused"}</span>
+                  <div className={`w-8 h-4 rounded-full relative cursor-pointer transition-colors ${w.active?"bg-emerald-500":"bg-[#101a2b]"}`}>
                     <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all ${w.active?"left-[18px]":"left-0.5"}`}/>
                   </div>
                 </div>
@@ -101,30 +103,30 @@ export default function AIAssistantPage() {
           </div>
         </div>
 
-        <div className="bg-surface border border-line rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-line flex items-center justify-between">
+        <div className="bg-[#0a1220]/95 border border-cyan-300/[.12] rounded-xl overflow-hidden shadow-[0_18px_50px_rgba(0,0,0,.18)]">
+          <div className="px-4 py-3 border-b border-white/[.06] flex items-center justify-between">
             <div className="flex gap-1">
               {["All Agents","Custom","Templates"].map(t => (
                 <button key={t} onClick={() => setAgentTab(t)}
-                  className={`px-3 py-1.5 rounded-lg text-xs transition-colors ${agentTab===t?"text-white":"text-textMuted hover:text-white"}`}
+                  className={`px-3 py-1.5 rounded-lg text-xs transition-colors ${agentTab===t?"text-white":"text-slate-500 hover:text-white"}`}
                   style={agentTab===t?{background:"rgba(91,110,245,0.2)"}:{}}>{t}</button>
               ))}
             </div>
             <button className="text-xs px-2.5 py-1.5 rounded-lg text-white font-medium" style={{background:"#5B6EF5"}}>+ Create Agent</button>
           </div>
-          <div className="divide-y divide-line">
+          <div className="divide-y divide-white/[.05]">
             {AGENTS.map(a => (
-              <div key={a.name} className="px-4 py-3 flex items-center justify-between hover:bg-white/3">
+              <div key={a.name} className="px-4 py-3 flex items-center justify-between hover:bg-white/[.035]">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-white text-[10px] font-bold border border-white/[.08]" style={{background:a.color}}>{a.name.charAt(0)}</div>
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-white">{a.name}</p>
-                    <p className="text-[11px] text-textMuted truncate">{a.desc}</p>
+                    <p className="text-[11px] text-slate-500 truncate">{a.desc}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-[10px] px-2 py-0.5 rounded-full text-success" style={{background:"rgba(34,197,94,0.15)"}}>Active</span>
-                  <div className="w-8 h-4 rounded-full relative cursor-pointer bg-success">
+                  <span className="text-[10px] px-2 py-0.5 rounded-full text-emerald-400" style={{background:"rgba(34,197,94,0.15)"}}>Active</span>
+                  <div className="w-8 h-4 rounded-full relative cursor-pointer bg-emerald-500">
                     <div className="absolute top-0.5 left-[18px] w-3 h-3 rounded-full bg-white shadow"/>
                   </div>
                 </div>
