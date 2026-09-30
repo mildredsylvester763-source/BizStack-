@@ -1,157 +1,35 @@
 "use client";
+import {useMemo,useState} from "react";
+type C={name:string;cat:string;letter:string;connected:boolean;desc:string};
+const cats=["All Connectors","Development","Productivity","Communication","Finance","Marketing","Storage","Analytics","Security","Other"];
+const connectors:C[]=[
+["GitHub","Development","G",false,"Repositories, commits, issues and pull requests."],["Vercel","Development","▲",true,"Deployments, previews, domains and build status."],["Supabase","Development","S",true,"Database, authentication and business data."],["Stripe","Finance","S",false,"Payments, customers and invoices."],["Google Drive","Storage","G",false,"Business files and shared knowledge."],["Slack","Communication","S",false,"Channels, messages and notifications."],["OpenAI","Development","AI",false,"Approved AI model access."],["Notion","Productivity","N",false,"Knowledge bases and operating notes."],["PayPal","Finance","P",false,"Payments and transaction context."],["QuickBooks","Finance","Q",false,"Accounting and financial reporting."],["Xero","Finance","X",false,"Accounting and financial reports."],["Figma","Productivity","F",false,"Design files and components."],["Linear","Productivity","L",false,"Issues, projects and cycles."],["Jira","Development","J",false,"Tickets, workflows and delivery context."],["Cloudflare","Security","C",false,"DNS, edge and security controls."],["AWS","Other","A",false,"Cloud infrastructure context."],["Firebase","Development","F",false,"Application backend services."],["Mailchimp","Marketing","M",false,"Audiences and campaigns."],["Twilio","Communication","T",false,"SMS and messaging workflows."],["Shopify","Finance","S",false,"Products, orders and customers."]
+].map(x=>({name:x[0],cat:x[1],letter:x[2],connected:x[3],desc:x[4]}));
+const appRows=[["GitHub","Connected"],["Vercel","Connected"],["Supabase","Connected"],["Stripe","Not connected"],["Google Drive","Not connected"],["Slack","Not connected"]];
+const ext=[["Vercel","Deployments and preview infrastructure"],["Netlify","Web hosting and deployment"],["Cloudflare","DNS, edge and security"],["AWS","Cloud infrastructure"],["Google Cloud","Cloud services and data"],["Firebase","Application backend services"]];
+export default function IntegrationsPage(){
+ const [cat,setCat]=useState("All Connectors"),[search,setSearch]=useState(""),[selected,setSelected]=useState<C|null>(null),[tab,setTab]=useState("General");
+ const filtered=useMemo(()=>connectors.filter(c=>(cat==="All Connectors"||c.cat===cat)&&(c.name.toLowerCase().includes(search.toLowerCase())||c.cat.toLowerCase().includes(search.toLowerCase()))),[cat,search]);
+ return <div className="min-h-screen p-4 lg:p-6 relative"><div className="pointer-events-none absolute inset-x-0 top-0 h-80 bg-[radial-gradient(circle_at_45%_0%,rgba(37,99,235,.16),transparent_62%)]"/><div className="relative max-w-[1500px] mx-auto">
+  <header className="mb-5 pb-4 border-b border-white/[.055]"><div className="text-[8px] uppercase tracking-[.2em] text-cyan-200/40">Section 4</div><h1 className="text-[20px] font-semibold text-white mt-1">Integrations, Apps &amp; Connectors</h1><p className="text-[10px] text-slate-500 mt-1">Connect your tools, apps and services. Build a more powerful business.</p></header>
 
-import { useMemo, useState } from "react";
+  <section className="mb-5"><div className="flex justify-between items-end mb-2"><div><h2 className="text-[12px] font-semibold text-white">4.1 Connector Marketplace</h2><p className="text-[8px] text-white/25 mt-1">Find and connect services for your business.</p></div><span className="text-[8px] text-cyan-200/35">50+ CONNECTORS</span></div>
+   <div className="grid lg:grid-cols-[155px_1fr] gap-2.5"><aside className="rounded-xl border border-white/[.06] bg-[#080f1b]/95 p-2">{cats.map(x=><button key={x} onClick={()=>setCat(x)} className={`w-full text-left px-2.5 py-2 rounded-lg text-[8px] ${cat===x?"text-white bg-indigo-500/15 border border-indigo-300/10":"text-white/30 hover:text-white/70"}`}>{x}{x==="All Connectors"&&<span className="float-right text-white/20">50+</span>}</button>)}</aside>
+    <div><div className="relative mb-2"><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search connectors, apps or services..." className="w-full bg-[#080f1b] border border-white/[.06] rounded-xl px-3 py-2.5 text-[9px] text-white placeholder:text-white/20 outline-none"/></div><div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2">{filtered.slice(0,10).map(c=><button key={c.name} onClick={()=>setSelected(c)} className="text-left rounded-xl border border-white/[.06] bg-[#0a1220]/90 p-3 hover:border-cyan-300/20"><div className="w-8 h-8 rounded-lg bg-white/[.04] border border-white/[.07] grid place-items-center text-white text-[11px] font-bold">{c.letter}</div><div className="text-[9px] text-white mt-2">{c.name}</div><div className="text-[7px] text-white/25">{c.cat}</div><div className={`text-[7px] mt-2 ${c.connected?"text-emerald-300/70":"text-indigo-200/45"}`}>{c.connected?"● Connected":"Configure →"}</div></button>)}</div></div>
+   </div>
+  </section>
 
-type Connector = {
-  name: string;
-  cat: string;
-  color: string;
-  letter: string;
-  connected: boolean;
-  description: string;
-  scopes: string[];
-};
+  <div className="grid lg:grid-cols-2 gap-3 mb-5">
+   <section className="rounded-xl border border-white/[.06] bg-[#0a1220]/90 overflow-hidden"><div className="p-3 border-b border-white/[.05] flex justify-between"><div><h2 className="text-[11px] font-semibold text-white">4.2 Connected Apps</h2><p className="text-[7px] text-white/25 mt-1">Connected services and access controls.</p></div><button className="text-[7px] text-indigo-200/70">+ Add New Connection</button></div>{appRows.map(([n,s])=><div key={n} className="px-3 py-2.5 flex justify-between border-b border-white/[.04]"><span className="text-[8px] text-white/55">{n}</span><span className={`text-[7px] ${s==="Connected"?"text-emerald-300":"text-white/25"}`}>{s}{s==="Connected"&&" · Revoke"}</span></div>)}</section>
+   <section className="rounded-xl border border-white/[.06] bg-[#0a1220]/90 overflow-hidden"><div className="p-3 border-b border-white/[.05]"><h2 className="text-[11px] font-semibold text-white">4.3 Integration Settings</h2><div className="flex gap-1 mt-3">{["General","Webhooks","API Keys"].map(x=><button key={x} onClick={()=>setTab(x)} className={`px-2.5 py-1.5 rounded-lg text-[7px] ${tab===x?"text-white bg-indigo-500/15":"text-white/25"}`}>{x}</button>)}</div></div><div className="p-3 space-y-2">{tab==="General"?["Connection notifications","Allow AI context access","Require approval for write actions"].map(x=><div key={x} className="flex justify-between p-2.5 rounded-lg bg-white/[.018] border border-white/[.04] text-[8px] text-white/45">{x}<span className="w-7 h-3.5 rounded-full bg-emerald-500/70"/></div>):<div className="rounded-lg border border-white/[.05] p-3 text-[8px] text-white/30">{tab==="Webhooks"?"Webhook URL · invoice.created · payment.received · customer.updated · project.updated":"Scoped, revocable and audited API keys."}</div>}<button className="w-full py-2 rounded-lg bg-gradient-to-r from-blue-600 to-violet-600 text-[8px] text-white">Save Settings</button></div></section>
+  </div>
 
-const CATEGORIES = ["All (48)", "Popular", "Development", "Communication", "Finance", "Marketing", "Storage", "Productivity", "E-commerce"];
+  <div className="grid lg:grid-cols-2 gap-3 mb-5">
+   <section className="rounded-xl border border-white/[.06] bg-[#0a1220]/90 p-3"><div className="flex justify-between mb-3"><div><h2 className="text-[11px] font-semibold text-white">4.4 App Catalog</h2><p className="text-[7px] text-white/25 mt-1">Installed, available and custom apps.</p></div><span className="text-[7px] text-white/20">Installed · Available · Custom</span></div><div className="grid grid-cols-2 gap-2">{["Website Builder","CRM","Inventory","Accounting","Email Marketing","HR & Payroll"].map((x,i)=><div key={x} className="rounded-lg border border-white/[.05] bg-white/[.018] p-2.5 flex justify-between text-[8px] text-white/45">{x}<span className={i===0?"text-emerald-300":"text-indigo-200/50"}>{i===0?"Installed":"Install"}</span></div>)}</div></section>
+   <section className="rounded-xl border border-white/[.06] bg-[#0a1220]/90 p-3"><div className="flex justify-between mb-3"><div><h2 className="text-[11px] font-semibold text-white">4.5 Developer Tools</h2><p className="text-[7px] text-white/25 mt-1">API, SDKs, Webhooks and Docs.</p></div></div><div className="rounded-lg border border-white/[.05] bg-[#060b13] p-3 font-mono text-[7px] text-cyan-100/45">POST /api/v1/projects<br/>Authorization: Bearer &lt;scoped_key&gt;<br/>X-BizStack-Event: project.updated</div><div className="grid grid-cols-2 gap-2 mt-2">{["API Documentation","SDKs","Webhook Events","Postman Collection","Rate Limits","Authentication"].map(x=><button key={x} className="text-left rounded-lg border border-white/[.05] p-2 text-[7px] text-white/35">{x} <span className="float-right">→</span></button>)}</div></section>
+  </div>
 
-const CONNECTORS: Connector[] = [
-  { name:"GitHub", cat:"Development", color:"#151b2b", letter:"G", connected:false, description:"Repositories, commits, issues and pull requests.", scopes:["Read repositories","Write code","Manage issues"] },
-  { name:"GitLab", cat:"Development", color:"#FC6D26", letter:"GL", connected:false, description:"Source control, merge requests and CI context.", scopes:["Projects","Merge requests","CI pipelines"] },
-  { name:"Bitbucket", cat:"Development", color:"#0052CC", letter:"B", connected:false, description:"Repositories and team development workflows.", scopes:["Repositories","Pull requests","Pipelines"] },
-  { name:"Vercel", cat:"Hosting", color:"#080b12", letter:"▲", connected:true, description:"Deployments, previews, domains and build status.", scopes:["Projects","Deployments","Logs"] },
-  { name:"Supabase", cat:"Database", color:"#123d33", letter:"S", connected:true, description:"Database, authentication and governed business data.", scopes:["Database","Auth","Storage"] },
-  { name:"Figma", cat:"Design", color:"#F24E1E", letter:"F", connected:false, description:"Design files, components and visual references.", scopes:["Files","Comments","Design metadata"] },
-  { name:"Linear", cat:"Project Mgmt", color:"#31396b", letter:"L", connected:false, description:"Issues, projects, cycles and team planning.", scopes:["Issues","Projects","Comments"] },
-  { name:"Jira", cat:"Project Mgmt", color:"#1648a4", letter:"J", connected:false, description:"Projects, tickets, workflows and delivery context.", scopes:["Projects","Issues","Transitions"] },
-  { name:"Slack", cat:"Communication", color:"#4A154B", letter:"S", connected:false, description:"Channels, messages and operational notifications.", scopes:["Channels","Messages","Notifications"] },
-  { name:"Google Drive", cat:"Storage", color:"#214f9d", letter:"G", connected:false, description:"Business files and shared knowledge sources.", scopes:["Files","Folders","Shared drives"] },
-  { name:"AWS", cat:"Cloud", color:"#6b4508", letter:"A", connected:false, description:"Cloud resources and infrastructure context.", scopes:["Resources","Logs","Deployments"] },
-  { name:"Stripe", cat:"Payments", color:"#39316f", letter:"S", connected:false, description:"Payments, customers, invoices and billing events.", scopes:["Customers","Payments","Invoices"] },
-  { name:"PayPal", cat:"Payments", color:"#143e79", letter:"P", connected:false, description:"Payment activity and customer transaction context.", scopes:["Transactions","Customers","Reports"] },
-  { name:"QuickBooks", cat:"Accounting", color:"#236b24", letter:"Q", connected:false, description:"Accounting, expenses and financial reporting.", scopes:["Accounts","Transactions","Reports"] },
-  { name:"Xero", cat:"Accounting", color:"#126c83", letter:"X", connected:false, description:"Accounting records, contacts and financial reports.", scopes:["Contacts","Invoices","Reports"] },
-  { name:"Mailchimp", cat:"Marketing", color:"#8a7415", letter:"M", connected:false, description:"Audiences, campaigns and marketing performance.", scopes:["Audiences","Campaigns","Analytics"] },
-  { name:"Twilio", cat:"Communication", color:"#7d1e2d", letter:"T", connected:false, description:"SMS, messaging and communication workflows.", scopes:["Messages","Numbers","Delivery status"] },
-  { name:"Notion", cat:"Productivity", color:"#151515", letter:"N", connected:false, description:"Knowledge bases, pages and operating notes.", scopes:["Pages","Databases","Comments"] },
-  { name:"Dropbox", cat:"Storage", color:"#164e9c", letter:"D", connected:false, description:"Files and shared folders for business context.", scopes:["Files","Folders","Sharing"] },
-  { name:"Microsoft 365", cat:"Productivity", color:"#7c2f13", letter:"M", connected:false, description:"Business documents, mail and productivity context.", scopes:["Files","Mail","Calendar"] },
-  { name:"Shopify", cat:"E-commerce", color:"#4d6927", letter:"S", connected:false, description:"Products, orders, customers and storefront context.", scopes:["Products","Orders","Customers"] },
-  { name:"WooCommerce", cat:"E-commerce", color:"#51346f", letter:"W", connected:false, description:"Store products, orders and customer activity.", scopes:["Products","Orders","Customers"] },
-  { name:"Paystack", cat:"Payments", color:"#075f78", letter:"P", connected:false, description:"African payments, transactions and settlements.", scopes:["Transactions","Customers","Transfers"] },
-  { name:"Flutterwave", cat:"Payments", color:"#77520d", letter:"F", connected:false, description:"Payments, customers and transaction records.", scopes:["Transactions","Customers","Settlements"] }
-];
-
-export default function IntegrationsPage() {
-  const [activeTab, setActiveTab] = useState("All (48)");
-  const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState<Connector | null>(null);
-
-  const filtered = useMemo(() => CONNECTORS.filter(c =>
-    (activeTab.startsWith("All") || activeTab === "Popular" ? true : c.cat.toLowerCase().includes(activeTab.toLowerCase()) || c.name.toLowerCase().includes(activeTab.toLowerCase())) &&
-    (c.name.toLowerCase().includes(search.toLowerCase()) || c.cat.toLowerCase().includes(search.toLowerCase()))
-  ), [activeTab, search]);
-
-  const connectedCount = CONNECTORS.filter(c => c.connected).length;
-
-  return (
-    <div className="min-h-screen p-5 lg:p-6 relative">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-[radial-gradient(circle_at_48%_0%,rgba(37,99,235,.15),transparent_60%)]" />
-      <div className="relative max-w-[1500px] mx-auto">
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 mb-5 pb-5 border-b border-white/[.055]">
-          <div>
-            <div className="flex items-center gap-2.5">
-              <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-400/20 to-indigo-500/20 border border-cyan-200/10 grid place-items-center text-cyan-100/80 text-sm shadow-[0_0_28px_rgba(24,198,255,.08)]">⊕</span>
-              <div>
-                <div className="text-[8px] uppercase tracking-[.2em] text-cyan-200/45">Integration fabric</div>
-                <h1 className="text-[20px] font-semibold tracking-[-.03em] text-white">Integrations &amp; Connectors</h1>
-              </div>
-            </div>
-            <p className="text-[10px] text-slate-500 mt-2 ml-11">Connect business systems, development tools and data sources into one governed operating layer.</p>
-          </div>
-          <div className="flex gap-2">
-            <div className="rounded-xl border border-emerald-400/10 bg-emerald-400/[.035] px-3 py-2">
-              <div className="text-[7px] uppercase tracking-[.16em] text-emerald-200/45">Connected</div>
-              <div className="text-[12px] text-emerald-100/75 mt-0.5">{connectedCount} live connectors</div>
-            </div>
-            <button className="px-4 py-2 rounded-xl text-[9px] font-medium text-white border border-indigo-200/10 bg-gradient-to-r from-blue-600 to-violet-600 shadow-[0_0_25px_rgba(91,110,245,.16)]">+ Custom Connector</button>
-          </div>
-        </div>
-
-        <div className="grid lg:grid-cols-[1fr_auto] gap-3 mb-4">
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/20 text-xs">⌕</span>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search connectors, apps or services..." className="w-full bg-[#0a111e]/90 border border-white/[.065] rounded-xl pl-9 pr-4 py-3 text-[10px] text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-indigo-300/25 shadow-[0_12px_35px_rgba(0,0,0,.12)]" />
-          </div>
-          <div className="hidden lg:flex items-center gap-2 rounded-xl border border-white/[.055] bg-white/[.018] px-3">
-            <span className="w-1.5 h-1.5 rounded-full bg-cyan-300 shadow-[0_0_9px_rgba(34,211,238,.7)]" />
-            <span className="text-[8px] text-white/35">Scoped permissions · audit ready</span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 mb-5">
-          {CATEGORIES.map(c => (
-            <button key={c} onClick={() => setActiveTab(c)} className={`shrink-0 px-3 py-1.5 rounded-lg text-[8px] font-medium transition-all ${activeTab===c ? "text-white border border-indigo-300/25 bg-indigo-500/15 shadow-[0_0_18px_rgba(91,110,245,.08)]" : "text-white/35 border border-transparent hover:border-white/10 hover:text-white/65"}`}>{c}</button>
-          ))}
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2.5">
-          {filtered.map(c => (
-            <button key={c.name} onClick={() => setSelected(c)} className="text-left group relative overflow-hidden bg-[#0b1220]/90 border border-white/[.06] rounded-xl p-3.5 hover:border-cyan-300/[.22] hover:-translate-y-0.5 transition-all shadow-[0_10px_30px_rgba(0,0,0,.12)]">
-              <div className="absolute -right-7 -top-7 w-16 h-16 rounded-full bg-cyan-400/[.05] blur-2xl" />
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm mb-3 border border-white/[.08] shadow-[0_8px_22px_rgba(0,0,0,.25)]" style={{background:c.color}}>{c.letter.length > 1 ? <span className="text-[9px]">{c.letter}</span> : c.letter}</div>
-              <p className="text-[10px] font-medium text-white truncate">{c.name}</p>
-              <p className="text-[7px] text-slate-500 mb-3 truncate">{c.cat}</p>
-              <div className="flex items-center justify-between gap-2">
-                <span className={`text-[7px] px-2 py-1 rounded-full ${c.connected ? "text-emerald-300 bg-emerald-400/10 border border-emerald-300/10" : "text-indigo-200/55 bg-indigo-400/[.07] border border-indigo-300/10"}`}>{c.connected ? "● Connected" : "Configure"}</span>
-                <span className="text-[10px] text-white/15 group-hover:text-white/50">→</span>
-              </div>
-            </button>
-          ))}
-        </div>
-
-        <div className="mt-6 grid md:grid-cols-3 gap-2.5">
-          {[
-            ["Connection control","OAuth, scoped credentials, revocation and connection tests.","AUTH"],
-            ["Data & events","Actions, events, retries and execution history per connector.","DATA"],
-            ["AI context","Choose what BizStack can read, write and use for reasoning.","AI"]
-          ].map(([title,desc,tag]) => (
-            <div key={title} className="rounded-xl border border-white/[.055] bg-[#080e1a]/85 p-3.5">
-              <div className="flex items-center justify-between"><span className="text-[8px] uppercase tracking-[.16em] text-indigo-200/40">{title}</span><span className="text-[7px] text-white/15">{tag}</span></div>
-              <p className="text-[8px] leading-4 text-white/30 mt-2">{desc}</p>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-5 pt-4 border-t border-white/[.055] flex flex-wrap items-center gap-4 text-[8px] text-white/30">
-          <button className="hover:text-white/70">+ Add Custom Connector</button><span className="text-white/10">|</span><button className="hover:text-white/70">Manage Connectors</button><span className="text-white/10">|</span><span>Showing {filtered.length} featured connectors from the 48-connector catalog.</span>
-        </div>
-      </div>
-
-      {selected && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-end" onClick={() => setSelected(null)}>
-          <aside onClick={e => e.stopPropagation()} className="h-full w-full max-w-md bg-[#07101e] border-l border-cyan-300/10 shadow-[-20px_0_70px_rgba(0,0,0,.45)] overflow-y-auto">
-            <div className="p-5 border-b border-white/[.06] flex items-start justify-between gap-3">
-              <div className="flex gap-3">
-                <div className="w-11 h-11 rounded-xl border border-white/[.08] grid place-items-center text-white font-bold" style={{background:selected.color}}>{selected.letter}</div>
-                <div><div className="text-[7px] uppercase tracking-[.18em] text-cyan-200/45">{selected.cat}</div><h2 className="text-base font-semibold text-white mt-1">{selected.name}</h2><p className="text-[8px] text-white/30 mt-1">{selected.description}</p></div>
-              </div>
-              <button onClick={() => setSelected(null)} className="text-white/30 hover:text-white text-lg">×</button>
-            </div>
-            <div className="p-5 space-y-4">
-              <div className="rounded-xl border border-indigo-300/10 bg-indigo-500/[.045] p-4">
-                <div className="text-[8px] uppercase tracking-[.16em] text-indigo-200/45">Connection flow</div>
-                <div className="mt-3 space-y-2">{["Authenticate account","Review requested scopes","Test connection","Enable actions & events"].map((x,i)=><div key={x} className="flex items-center gap-2 text-[8px] text-white/45"><span className="w-5 h-5 rounded-full border border-white/10 grid place-items-center text-[7px] text-indigo-200/60">{i+1}</span>{x}</div>)}</div>
-              </div>
-              <div>
-                <div className="text-[8px] uppercase tracking-[.16em] text-white/25 mb-2">Requested scope preview</div>
-                <div className="space-y-1.5">{selected.scopes.map(s=><div key={s} className="rounded-lg border border-white/[.05] bg-white/[.018] px-3 py-2 text-[8px] text-white/40">{s}</div>)}</div>
-              </div>
-              <div className="rounded-xl border border-amber-300/10 bg-amber-400/[.035] p-3 text-[8px] leading-4 text-amber-100/45">Visual connector configuration surface. No account authorization is performed from this preview until the provider-specific connection action is wired.</div>
-              <button onClick={() => setSelected(null)} className="w-full rounded-xl py-2.5 text-[9px] font-medium text-white border border-indigo-200/10 bg-gradient-to-r from-blue-600 to-violet-600">Close preview</button>
-            </div>
-          </aside>
-        </div>
-      )}
-    </div>
-  );
+  <section><div className="flex justify-between items-end mb-2"><div><h2 className="text-[12px] font-semibold text-white">4.6 External Services</h2><p className="text-[8px] text-white/25 mt-1">Infrastructure providers BizStack can coordinate with.</p></div></div><div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">{ext.map(([n,d])=><div key={n} className="rounded-xl border border-white/[.06] bg-[#0a1220]/90 p-3"><div className="w-8 h-8 rounded-lg bg-white/[.04] border border-white/[.06] grid place-items-center text-white text-[9px]">{n[0]}</div><div className="text-[9px] text-white mt-2">{n}</div><div className="text-[7px] text-white/25 mt-1">{d}</div></div>)}</div></section>
+  {selected&&<div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex justify-end" onClick={()=>setSelected(null)}><aside onClick={e=>e.stopPropagation()} className="h-full w-full max-w-md bg-[#07101e] border-l border-cyan-300/10 p-5"><div className="flex justify-between"><div><div className="text-[7px] uppercase tracking-[.18em] text-cyan-200/40">{selected.cat}</div><h2 className="text-base font-semibold text-white mt-1">{selected.name}</h2><p className="text-[8px] text-white/30 mt-1">{selected.desc}</p></div><button onClick={()=>setSelected(null)} className="text-white/30 text-lg">×</button></div><div className="mt-5 rounded-xl border border-indigo-300/10 bg-indigo-500/[.045] p-4"><div className="text-[8px] text-indigo-200/45 uppercase tracking-[.16em]">Connection flow</div>{["Authenticate account","Review requested scopes","Test connection","Enable actions & events"].map((x,i)=><div key={x} className="flex gap-2 items-center mt-3 text-[8px] text-white/40"><span className="w-5 h-5 rounded-full border border-white/10 grid place-items-center">{i+1}</span>{x}</div>)}</div></aside></div>}
+ </div></div>;
 }
