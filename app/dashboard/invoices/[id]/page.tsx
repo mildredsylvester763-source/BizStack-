@@ -29,6 +29,9 @@ async function markPaid(formData: FormData) {
   revalidatePath(`/dashboard/invoices/${invoiceId}`);
 }
 
+type CustomerRef = { id: string; name: string; email: string | null; phone: string | null };
+type ItemRef    = { id: string; description: string; quantity: number; unit_price: number };
+
 export default async function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
@@ -39,11 +42,11 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   const { data: invoice } = await supabase.from("invoices").select("id, invoice_number, status, due_date, currency, created_at, paid_at, payment_methods, customer:customers(id, name, email, phone), invoice_items(id, description, quantity, unit_price)").eq("id", id).eq("business_id", business.id).single();
   if (!invoice) redirect("/dashboard/invoices");
 
-  const customer = invoice.customer as { id:string; name:string; email:string|null; phone:string|null } | null;
-  const items = (invoice.invoice_items ?? []) as { id:string; description:string; quantity:number; unit_price:number }[];
-  const total = calculateInvoiceTotal(items);
-  const overdue = isOverdue(invoice.status, invoice.due_date);
-  const methods = invoice.payment_methods ?? [];
+  const customer = (invoice.customer as unknown) as CustomerRef | null;
+  const items    = ((invoice.invoice_items ?? []) as unknown) as ItemRef[];
+  const total    = calculateInvoiceTotal(items);
+  const overdue  = isOverdue(invoice.status, invoice.due_date);
+  const methods  = invoice.payment_methods ?? [];
 
   if (overdue) {
     const { data: existing } = await supabase.from("events").select("id").eq("business_id", business.id).eq("event_type", "payment.overdue").contains("evidence", { invoice_id: invoice.id });
@@ -56,13 +59,12 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
 
   const displayStatus = overdue ? "overdue" : invoice.status;
   const STATUS_CONFIG: Record<string,{bg:string;text:string}> = {
-    paid:    { bg:"rgba(34,197,94,0.15)",  text:"#22C55E" },
-    sent:    { bg:"rgba(91,110,245,0.15)",  text:"#5B6EF5" },
-    draft:   { bg:"rgba(139,146,176,0.15)", text:"#8B92B0" },
-    overdue: { bg:"rgba(239,68,68,0.15)",   text:"#EF4444" },
+    paid:    { bg:"rgba(34,197,94,0.15)",   text:"#22C55E" },
+    sent:    { bg:"rgba(91,110,245,0.15)",   text:"#5B6EF5" },
+    draft:   { bg:"rgba(139,146,176,0.15)",  text:"#8B92B0" },
+    overdue: { bg:"rgba(239,68,68,0.15)",    text:"#EF4444" },
   };
   const sc = STATUS_CONFIG[displayStatus] ?? STATUS_CONFIG.draft;
-
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(`Pay ${total.toFixed(2)} ${invoice.currency} to ${business.name} — ${invoice.invoice_number}`)}`;
 
   return (
@@ -79,16 +81,23 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
           <span className="text-sm px-3 py-1 rounded-full font-medium capitalize" style={{background:sc.bg,color:sc.text}}>{displayStatus}</span>
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-1.5 px-3 py-1.5 bg-surface border border-line rounded-lg text-xs text-textMuted hover:text-white transition-colors">↓ Download</button>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 bg-surface border border-line rounded-lg text-xs text-textMuted hover:text-white transition-colors">Share</button>
-          <button className="px-3 py-1.5 bg-surface border border-line rounded-lg text-xs text-textMuted hover:text-white transition-colors">···</button>
+          <button className="px-3 py-1.5 bg-surface border border-line rounded-lg text-xs text-textMuted hover:text-white">↓ Download</button>
+          <button className="px-3 py-1.5 bg-surface border border-line rounded-lg text-xs text-textMuted hover:text-white">Share</button>
+          <button className="px-3 py-1.5 bg-surface border border-line rounded-lg text-xs text-textMuted hover:text-white">···</button>
         </div>
       </div>
 
-      <p className="text-sm text-textMuted mb-6">{customer?.name ?? "No customer"} · {new Date(invoice.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}{invoice.due_date && ` · Due ${new Date(invoice.due_date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`}</p>
+      <p className="text-sm text-textMuted mb-6">
+        {customer?.name ?? "No customer"} · {new Date(invoice.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}
+        {invoice.due_date && ` · Due ${new Date(invoice.due_date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`}
+      </p>
 
       <div className="grid grid-cols-3 gap-4 mb-6">
-        {[{label:"Total Amount",value:`$${total.toFixed(2)}`},{label:invoice.status==="paid"?"Paid":"Outstanding",value:invoice.status==="paid"?`$${total.toFixed(2)}`:`$${total.toFixed(2)}`},{label:"Balance",value:invoice.status==="paid"?"$0.00":`$${total.toFixed(2)}`}].map(s=>(
+        {[
+          {label:"Total Amount",     value:`$${total.toFixed(2)}`},
+          {label:invoice.status==="paid"?"Paid":"Outstanding", value:`$${total.toFixed(2)}`},
+          {label:"Balance",          value:invoice.status==="paid"?"$0.00":`$${total.toFixed(2)}`}
+        ].map(s=>(
           <div key={s.label} className="bg-surface border border-line rounded-xl p-4">
             <p className="text-xs text-textMuted mb-1">{s.label}</p>
             <p className="text-xl font-bold text-white">{s.value}</p>
@@ -138,9 +147,9 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
               </div>
             ))}
             <div className="flex justify-end mt-3">
-              <div className="text-right">
+              <div className="text-right space-y-1">
                 <div className="flex justify-between gap-8 text-sm text-textMuted"><span>Subtotal</span><span>{total.toFixed(2)}</span></div>
-                <div className="flex justify-between gap-8 text-base font-bold text-white border-t border-line mt-1 pt-1"><span>Total</span><span>{total.toFixed(2)} {invoice.currency}</span></div>
+                <div className="flex justify-between gap-8 text-base font-bold text-white border-t border-line pt-1"><span>Total</span><span>{total.toFixed(2)} {invoice.currency}</span></div>
               </div>
             </div>
           </div>
@@ -176,8 +185,8 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
               <input type="hidden" name="invoice_id" value={invoice.id}/>
               <input type="hidden" name="business_id" value={business.id}/>
               <input type="hidden" name="invoice_number" value={invoice.invoice_number}/>
-              <button type="submit" className="w-full flex items-center gap-2 px-4 py-3 bg-surface border border-line rounded-xl text-sm text-white hover:bg-surfaceAlt transition-colors">
-                <span className="text-base">📤</span> Mark as Sent
+              <button type="submit" className="w-full flex items-center gap-2 px-4 py-3 bg-surface border border-line rounded-xl text-sm text-white hover:bg-surfaceAlt">
+                📤 Mark as Sent
               </button>
             </form>
           )}
@@ -189,14 +198,20 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
               <input type="hidden" name="total" value={total.toFixed(2)}/>
               <input type="hidden" name="currency" value={invoice.currency}/>
               <input type="hidden" name="customer_name" value={customer?.name??"a customer"}/>
-              <button type="submit" className="w-full flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium text-white transition-colors" style={{background:"#22C55E"}}>
-                <span className="text-base">✓</span> Mark as Paid
+              <button type="submit" className="w-full flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium text-white" style={{background:"#22C55E"}}>
+                ✓ Mark as Paid
               </button>
             </form>
           )}
-          {[{icon:"📧",label:"Send Receipt"},{icon:"🔔",label:"Send Reminder"},{icon:"➕",label:"Add Payment"},{icon:"📋",label:"Duplicate"},{icon:"✕",label:"Cancel Invoice",danger:true}].map(a=>(
+          {[
+            {icon:"📧",label:"Send Receipt",   danger:false},
+            {icon:"🔔",label:"Send Reminder",  danger:false},
+            {icon:"➕",label:"Add Payment",    danger:false},
+            {icon:"📋",label:"Duplicate",      danger:false},
+            {icon:"✕", label:"Cancel Invoice", danger:true }
+          ].map(a=>(
             <button key={a.label} className={`w-full flex items-center gap-2 px-4 py-3 bg-surface border border-line rounded-xl text-sm transition-colors ${a.danger?"text-danger hover:bg-danger/10":"text-textMuted hover:text-white hover:bg-surfaceAlt"}`}>
-              <span className="text-base">{a.icon}</span> {a.label}
+              <span>{a.icon}</span> {a.label}
             </button>
           ))}
         </div>
