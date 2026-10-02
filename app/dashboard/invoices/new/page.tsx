@@ -132,8 +132,21 @@ export default function NewInvoicePage() {
   const enabledMethods = (Object.entries(methods) as [MethodKey, boolean][]).filter(([, value]) => value).map(([key]) => METHOD_META[key].label);
 
   return (
-    <main className="biz-page min-h-screen">
-      <section className="biz-content max-w-6xl mx-auto">
+    <main className="invoice-reference min-h-screen">
+      <section className="max-w-[1500px] mx-auto">
+        <div className="invoice-reference-toolbar sticky top-0 z-30 flex items-center justify-between px-4 md:px-5 py-2 bg-white border-b border-[#dfe5ea]">
+          <div className="flex items-center gap-4">
+            <Link href="/dashboard/invoices" className="text-[9px] text-[#64717d]">←</Link>
+            <span className="text-[10px] font-semibold text-[#27313b]">Invoice {invoiceNo}</span>
+            <div className="hidden md:flex items-center gap-4 text-[8px] text-[#77838d]">
+              <button type="button">Edit</button><button type="button">Email view</button><button type="button">PDF view</button><button type="button">Payor view</button>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 text-[8px] text-[#77838d]"><button type="button">⚙ Manage</button><button type="button">▣ Take a tour</button><button type="button">◌ Feedback</button></div>
+        </div>
+        <div className="invoice-reference-subbar flex items-center gap-3 px-4 md:px-5 py-2 bg-white border-b border-[#e7ebef]">
+          <span className="text-[8px] text-[#87929c]">Editing</span><span className="text-[#c2cbd2]">/</span><b className="text-[8px] text-[#33404a]">Invoice settings</b><span className="ml-auto text-[8px] text-[#96a0a8]">Draft · live calculation</span>
+        </div>
         <div className="flex items-center justify-between gap-4 mb-4">
           <Link href="/dashboard/invoices" className="text-[9px] text-white/35 hover:text-white/65">← Invoices</Link>
           <span className="biz-chip">Draft · New invoice</span>
@@ -146,8 +159,8 @@ export default function NewInvoicePage() {
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div className="grid xl:grid-cols-[1fr_390px] gap-4 items-start">
-            <div className="space-y-4">
+          <div className="grid xl:grid-cols-[minmax(0,1fr)_360px] gap-0 items-start invoice-reference-layout">
+            <div className="space-y-4 p-3 md:p-5">
               <section className="biz-panel">
                 <div className="biz-panel-head">
                   <div>
@@ -240,7 +253,7 @@ export default function NewInvoicePage() {
               </section>
             </div>
 
-            <aside className="space-y-4 xl:sticky xl:top-16">
+            <aside className="invoice-reference-inspector space-y-2 xl:sticky xl:top-[88px] p-3 md:p-4 bg-white border-l border-[#dfe5ea] min-h-[calc(100vh-88px)]">
               <section className="biz-panel overflow-visible">
                 <div className="p-5 bg-gradient-to-br from-blue-500/[.12] via-indigo-500/[.07] to-violet-500/[.12]">
                   <div className="text-[8px] uppercase tracking-[.18em] text-blue-200/50">Invoice preview</div>
@@ -264,6 +277,9 @@ export default function NewInvoicePage() {
               <div className="biz-panel p-4">
                 <div className="flex items-center gap-2"><span className="grid h-7 w-7 place-items-center rounded-lg bg-emerald-400/10 text-emerald-300 text-[9px]">✓</span><span className="text-[9px] font-medium text-white/70">Payment choices stay on the invoice</span></div>
                 <p className="mt-2 text-[8px] leading-4 text-white/25">Your invoice records the selected routes so the customer sees the same options later.</p>
+              </div>
+              <div className="invoice-mini-note rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-3 text-[8px] leading-4 text-indigo-900">
+                <b>Reference workflow:</b> edit the invoice, configure payment routes, review the live document, then save or review-and-send.
               </div>
             </aside>
           </div>
