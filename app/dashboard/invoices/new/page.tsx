@@ -21,6 +21,7 @@ export default function NewInvoicePage() {
   const supabase = createClient();
 
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [invoiceNo, setInvoiceNo] = useState("1001");
   const [customerId, setCustomerId] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [items, setItems] = useState<LineItem[]>([{ description: "", quantity: 1, unit_price: 0 }]);
@@ -36,6 +37,8 @@ export default function NewInvoicePage() {
       if (!business) return;
       const { data } = await supabase.from("customers").select("id, name").eq("business_id", business.id).order("name");
       setCustomers(data ?? []);
+      const { count } = await supabase.from("invoices").select("id", { count: "exact", head: true }).eq("business_id", business.id);
+      setInvoiceNo(String((count ?? 0) + 1).padStart(4, "0"));
     }
     load();
   }, [supabase]);
@@ -280,6 +283,33 @@ export default function NewInvoicePage() {
               </div>
               <div className="invoice-mini-note rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-3 text-[8px] leading-4 text-indigo-900">
                 <b>Reference workflow:</b> edit the invoice, configure payment routes, review the live document, then save or review-and-send.
+              </div>
+              <div className="invoice-settings-stack space-y-2">
+                <details open className="invoice-setting-card">
+                  <summary>Customization <span>⌃</span></summary>
+                  <div className="space-y-2">
+                    <div className="text-[8px] text-[#7f8b94]">Invoice identity, customer-facing labels and business presentation.</div>
+                    <div className="grid grid-cols-2 gap-2"><button type="button" className="invoice-setting-choice">Business identity</button><button type="button" className="invoice-setting-choice">Customer copy</button></div>
+                  </div>
+                </details>
+                <details open className="invoice-setting-card">
+                  <summary>Payments <span>⌃</span></summary>
+                  <div className="space-y-2">{(Object.entries(methods) as [MethodKey,boolean][]).map(([key,on]) => (
+                    <button key={key} type="button" onClick={() => setMethods(prev => ({...prev,[key]:!prev[key]}))} className="invoice-toggle-row">
+                      <span><b>{METHOD_META[key].label}</b><small>{METHOD_META[key].detail}</small></span><span className={`invoice-toggle ${on ? "on" : "off"}`} />
+                    </button>
+                  ))}<div className="pt-2 mt-1 border-t border-[#edf0f2] text-[7px] text-[#8d989f]">Real card charging requires a connected payment processor.</div></div>
+                </details>
+                <details open className="invoice-setting-card">
+                  <summary>More options <span>⌃</span></summary>
+                  <div className="space-y-2">
+                    <button type="button" onClick={() => setLateFeeEnabled(v => !v)} className="invoice-setting-row"><span className="text-[8px] text-[#596771]">Late fee</span><span className={`invoice-toggle ${lateFeeEnabled ? "on" : "off"}`} /></button>
+                    <button type="button" onClick={() => setTipEnabled(v => !v)} className="invoice-setting-row"><span className="text-[8px] text-[#596771]">Tips</span><span className={`invoice-toggle ${tipEnabled ? "on" : "off"}`} /></button>
+                    <button type="button" onClick={() => setMulticurrency(v => !v)} className="invoice-setting-row"><span className="text-[8px] text-[#596771]">Multi-currency</span><span className={`invoice-toggle ${multicurrency ? "on" : "off"}`} /></button>
+                  </div>
+                </details>
+                <details className="invoice-setting-card"><summary>Design <span>⌄</span></summary><div className="space-y-2 text-[8px] text-[#71808a]"><div className="invoice-setting-choice">Paper · A4 / Letter</div><div className="invoice-setting-choice">Density · Compact</div><div className="invoice-setting-choice">Logo · Business mark</div><div className="invoice-setting-choice">Accent · Business brand</div></div></details>
+                <details className="invoice-setting-card"><summary>Scheduling <span>⌄</span></summary><div className="space-y-2 text-[8px] leading-4 text-[#71808a]"><div>Send: Manual</div><div>Reminder: 7 days before due</div><div>Follow-up: 1 day after due</div></div></details>
               </div>
             </aside>
           </div>
