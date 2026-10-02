@@ -1,1 +1,0 @@
-export type RouteEntry = { path: string; source: string; label: string; dynamic: boolean };
