@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import VoiceInput from "../ai-builder/voice-input";
 
 type Message={role:"user"|"assistant";text:string};
 
@@ -25,7 +26,9 @@ export default function AIAssistantPage(){
  const [agentTab,setAgentTab]=useState("All Agents");
  const [workflowTab,setWorkflowTab]=useState("Workflows");
  const [chatTab,setChatTab]=useState("Chat");
- function send(){const value=draft.trim();if(!value)return;setMessages(m=>[...m,{role:"user",text:value},{role:"assistant",text:"I’ve added that to the BizStack workspace. Connect the provider-backed execution layer to run the requested action."}]);setDraft("");}
+ const [attached,setAttached]=useState<File[]>([]);
+ const fileRef=useRef<HTMLInputElement>(null);
+ function send(){const value=draft.trim();if(!value&&!attached.length)return;const files=attached.length?"\\n\\nAttachments: "+attached.map(f=>f.name).join(", "):"";setMessages(m=>[...m,{role:"user",text:(value||"Please review these files.")+files},{role:"assistant",text:"I’ve captured the request, files and context. BizStack can now route the work through its provider-backed execution layer."}]);setDraft("");setAttached([]);}
  return <div className="min-h-screen p-4 lg:p-6 relative">
   <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_35%_0%,rgba(91,110,245,.18),transparent_62%)]"/>
   <div className="relative max-w-[1500px] mx-auto">
@@ -44,7 +47,7 @@ export default function AIAssistantPage(){
       <div className="rounded-xl border border-cyan-300/[.12] bg-[#0a1220]/95 overflow-hidden flex flex-col shadow-[0_18px_50px_rgba(0,0,0,.18)]">
        <div className="h-11 px-4 border-b border-white/[.06] flex items-center justify-between"><div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-cyan-300 shadow-[0_0_9px_rgba(34,211,238,.8)]"/><span className="text-[10px] font-medium text-white">BizStack AI</span></div><span className="text-[7px] text-white/25">Business-aware assistant</span></div>
        <div className="flex-1 p-4 space-y-3 overflow-y-auto">{messages.map((m,i)=><div key={i} className={`flex ${m.role==="user"?"justify-end":"justify-start"}`}><div className={`max-w-[78%] px-3 py-2.5 rounded-2xl text-[9px] leading-4 ${m.role==="user"?"bg-gradient-to-r from-blue-600 to-violet-600 text-white rounded-br-sm":"bg-[#111b2c] border border-white/[.05] text-slate-300 rounded-bl-sm"}`}>{m.text}</div></div>)}<div className="rounded-xl border border-indigo-300/10 bg-indigo-500/[.045] p-3"><div className="text-[8px] text-indigo-100/70">Example request</div><div className="text-[9px] text-white mt-1">“Create a marketing plan for my business”</div><button className="mt-2 text-[8px] px-2.5 py-1.5 rounded-lg bg-indigo-500/20 text-indigo-100 border border-indigo-300/10">Create Plan</button></div></div>
-       <div className="p-2.5 border-t border-white/[.06]"><div className="flex items-center gap-2 rounded-xl bg-[#070c15] border border-white/[.07] px-2.5"><button className="text-white/35 text-base">＋</button><input value={draft} onChange={e=>setDraft(e.target.value)} onKeyDown={e=>e.key==="Enter"&&send()} placeholder="Ask anything..." className="flex-1 bg-transparent py-2.5 text-[9px] text-white placeholder:text-slate-600 outline-none"/><button className="text-white/30">⌕</button><button onClick={send} className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-600 to-violet-600 text-white text-[10px]">↑</button></div></div>
+       <div className="p-2.5 border-t border-white/[.06]">{attached.length>0&&<div className="mb-2 flex flex-wrap gap-1.5">{attached.map((f,i)=><span key={i} className="inline-flex items-center gap-1.5 rounded-lg border border-white/[.08] bg-white/[.04] px-2 py-1 text-[8px] text-white/55">◫ {f.name}<button onClick={()=>setAttached(v=>v.filter((_,n)=>n!==i))}>×</button></span>)}</div>}<div className="flex items-end gap-1 rounded-xl bg-[#070c15] border border-white/[.07] px-2"><button type="button" onClick={()=>fileRef.current?.click()} className="h-9 w-9 rounded-xl text-white/35 hover:text-white/70">＋</button><input ref={fileRef} type="file" multiple className="hidden" onChange={e=>setAttached(Array.from(e.target.files||[]).slice(0,8))}/><textarea value={draft} onChange={e=>setDraft(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send()}}} placeholder="Tell BizStack what to do…" rows={1} className="flex-1 resize-none bg-transparent py-2.5 text-[9px] text-white placeholder:text-slate-600 outline-none leading-4"/><button type="button" className="h-9 w-9 rounded-xl text-white/30">⌘</button><VoiceInput onTranscript={text=>setDraft(v=>v?(v+" "+text):text)}/><button onClick={send} className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-violet-600 text-white text-[10px]">↑</button></div><div className="mt-1 px-2 text-[7px] text-white/20">Enter to execute · Shift+Enter for a new line · {attached.length} attachment(s)</div></div>
       </div>
       <aside className="rounded-xl border border-white/[.06] bg-[#080f1b]/95 p-3"><div className="text-[9px] font-semibold text-white mb-3">Capabilities</div>{FEATURES.map(f=><div key={f} className="flex items-center gap-2 py-2 border-b border-white/[.04] last:border-0"><span className="w-1.5 h-1.5 rounded-full bg-cyan-300/60"/><span className="text-[8px] text-white/40">{f}</span></div>)}</aside>
     </div>

@@ -1,274 +1,369 @@
+
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase-browser";
 import { calculateInvoiceTotal } from "@/lib/invoices";
 
-type Customer = { id: string; name: string };
+type Customer = { id: string; name: string; email?: string | null; phone?: string | null };
 type LineItem = { description: string; quantity: number; unit_price: number };
-type MethodKey = "bank_transfer" | "qr" | "card";
+type MethodKey = "bank_transfer" | "qr" | "card" | "cash";
+type InspectorKey = "customization" | "payments" | "options" | "design" | "scheduling";
 
-const METHOD_META: Record<MethodKey, { label: string; detail: string; icon: string; tone: string }> = {
-  bank_transfer: { label: "Bank transfer", detail: "Show your business bank details on the invoice.", icon: "₦", tone: "from-cyan-500/20 to-blue-500/10 border-cyan-400/25" },
-  qr: { label: "QR payment", detail: "Generate a scannable QR payment block for the customer.", icon: "▦", tone: "from-violet-500/20 to-fuchsia-500/10 border-violet-400/25" },
-  card: { label: "Card payment", detail: "Let customers choose card when a payment processor is connected.", icon: "▣", tone: "from-blue-500/20 to-indigo-500/10 border-blue-400/25" }
+const METHOD_META: Record<MethodKey, { label: string; detail: string; icon: string }> = {
+  bank_transfer: { label: "Bank transfer", detail: "Show bank details and transfer instructions.", icon: "₦" },
+  qr: { label: "QR payment", detail: "Provide a scannable payment route.", icon: "▦" },
+  card: { label: "Card payment", detail: "Enable card checkout when a processor is connected.", icon: "▣" },
+  cash: { label: "Cash", detail: "Record offline settlement.", icon: "◉" }
 };
 
 export default function NewInvoicePage() {
   const router = useRouter();
   const supabase = createClient();
+  const attachmentRef = useRef<HTMLInputElement>(null);
 
+  const [business, setBusiness] = useState<{
+    id: string; name: string; currency: string;
+    bank_name?: string | null; bank_account_name?: string | null; bank_account_number?: string | null;
+  } | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerId, setCustomerId] = useState("");
+  const [invoiceNo, setInvoiceNo] = useState("1001");
+  const [terms, setTerms] = useState("Net 30");
+  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState("");
   const [items, setItems] = useState<LineItem[]>([{ description: "", quantity: 1, unit_price: 0 }]);
-  const [methods, setMethods] = useState<Record<MethodKey, boolean>>({ bank_transfer: true, qr: true, card: true });
+  const [methods, setMethods] = useState<Record<MethodKey, boolean>>({
+    bank_transfer: true, qr: true, card: true, cash: false
+  });
+  const [inspector, setInspector] = useState<Record<InspectorKey, boolean>>({
+    customization: false, payments: true, options: true, design: false, scheduling: false
+  });
+  const [tipEnabled, setTipEnabled] = useState(false);
+  const [depositEnabled, setDepositEnabled] = useState(false);
+  const [discountEnabled, setDiscountEnabled] = useState(false);
+  const [shippingEnabled, setShippingEnabled] = useState(false);
+  const [multicurrency, setMulticurrency] = useState(false);
+  const [lateFeeEnabled, setLateFeeEnabled] = useState(true);
+  const [customerNote, setCustomerNote] = useState("Thank you for your business.");
+  const [statementMemo, setStatementMemo] = useState("");
+  const [attachments, setAttachments] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    async function load() {
+    (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { data: business } = await supabase.from("businesses").select("id").eq("owner_id", user.id).single();
-      if (!business) return;
-      const { data } = await supabase.from("customers").select("id, name").eq("business_id", business.id).order("name");
-      setCustomers(data ?? []);
-    }
-    load();
+      const { data: b } = await supabase
+        .from("businesses")
+        .select("id,name,currency,bank_name,bank_account_name,bank_account_number")
+        .eq("owner_id", user.id)
+        .single();
+      if (!b) return;
+      setBusiness(b);
+
+      const { data: c } = await supabase
+        .from("customers")
+        .select("id,name,email,phone")
+        .eq("business_id", b.id)
+        .order("name");
+      setCustomers(c ?? []);
+
+      const { count } = await supabase
+        .from("invoices")
+        .select("id", { count: "exact", head: true })
+        .eq("business_id", b.id);
+      setInvoiceNo(String((count ?? 0) + 1).padStart(4, "0"));
+
+      const nextDue = new Date();
+      nextDue.setDate(nextDue.getDate() + 30);
+      setDueDate(nextDue.toISOString().slice(0, 10));
+    })();
   }, [supabase]);
 
-  function updateItem(index: number, field: keyof LineItem, value: string) {
+  const total = useMemo(() => calculateInvoiceTotal(items), [items]);
+  const customer = customers.find(c => c.id === customerId);
+  const enabledMethods = (Object.entries(methods) as [MethodKey, boolean][]).filter(([, enabled]) => enabled);
+  const money = total.toFixed(2) + " " + (business?.currency || "USD");
+
+  function updateItem(index: number, key: keyof LineItem, value: string) {
     setItems(prev => prev.map((item, i) => i === index
-      ? { ...item, [field]: field === "description" ? value : Number(value) }
+      ? { ...item, [key]: key === "description" ? value : Number(value) }
       : item
     ));
   }
-
   function addLine() {
     setItems(prev => [...prev, { description: "", quantity: 1, unit_price: 0 }]);
   }
+  function removeLine(index: number) {
+    setItems(prev => prev.length === 1 ? prev : prev.filter((_, i) => i !== index));
+  }
+  function toggle(key: InspectorKey) {
+    setInspector(prev => ({ ...prev, [key]: !prev[key] }));
+  }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function saveInvoice() {
     setLoading(true);
-    setError(null);
+    setError("");
 
-    const selectedMethods = (Object.entries(methods) as [MethodKey, boolean][])
-      .filter(([, enabled]) => enabled)
-      .map(([key]) => key);
-
-    if (selectedMethods.length === 0) {
-      setError("Choose at least one payment method.");
+    if (!business || !customerId) {
+      setError(!business ? "Business not found." : "Select a customer before saving.");
+      setLoading(false);
+      return;
+    }
+    if (!items.some(item => item.description.trim())) {
+      setError("Add at least one product or service.");
+      setLoading(false);
+      return;
+    }
+    if (!enabledMethods.length) {
+      setError("Enable at least one payment method.");
       setLoading(false);
       return;
     }
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      setError("Your session expired — please log in again.");
+      setError("Your session expired. Please log in again.");
       setLoading(false);
       return;
     }
-
-    const { data: business } = await supabase.from("businesses").select("id, currency").eq("owner_id", user.id).single();
-    if (!business) {
-      setError("Business not found.");
-      setLoading(false);
-      return;
-    }
-
-    const { count } = await supabase.from("invoices").select("id", { count: "exact", head: true }).eq("business_id", business.id);
-    const invoiceNumber = `INV-${String((count ?? 0) + 1).padStart(4, "0")}`;
 
     const { data: invoice, error: invoiceError } = await supabase.from("invoices").insert({
       business_id: business.id,
-      customer_id: customerId || null,
-      invoice_number: invoiceNumber,
+      customer_id: customerId,
+      invoice_number: "INV-" + invoiceNo,
       status: "draft",
       due_date: dueDate || null,
       currency: business.currency,
-      payment_methods: selectedMethods
+      payment_methods: enabledMethods.map(([key]) => key)
     }).select().single();
 
     if (invoiceError || !invoice) {
-      setError(invoiceError?.message ?? "Could not create invoice.");
+      setError(invoiceError?.message || "Could not create invoice.");
       setLoading(false);
       return;
     }
 
-    const itemRows = items.filter(i => i.description.trim() !== "").map(i => ({
+    const rows = items.filter(item => item.description.trim()).map(item => ({
       invoice_id: invoice.id,
-      description: i.description,
-      quantity: i.quantity,
-      unit_price: i.unit_price
+      description: item.description,
+      quantity: item.quantity,
+      unit_price: item.unit_price
     }));
-
-    if (itemRows.length > 0) {
-      const { error: itemsError } = await supabase.from("invoice_items").insert(itemRows);
-      if (itemsError) {
-        setError(itemsError.message);
-        setLoading(false);
-        return;
-      }
+    const { error: itemError } = await supabase.from("invoice_items").insert(rows);
+    if (itemError) {
+      setError(itemError.message);
+      setLoading(false);
+      return;
     }
 
-    const total = calculateInvoiceTotal(items);
-    const customerName = customers.find(c => c.id === customerId)?.name ?? "a customer";
     await supabase.from("events").insert({
       business_id: business.id,
       event_type: "invoice.created",
-      summary: `Invoice ${invoiceNumber} created for ${customerName} — ${total.toFixed(2)} ${business.currency}`,
-      evidence: { invoice_id: invoice.id, total, currency: business.currency, payment_methods: selectedMethods },
+      summary: "Invoice INV-" + invoiceNo + " created for " + (customer?.name || "customer") + " — " + money,
+      evidence: { invoice_id: invoice.id, total, currency: business.currency, payment_methods: enabledMethods.map(([key]) => key) },
       status: "info"
     });
 
-    router.push(`/dashboard/invoices/${invoice.id}`);
+    router.push("/dashboard/invoices/" + invoice.id);
   }
 
-  const total = useMemo(() => calculateInvoiceTotal(items), [items]);
-  const enabledMethods = (Object.entries(methods) as [MethodKey, boolean][]).filter(([, value]) => value).map(([key]) => METHOD_META[key].label);
+  const labelClass = "block text-[8px] uppercase tracking-[.12em] text-[#7f8a94]";
+  const fieldClass = "w-full rounded border border-[#dbe3e9] bg-white px-2.5 py-2 text-[10px] text-[#26313b] outline-none";
 
   return (
-    <main className="biz-page min-h-screen">
-      <section className="biz-content max-w-6xl mx-auto">
-        <div className="flex items-center justify-between gap-4 mb-4">
-          <Link href="/dashboard/invoices" className="text-[9px] text-white/35 hover:text-white/65">← Invoices</Link>
-          <span className="biz-chip">Draft · New invoice</span>
+    <main className="invoice-reference min-h-[calc(100vh-57px)] bg-[#eef1f4]">
+      <div className="invoice-reference-toolbar sticky top-0 z-40 flex items-center justify-between px-4 md:px-5 py-2">
+        <div className="flex items-center gap-4">
+          <Link href="/dashboard/invoices" className="text-[9px] text-[#64717d]">←</Link>
+          <b className="text-[10px] text-[#27313b]">Invoice {invoiceNo}</b>
+          <div className="hidden lg:flex gap-4 text-[8px] text-[#77838d]">
+            <button type="button" className="text-[#27313b]">Edit</button>
+            <button type="button">Email view</button>
+            <button type="button">PDF view</button>
+            <button type="button">Payor view</button>
+          </div>
         </div>
-
-        <div className="mb-5">
-          <div className="biz-section-kicker">Invoices & Payments</div>
-          <h1 className="mt-1 text-2xl md:text-3xl font-semibold tracking-tight text-white">Create a payment-ready invoice</h1>
-          <p className="biz-section-subtitle mt-2 max-w-2xl">Choose every payment route the customer can see on the invoice. Bank transfer, QR payment and card payment are independent options.</p>
+        <div className="flex gap-3 text-[8px] text-[#77838d]">
+          <button type="button">⚙ Manage</button>
+          <button type="button">▣ Take a tour</button>
+          <button type="button">◌ Feedback</button>
         </div>
+      </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="grid xl:grid-cols-[1fr_390px] gap-4 items-start">
-            <div className="space-y-4">
-              <section className="biz-panel">
-                <div className="biz-panel-head">
-                  <div>
-                    <h2 className="biz-title">Invoice details</h2>
-                    <p className="biz-subtitle">Customer, due date and line items</p>
-                  </div>
-                  <span className="biz-status border-blue-400/20 bg-blue-400/10 text-blue-300">Live records</span>
-                </div>
-                <div className="p-4 space-y-4">
-                  <div>
-                    <label className="block text-[8px] uppercase tracking-[.14em] text-white/28 mb-2">Customer</label>
-                    {customers.length === 0 ? (
-                      <div className="rounded-xl border border-orange-400/20 bg-orange-400/[.06] px-3 py-3 text-[9px] text-orange-200/70">
-                        No customers yet. <Link href="/dashboard/customers" className="text-orange-200 underline">Add a customer</Link> before creating this invoice.
-                      </div>
-                    ) : (
-                      <select value={customerId} onChange={e => setCustomerId(e.target.value)} required className="w-full rounded-xl border border-white/[.09] bg-white/[.035] px-3 py-3 text-[10px] text-white outline-none focus:border-blue-400/35">
-                        <option value="">Select a customer</option>
-                        {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                      </select>
-                    )}
-                  </div>
+      <div className="invoice-reference-subbar sticky top-[41px] z-30 flex items-center gap-3 px-4 md:px-5 py-2">
+        <span className="text-[8px] text-[#89949e]">Editing</span>
+        <span className="text-[#c5cdd3]">/</span>
+        <b className="text-[8px] text-[#33404a]">Invoice settings</b>
+        <span className="ml-auto text-[8px] text-[#96a0a8]">Draft · Auto-saved layout</span>
+      </div>
 
-                  <div className="grid md:grid-cols-2 gap-3">
-                    <label className="block">
-                      <span className="block text-[8px] uppercase tracking-[.14em] text-white/28 mb-2">Due date</span>
-                      <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full rounded-xl border border-white/[.09] bg-white/[.035] px-3 py-3 text-[10px] text-white outline-none" />
-                    </label>
-                    <div>
-                      <span className="block text-[8px] uppercase tracking-[.14em] text-white/28 mb-2">Selected payment routes</span>
-                      <div className="rounded-xl border border-blue-400/15 bg-blue-400/[.05] px-3 py-3 text-[9px] text-blue-100/70">{enabledMethods.join(" · ") || "None"}</div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-[8px] uppercase tracking-[.14em] text-white/28">Line items</label>
-                      <button type="button" onClick={addLine} className="text-[8px] text-blue-300 hover:text-blue-200">+ Add line</button>
-                    </div>
-                    <div className="rounded-xl border border-white/[.07] overflow-hidden">
-                      <div className="grid grid-cols-[1fr_70px_100px] gap-2 px-3 py-2 bg-white/[.025] text-[7px] uppercase tracking-[.12em] text-white/20">
-                        <span>Description</span><span className="text-right">Qty</span><span className="text-right">Unit price</span>
-                      </div>
-                      {items.map((item, i) => (
-                        <div key={i} className="grid grid-cols-[1fr_70px_100px] gap-2 px-3 py-2 border-t border-white/[.06]">
-                          <input value={item.description} onChange={e => updateItem(i, "description", e.target.value)} placeholder="Service or product" className="min-w-0 rounded-lg border border-white/[.06] bg-white/[.02] px-2.5 py-2 text-[9px] text-white outline-none" />
-                          <input type="number" min={0} value={item.quantity} onChange={e => updateItem(i, "quantity", e.target.value)} className="rounded-lg border border-white/[.06] bg-white/[.02] px-2 py-2 text-[9px] text-white outline-none text-right" />
-                          <input type="number" min={0} step="0.01" value={item.unit_price} onChange={e => updateItem(i, "unit_price", e.target.value)} className="rounded-lg border border-white/[.06] bg-white/[.02] px-2 py-2 text-[9px] text-white outline-none text-right" />
-                        </div>
-                      ))}
-                    </div>
+      <form onSubmit={e => { e.preventDefault(); void saveInvoice(); }} className="invoice-reference-layout grid xl:grid-cols-[minmax(0,1fr)_340px] max-w-[1650px] mx-auto">
+        <section className="p-3 md:p-5 overflow-x-auto">
+          <div className="invoice-document min-w-[800px] bg-white border border-[#dce3e8] shadow-[0_18px_45px_rgba(18,28,38,.10)]">
+            <div className="px-8 pt-7 pb-5 border-b border-[#e4e9ee] flex justify-between gap-8">
+              <div>
+                <div className="text-[20px] font-semibold tracking-[.08em] text-[#111827]">INVOICE</div>
+                <div className="mt-1 text-[9px] text-[#7d8a95]">{business?.name || "Your business"}</div>
+                <div className="mt-5 text-[8px] leading-4 text-[#8a969f]">
+                  <div>{business?.name || "Business name"}</div>
+                  <div>Business address · Contact email · Phone</div>
+                  <div>{business?.currency || "USD"} · Professional billing document</div>
+                </div>
+              </div>
+              <div className="flex gap-5 items-start">
+                <div className="h-14 w-14 rounded-full border-2 border-[#d6dfe5] grid place-items-center text-[8px] text-[#7d8a94]">LOGO</div>
+                <div className="text-right">
+                  <label className={labelClass}>Invoice no.</label>
+                  <input value={invoiceNo} onChange={e => setInvoiceNo(e.target.value)} className="mt-1 w-28 rounded border border-[#dbe3e9] px-2 py-1.5 text-right text-[10px] text-[#26313b]" />
+                  <div className="mt-4 grid grid-cols-[72px_112px] gap-x-2 gap-y-2 items-center text-[8px]">
+                    <span className="text-[#87939d]">Terms</span>
+                    <input value={terms} onChange={e => setTerms(e.target.value)} className="rounded border border-[#dbe3e9] px-2 py-1.5 text-[#26313b]" />
+                    <span className="text-[#87939d]">Invoice date</span>
+                    <input type="date" value={invoiceDate} onChange={e => setInvoiceDate(e.target.value)} className="rounded border border-[#dbe3e9] px-2 py-1.5 text-[#26313b]" />
+                    <span className="text-[#87939d]">Due date</span>
+                    <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="rounded border border-[#dbe3e9] px-2 py-1.5 text-[#26313b]" />
                   </div>
                 </div>
-              </section>
-
-              <section className="biz-panel">
-                <div className="biz-panel-head">
-                  <div>
-                    <h2 className="biz-title">Accept payment via</h2>
-                    <p className="biz-subtitle">These choices appear to the customer when they open the invoice.</p>
-                  </div>
-                  <span className="biz-chip">3 options</span>
-                </div>
-                <div className="p-4 grid md:grid-cols-3 gap-3">
-                  {(Object.keys(METHOD_META) as MethodKey[]).map(key => {
-                    const meta = METHOD_META[key];
-                    const enabled = methods[key];
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => setMethods(prev => ({ ...prev, [key]: !prev[key] }))}
-                        className={"text-left rounded-2xl border p-4 transition " + (enabled ? "bg-gradient-to-br " + meta.tone + " shadow-[0_8px_30px_rgba(35,91,255,.08)]" : "border-white/[.07] bg-white/[.02] opacity-55 hover:opacity-85")}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="grid h-9 w-9 place-items-center rounded-xl bg-white/[.07] text-[11px] text-white/70">{meta.icon}</div>
-                          <span className={"biz-status " + (enabled ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300" : "border-white/10 bg-white/[.04] text-white/30")}>{enabled ? "Enabled" : "Off"}</span>
-                        </div>
-                        <div className="mt-4 text-[10px] font-semibold text-white/80">{meta.label}</div>
-                        <p className="mt-1 text-[8px] leading-4 text-white/32">{meta.detail}</p>
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="px-4 pb-4">
-                  <div className="rounded-xl border border-indigo-400/15 bg-indigo-400/[.045] px-3 py-3 text-[8px] leading-4 text-indigo-100/50">
-                    Card payment is now a selectable invoice method. A real card checkout still requires an active payment processor connection such as Stripe; BizStack will not pretend the charge completed without a verified processor response.
-                  </div>
-                </div>
-              </section>
+              </div>
             </div>
 
-            <aside className="space-y-4 xl:sticky xl:top-16">
-              <section className="biz-panel overflow-visible">
-                <div className="p-5 bg-gradient-to-br from-blue-500/[.12] via-indigo-500/[.07] to-violet-500/[.12]">
-                  <div className="text-[8px] uppercase tracking-[.18em] text-blue-200/50">Invoice preview</div>
-                  <div className="mt-3 text-3xl font-semibold tracking-tight text-white">{total.toFixed(2)}</div>
-                  <div className="mt-1 text-[8px] text-white/30">Invoice total · live calculation</div>
-                  <div className="mt-5 h-px bg-white/[.08]" />
-                  <div className="mt-4 space-y-2">
-                    <div className="flex justify-between text-[8px]"><span className="text-white/30">Customer</span><span className="text-white/65">{customers.find(c => c.id === customerId)?.name || "Not selected"}</span></div>
-                    <div className="flex justify-between text-[8px]"><span className="text-white/30">Due</span><span className="text-white/65">{dueDate || "Not set"}</span></div>
-                    <div className="flex justify-between text-[8px]"><span className="text-white/30">Payment routes</span><span className="text-right text-white/65 max-w-[190px]">{enabledMethods.join(", ") || "None"}</span></div>
+            <div className="bg-[#edf5fb] px-8 py-4 border-b border-[#dce7ef] grid md:grid-cols-2 gap-6">
+              <div>
+                <label className={labelClass}>Bill to</label>
+                {customers.length ? (
+                  <select value={customerId} onChange={e => setCustomerId(e.target.value)} className="mt-1 w-full rounded border border-[#c9d8e3] bg-white px-2.5 py-2 text-[10px] text-[#26313b]" required>
+                    <option value="">Select customer</option>
+                    {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                ) : (
+                  <p className="mt-2 text-[9px] text-orange-700">No customers yet. <Link href="/dashboard/customers" className="underline">Add customer</Link>.</p>
+                )}
+                {customer && <div className="mt-2 text-[8px] text-[#70808c]">{customer.email || "No email"} · {customer.phone || "No phone"}</div>}
+              </div>
+              <div className="md:text-right">
+                <label className={labelClass}>Customer payment options <button type="button" className="normal-case tracking-normal text-[#43836f] underline">Edit</button></label>
+                <div className="mt-2 flex md:justify-end flex-wrap gap-1.5">
+                  {enabledMethods.map(([key]) => <span key={key} className="rounded border border-[#c9dadf] bg-white px-2 py-1 text-[8px] text-[#58737a]">{METHOD_META[key].label}</span>)}
+                </div>
+              </div>
+            </div>
+
+            <div className="px-8 pt-5 pb-8">
+              <div className="flex justify-between items-center mb-3">
+                <div><div className="text-[11px] font-semibold text-[#27313b]">Product or Service</div><div className="mt-1 text-[8px] text-[#97a1aa]">Add as many rows as this invoice needs.</div></div>
+                <button type="button" onClick={addLine} className="rounded border border-[#cfd9df] bg-white px-2.5 py-1.5 text-[8px] text-[#50606a]">+ Add product or service</button>
+              </div>
+
+              <div className="border border-[#dce3e8]">
+                <div className="grid grid-cols-[20px_minmax(0,1.7fr)_minmax(0,1fr)_62px_86px_92px_24px] bg-[#f7f9fa] px-2 py-2 text-[7px] uppercase tracking-[.12em] text-[#8a96a0]">
+                  <span></span><span>Product/service</span><span>Description</span><span className="text-right">Qty</span><span className="text-right">Rate</span><span className="text-right">Amount</span><span></span>
+                </div>
+                {items.map((item, index) => (
+                  <div key={index} className="grid grid-cols-[20px_minmax(0,1.7fr)_minmax(0,1fr)_62px_86px_92px_24px] items-center gap-1 border-t border-[#edf0f2] px-2 py-2">
+                    <span className="text-[#a0acb5] text-[9px]">⋮</span>
+                    <input value={item.description} onChange={e => updateItem(index, "description", e.target.value)} placeholder="Product or service" className={fieldClass} />
+                    <input placeholder="Optional detail" className={fieldClass} />
+                    <input type="number" min="1" value={item.quantity} onChange={e => updateItem(index, "quantity", e.target.value)} className={fieldClass + " text-right"} />
+                    <input type="number" min="0" step="0.01" value={item.unit_price} onChange={e => updateItem(index, "unit_price", e.target.value)} className={fieldClass + " text-right"} />
+                    <div className="text-right text-[9px] text-[#394650]">{(item.quantity * item.unit_price).toFixed(2)}</div>
+                    <button type="button" onClick={() => removeLine(index)} className="text-[#a4afb8] hover:text-red-500">×</button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-5 grid lg:grid-cols-[1fr_285px] gap-7">
+                <div className="space-y-3">
+                  <div>
+                    <label className={labelClass}>Customer payment options <button type="button" className="normal-case tracking-normal text-[#43836f] underline">Edit</button></label>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {enabledMethods.map(([key]) => <button key={key} type="button" onClick={() => setMethods(prev => ({...prev, [key]: !prev[key]}))} className="rounded border border-[#dce5ea] bg-[#f9fbfc] px-2 py-1 text-[8px] text-[#5a6973]">{METHOD_META[key].label} ×</button>)}
+                    </div>
+                  </div>
+                  <div><label className={labelClass}>Tell your customer</label><textarea value={customerNote} onChange={e => setCustomerNote(e.target.value)} rows={3} className={fieldClass + " mt-1 resize-none"} /></div>
+                  <div><label className={labelClass}>Memo on statement (hidden)</label><textarea value={statementMemo} onChange={e => setStatementMemo(e.target.value)} rows={2} placeholder="Internal statement memo" className={fieldClass + " mt-1 resize-none"} /></div>
+                  <div>
+                    <label className={labelClass}>Attachments</label>
+                    <input ref={attachmentRef} type="file" multiple className="hidden" onChange={e => setAttachments(Array.from(e.target.files || []).map(file => file.name))} />
+                    <button type="button" onClick={() => attachmentRef.current?.click()} className="mt-1 w-full rounded border border-dashed border-[#cbd6dd] bg-[#fbfcfd] py-5 text-[8px] text-[#7c8993]">Add attachment · PDF, image or document</button>
+                    {attachments.length > 0 && <div className="mt-2 space-y-1">{attachments.map(name => <div key={name} className="text-[8px] text-[#5f6e79]">• {name}</div>)}</div>}
                   </div>
                 </div>
-                <div className="p-4 border-t border-white/[.07]">
-                  {error && <div className="mb-3 rounded-xl border border-rose-400/20 bg-rose-400/[.07] px-3 py-3 text-[9px] text-rose-200">{error}</div>}
-                  <button type="submit" disabled={loading || customers.length === 0} className="w-full rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 px-4 py-3 text-[9px] font-semibold text-white shadow-[0_10px_28px_rgba(57,84,255,.25)] disabled:opacity-30">
-                    {loading ? "Creating invoice…" : "Create invoice"}
-                  </button>
-                </div>
-              </section>
 
-              <div className="biz-panel p-4">
-                <div className="flex items-center gap-2"><span className="grid h-7 w-7 place-items-center rounded-lg bg-emerald-400/10 text-emerald-300 text-[9px]">✓</span><span className="text-[9px] font-medium text-white/70">Payment choices stay on the invoice</span></div>
-                <p className="mt-2 text-[8px] leading-4 text-white/25">Your invoice records the selected routes so the customer sees the same options later.</p>
+                <div>
+                  <div className="space-y-2 text-[9px] text-[#67737d]">
+                    <div className="flex justify-between"><span>Subtotal</span><span>{total.toFixed(2)}</span></div>
+                    <div className="flex justify-between"><span>Shipping</span><span>{shippingEnabled ? "Set" : "0.00"}</span></div>
+                    <div className="flex justify-between"><span>Discount</span><span>{discountEnabled ? "Set" : "0.00"}</span></div>
+                    <div className="flex justify-between"><span>Sales tax</span><span>0.00</span></div>
+                    <div className="h-px bg-[#dfe5ea]"></div>
+                    <div className="flex justify-between text-[15px] font-semibold text-[#27313b]"><span>Total</span><span>{money}</span></div>
+                  </div>
+                  <div className="mt-5 rounded border border-[#d8e4ea] bg-[#f4f8fa] px-3 py-3 text-[8px] text-[#6f7f89]">
+                    <b className="text-[#44535d]">Payment details</b>
+                    <div className="mt-2">{business?.bank_name || "Bank transfer"} · {business?.bank_account_number || "Set bank details in Business Settings"}</div>
+                  </div>
+                  <div className="mt-4 rounded border border-[#dce4e9] px-3 py-3 text-[8px] text-[#82909b]">Thanks for your business.</div>
+                </div>
               </div>
-            </aside>
+            </div>
           </div>
-        </form>
-      </section>
+        </section>
+
+        <aside className="invoice-reference-inspector bg-white border-l border-[#dfe5ea] min-h-full p-3 md:p-4 xl:sticky xl:top-[76px] self-start">
+          <div className="text-[11px] font-semibold text-[#27313b]">Invoice {invoiceNo}</div>
+          <div className="mt-1 mb-3 text-[8px] text-[#7d8992]">Edit default settings</div>
+
+          <section className="invoice-setting-card">
+            <button type="button" onClick={() => toggle("customization")} className="invoice-setting-head"><span>Customization</span><span>{inspector.customization ? "⌃" : "⌄"}</span></button>
+            {inspector.customization && <div className="invoice-setting-body space-y-2"><div className="text-[8px] text-[#7f8b94]">Business identity and customer-facing presentation.</div><div className="grid grid-cols-2 gap-2"><button type="button" className="invoice-setting-choice">Business identity</button><button type="button" className="invoice-setting-choice">Customer copy</button></div></div>}
+          </section>
+
+          <section className="invoice-setting-card mt-2">
+            <button type="button" onClick={() => toggle("payments")} className="invoice-setting-head"><span>Payments</span><span>{inspector.payments ? "⌃" : "⌄"}</span></button>
+            {inspector.payments && <div className="invoice-setting-body">
+              <div className="text-[8px] text-[#77848d] mb-3">Your business pays the fee</div>
+              {(Object.entries(methods) as [MethodKey, boolean][]).map(([key, on]) => <button key={key} type="button" onClick={() => setMethods(prev => ({...prev,[key]:!prev[key]}))} className="invoice-toggle-row"><span><b>{METHOD_META[key].label}</b><small>{METHOD_META[key].detail}</small></span><span className={"invoice-toggle " + (on ? "on" : "off")}></span></button>)}
+              <div className="pt-2 mt-2 border-t border-[#edf0f2] text-[7px] text-[#8d989f]">Real card charging requires a connected processor.</div>
+            </div>}
+          </section>
+
+          <section className="invoice-setting-card mt-2">
+            <button type="button" onClick={() => toggle("options")} className="invoice-setting-head"><span>More options</span><span>{inspector.options ? "⌃" : "⌄"}</span></button>
+            {inspector.options && <div className="invoice-setting-body space-y-2">
+              <div className="invoice-setting-row"><span>Invoice total</span><span className="text-[9px] font-semibold text-[#27313b]">{money}</span></div>
+              <button type="button" onClick={() => setDepositEnabled(v => !v)} className="invoice-setting-row"><span>Deposit</span><span className={"invoice-toggle " + (depositEnabled ? "on" : "off")}></span></button>
+              <button type="button" onClick={() => setDiscountEnabled(v => !v)} className="invoice-setting-row"><span>Discount</span><span className={"invoice-toggle " + (discountEnabled ? "on" : "off")}></span></button>
+              <button type="button" onClick={() => setShippingEnabled(v => !v)} className="invoice-setting-row"><span>Shipping fee</span><span className={"invoice-toggle " + (shippingEnabled ? "on" : "off")}></span></button>
+              <button type="button" onClick={() => setMulticurrency(v => !v)} className="invoice-setting-row"><span>Multi-currency</span><span className={"invoice-toggle " + (multicurrency ? "on" : "off")}></span></button>
+              <button type="button" onClick={() => setLateFeeEnabled(v => !v)} className="invoice-setting-row"><span>Late fee</span><span className={"invoice-toggle " + (lateFeeEnabled ? "on" : "off")}></span></button>
+              <button type="button" onClick={() => setTipEnabled(v => !v)} className="invoice-setting-row"><span>Tips</span><span className={"invoice-toggle " + (tipEnabled ? "on" : "off")}></span></button>
+            </div>}
+          </section>
+
+          <section className="invoice-setting-card mt-2">
+            <button type="button" onClick={() => toggle("design")} className="invoice-setting-head"><span>Design</span><span>{inspector.design ? "⌃" : "⌄"}</span></button>
+            {inspector.design && <div className="invoice-setting-body space-y-2 text-[8px] text-[#71808a]"><div className="invoice-setting-choice">Paper · A4 / Letter</div><div className="invoice-setting-choice">Density · Compact</div><div className="invoice-setting-choice">Logo · Business mark</div><div className="invoice-setting-choice">Accent · Business brand</div></div>}
+          </section>
+
+          <section className="invoice-setting-card mt-2">
+            <button type="button" onClick={() => toggle("scheduling")} className="invoice-setting-head"><span>Scheduling</span><span>{inspector.scheduling ? "⌃" : "⌄"}</span></button>
+            {inspector.scheduling && <div className="invoice-setting-body space-y-2 text-[8px] leading-4 text-[#71808a]"><div>Send on: Manual</div><div>Reminder: 7 days before due</div><div>Follow-up: 1 day after due</div></div>}
+          </section>
+
+          <div className="mt-4 border-t border-[#e1e7eb] pt-3 flex items-center justify-between gap-2">
+            <span className="text-[8px] text-[#9aa4ad]">Print and download</span>
+            <button type="submit" disabled={loading} className="rounded border border-[#49a26f] bg-white px-3 py-2 text-[8px] font-semibold text-[#27754d]">{loading ? "Saving…" : "Save"}</button>
+            <button type="button" disabled={loading} onClick={() => void saveInvoice()} className="rounded bg-[#158343] px-3 py-2 text-[8px] font-semibold text-white">{loading ? "Saving…" : "Review and send ▾"}</button>
+          </div>
+
+          {error && <div className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-[8px] leading-4 text-red-700">{error}</div>}
+        </aside>
+      </form>
     </main>
   );
 }
